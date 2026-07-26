@@ -1669,7 +1669,9 @@ export default function App() {
             },
             { id: "today", icon: CalendarCheck, label: "Daily Plan" },
             { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
-            { id: "notes", icon: FileText, label: "Image Notes" },
+            {
+              /* { id: "notes", icon: FileText, label: "Image Notes" } */
+            },
             { id: "quant", icon: Calculator, label: "Quant Rotation" },
             { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
             { id: "mocks", icon: LineChart, label: "Mock Tracker" },
@@ -1702,9 +1704,9 @@ export default function App() {
             <DailyPlan timeline={currentHistory.timeline} />
           )}
           {activeView === "vocab" && <VocabTracker />}
-          {activeView === "notes" && (
+          {/* {activeView === "notes" && (
             <ImageNotesView imageNotes={currentHistory.imageNotes || []} />
-          )}
+          )} */}
           {activeView === "quant" && (
             <QuantRotation quant={currentHistory.quant} />
           )}
@@ -3691,322 +3693,322 @@ function HabitTracker() {
 }
 
 // --- IMAGE NOTES VIEW ---
-function ImageNotesView({ imageNotes }) {
-  const { updateHistory, requestConfirm, notify } = useAppStore();
-  const [topic, setTopic] = useState("");
-  const [imagePreview, setImagePreview] = useState(null);
+// function ImageNotesView({ imageNotes }) {
+//   const { updateHistory, requestConfirm, notify } = useAppStore();
+//   const [topic, setTopic] = useState("");
+//   const [imagePreview, setImagePreview] = useState(null);
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) notify("Compressing image...", "info");
-      compressImage(file, (base64) => setImagePreview(base64));
-    }
-  };
+//   const handleImageChange = (e) => {
+//     const file = e.target.files[0];
+//     if (file) {
+//       if (file.size > 2 * 1024 * 1024) notify("Compressing image...", "info");
+//       compressImage(file, (base64) => setImagePreview(base64));
+//     }
+//   };
 
-  const handleAddNote = () => {
-    if (!topic.trim() || !imagePreview)
-      return notify("Please specify a topic title.", "error");
+//   const handleAddNote = () => {
+//     if (!topic.trim() || !imagePreview)
+//       return notify("Please specify a topic title.", "error");
 
-    const newNote = {
-      id: Date.now().toString(),
-      topic,
-      image: imagePreview,
-      timestamp: new Date().toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-    updateHistory({ imageNotes: [newNote, ...imageNotes] });
-    setTopic("");
-    setImagePreview(null);
-    notify("Visual Note Added!", "success");
-  };
+//     const newNote = {
+//       id: Date.now().toString(),
+//       topic,
+//       image: imagePreview,
+//       timestamp: new Date().toLocaleTimeString("en-US", {
+//         hour: "2-digit",
+//         minute: "2-digit",
+//       }),
+//     };
+//     updateHistory({ imageNotes: [newNote, ...imageNotes] });
+//     setTopic("");
+//     setImagePreview(null);
+//     notify("Visual Note Added!", "success");
+//   };
 
-  const handleDelete = (id) => {
-    requestConfirm("Are you sure you want to delete this visual note?", () => {
-      updateHistory({
-        imageNotes: imageNotes.filter((note) => note.id !== id),
-      });
-      notify("Note deleted", "info");
-    });
-  };
+//   const handleDelete = (id) => {
+//     requestConfirm("Are you sure you want to delete this visual note?", () => {
+//       updateHistory({
+//         imageNotes: imageNotes.filter((note) => note.id !== id),
+//       });
+//       notify("Note deleted", "info");
+//     });
+//   };
 
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Visual Notes</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Capture diagrams, formulas, and tricky screenshots.
-          </p>
-        </div>
-      </div>
+//   return (
+//     <div>
+//       <div className="page-header">
+//         <div>
+//           <h1 style={{ fontSize: "28px" }}>Visual Notes</h1>
+//           <p style={{ color: "var(--text-muted)" }}>
+//             Capture diagrams, formulas, and tricky screenshots.
+//           </p>
+//         </div>
+//       </div>
 
-      <div className="card" style={{ marginBottom: "32px", padding: "24px" }}>
-        <h3
-          style={{
-            fontSize: "18px",
-            marginBottom: "20px",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
-        >
-          <UploadCloud size={20} color="var(--accent)" /> Upload New Visual Note
-        </h3>
+//       <div className="card" style={{ marginBottom: "32px", padding: "24px" }}>
+//         <h3
+//           style={{
+//             fontSize: "18px",
+//             marginBottom: "20px",
+//             display: "flex",
+//             alignItems: "center",
+//             gap: "8px",
+//           }}
+//         >
+//           <UploadCloud size={20} color="var(--accent)" /> Upload New Visual Note
+//         </h3>
 
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "24px",
-            alignItems: "flex-start",
-          }}
-        >
-          <div
-            style={{
-              flex: "1 1 300px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "var(--text-muted)",
-                  marginBottom: "8px",
-                  display: "block",
-                }}
-              >
-                Topic / Title
-              </label>
-              <input
-                type="text"
-                className="custom-input"
-                placeholder="e.g., Number Series Pattern Trick..."
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-              />
-            </div>
-            <div>
-              <label
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "var(--text-muted)",
-                  marginBottom: "8px",
-                  display: "block",
-                }}
-              >
-                Select Image
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                className="custom-input"
-                onChange={handleImageChange}
-                style={{ padding: "8px", cursor: "pointer" }}
-              />
-            </div>
-            <button
-              className="btn"
-              onClick={handleAddNote}
-              style={{
-                width: "100%",
-                justifyContent: "center",
-                marginTop: "8px",
-              }}
-            >
-              <Plus size={16} /> Save Image Note
-            </button>
-          </div>
+//         <div
+//           style={{
+//             display: "flex",
+//             flexWrap: "wrap",
+//             gap: "24px",
+//             alignItems: "flex-start",
+//           }}
+//         >
+//           <div
+//             style={{
+//               flex: "1 1 300px",
+//               display: "flex",
+//               flexDirection: "column",
+//               gap: "16px",
+//             }}
+//           >
+//             <div>
+//               <label
+//                 style={{
+//                   fontSize: "13px",
+//                   fontWeight: 600,
+//                   color: "var(--text-muted)",
+//                   marginBottom: "8px",
+//                   display: "block",
+//                 }}
+//               >
+//                 Topic / Title
+//               </label>
+//               <input
+//                 type="text"
+//                 className="custom-input"
+//                 placeholder="e.g., Number Series Pattern Trick..."
+//                 value={topic}
+//                 onChange={(e) => setTopic(e.target.value)}
+//               />
+//             </div>
+//             <div>
+//               <label
+//                 style={{
+//                   fontSize: "13px",
+//                   fontWeight: 600,
+//                   color: "var(--text-muted)",
+//                   marginBottom: "8px",
+//                   display: "block",
+//                 }}
+//               >
+//                 Select Image
+//               </label>
+//               <input
+//                 type="file"
+//                 accept="image/*"
+//                 className="custom-input"
+//                 onChange={handleImageChange}
+//                 style={{ padding: "8px", cursor: "pointer" }}
+//               />
+//             </div>
+//             <button
+//               className="btn"
+//               onClick={handleAddNote}
+//               style={{
+//                 width: "100%",
+//                 justifyContent: "center",
+//                 marginTop: "8px",
+//               }}
+//             >
+//               <Plus size={16} /> Save Image Note
+//             </button>
+//           </div>
 
-          <div
-            style={{
-              flex: "1 1 300px",
-              height: "220px",
-              border: "2px dashed var(--border)",
-              borderRadius: "12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(0,0,0,0.02)",
-              overflow: "hidden",
-            }}
-          >
-            {imagePreview ? (
-              <img
-                src={imagePreview}
-                alt="Preview"
-                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              />
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  color: "var(--text-muted)",
-                  gap: "8px",
-                }}
-              >
-                <ImageIcon size={32} opacity={0.5} />
-                <span style={{ fontSize: "13px", fontWeight: 500 }}>
-                  Image Preview Area
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+//           <div
+//             style={{
+//               flex: "1 1 300px",
+//               height: "220px",
+//               border: "2px dashed var(--border)",
+//               borderRadius: "12px",
+//               display: "flex",
+//               alignItems: "center",
+//               justifyContent: "center",
+//               background: "rgba(0,0,0,0.02)",
+//               overflow: "hidden",
+//             }}
+//           >
+//             {imagePreview ? (
+//               <img
+//                 src={imagePreview}
+//                 alt="Preview"
+//                 style={{ width: "100%", height: "100%", objectFit: "contain" }}
+//               />
+//             ) : (
+//               <div
+//                 style={{
+//                   display: "flex",
+//                   flexDirection: "column",
+//                   alignItems: "center",
+//                   color: "var(--text-muted)",
+//                   gap: "8px",
+//                 }}
+//               >
+//                 <ImageIcon size={32} opacity={0.5} />
+//                 <span style={{ fontSize: "13px", fontWeight: 500 }}>
+//                   Image Preview Area
+//                 </span>
+//               </div>
+//             )}
+//           </div>
+//         </div>
+//       </div>
 
-      <h3
-        style={{
-          fontSize: "18px",
-          fontWeight: 600,
-          marginBottom: "16px",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-        }}
-      >
-        Saved Visuals{" "}
-        <span
-          style={{
-            background: "rgba(99, 102, 241, 0.1)",
-            color: "var(--accent)",
-            padding: "2px 8px",
-            borderRadius: "12px",
-            fontSize: "12px",
-          }}
-        >
-          {imageNotes.length}
-        </span>
-      </h3>
+//       <h3
+//         style={{
+//           fontSize: "18px",
+//           fontWeight: 600,
+//           marginBottom: "16px",
+//           display: "flex",
+//           alignItems: "center",
+//           gap: "8px",
+//         }}
+//       >
+//         Saved Visuals{" "}
+//         <span
+//           style={{
+//             background: "rgba(99, 102, 241, 0.1)",
+//             color: "var(--accent)",
+//             padding: "2px 8px",
+//             borderRadius: "12px",
+//             fontSize: "12px",
+//           }}
+//         >
+//           {imageNotes.length}
+//         </span>
+//       </h3>
 
-      {imageNotes.length === 0 ? (
-        <div
-          className="card"
-          style={{
-            textAlign: "center",
-            padding: "60px",
-            color: "var(--text-muted)",
-          }}
-        >
-          <ImageIcon
-            size={48}
-            style={{
-              opacity: 0.2,
-              margin: "0 auto 16px auto",
-              display: "block",
-            }}
-          />
-          No visual notes stored for this date.
-        </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: "24px",
-          }}
-        >
-          {imageNotes.map((note) => (
-            <div
-              key={note.id}
-              className="card"
-              style={{
-                padding: 0,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <div
-                style={{
-                  padding: "16px 20px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  borderBottom: "1px solid var(--border)",
-                  background: "rgba(0,0,0,0.01)",
-                }}
-              >
-                <div>
-                  <h4
-                    style={{
-                      margin: "0 0 4px 0",
-                      fontSize: "16px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {note.topic}
-                  </h4>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                    }}
-                  >
-                    <Clock size={12} /> {note.timestamp}
-                  </div>
-                </div>
-                <button
-                  className="icon-btn-minimal"
-                  onClick={() => handleDelete(note.id)}
-                  title="Delete Note"
-                  style={{
-                    color: "var(--danger)",
-                    background: "rgba(239, 68, 68, 0.1)",
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-              <div
-                style={{
-                  background: "var(--bg)",
-                  padding: "16px",
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <img
-                  src={note.image}
-                  alt={note.topic}
-                  style={{
-                    width: "100%",
-                    maxHeight: "250px",
-                    objectFit: "contain",
-                    borderRadius: "8px",
-                    cursor: "zoom-in",
-                  }}
-                  onClick={() => {
-                    const w = window.open("");
-                    w.document.write(
-                      `<img src="${note.image}" style="width:100%; height:100%; object-fit:contain; background:#000;" />`,
-                    );
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+//       {imageNotes.length === 0 ? (
+//         <div
+//           className="card"
+//           style={{
+//             textAlign: "center",
+//             padding: "60px",
+//             color: "var(--text-muted)",
+//           }}
+//         >
+//           <ImageIcon
+//             size={48}
+//             style={{
+//               opacity: 0.2,
+//               margin: "0 auto 16px auto",
+//               display: "block",
+//             }}
+//           />
+//           No visual notes stored for this date.
+//         </div>
+//       ) : (
+//         <div
+//           style={{
+//             display: "grid",
+//             gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+//             gap: "24px",
+//           }}
+//         >
+//           {imageNotes.map((note) => (
+//             <div
+//               key={note.id}
+//               className="card"
+//               style={{
+//                 padding: 0,
+//                 overflow: "hidden",
+//                 display: "flex",
+//                 flexDirection: "column",
+//               }}
+//             >
+//               <div
+//                 style={{
+//                   padding: "16px 20px",
+//                   display: "flex",
+//                   justifyContent: "space-between",
+//                   alignItems: "center",
+//                   borderBottom: "1px solid var(--border)",
+//                   background: "rgba(0,0,0,0.01)",
+//                 }}
+//               >
+//                 <div>
+//                   <h4
+//                     style={{
+//                       margin: "0 0 4px 0",
+//                       fontSize: "16px",
+//                       fontWeight: 600,
+//                     }}
+//                   >
+//                     {note.topic}
+//                   </h4>
+//                   <div
+//                     style={{
+//                       fontSize: "12px",
+//                       color: "var(--text-muted)",
+//                       display: "flex",
+//                       alignItems: "center",
+//                       gap: "4px",
+//                     }}
+//                   >
+//                     <Clock size={12} /> {note.timestamp}
+//                   </div>
+//                 </div>
+//                 <button
+//                   className="icon-btn-minimal"
+//                   onClick={() => handleDelete(note.id)}
+//                   title="Delete Note"
+//                   style={{
+//                     color: "var(--danger)",
+//                     background: "rgba(239, 68, 68, 0.1)",
+//                     width: "32px",
+//                     height: "32px",
+//                     borderRadius: "8px",
+//                   }}
+//                 >
+//                   <Trash2 size={16} />
+//                 </button>
+//               </div>
+//               <div
+//                 style={{
+//                   background: "var(--bg)",
+//                   padding: "16px",
+//                   display: "flex",
+//                   justifyContent: "center",
+//                   alignItems: "center",
+//                 }}
+//               >
+//                 <img
+//                   src={note.image}
+//                   alt={note.topic}
+//                   style={{
+//                     width: "100%",
+//                     maxHeight: "250px",
+//                     objectFit: "contain",
+//                     borderRadius: "8px",
+//                     cursor: "zoom-in",
+//                   }}
+//                   onClick={() => {
+//                     const w = window.open("");
+//                     w.document.write(
+//                       `<img src="${note.image}" style="width:100%; height:100%; object-fit:contain; background:#000;" />`,
+//                     );
+//                   }}
+//                 />
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
 
 function QuantRotation({ quant = [] }) {
   const { updateHistory } = useAppStore();
