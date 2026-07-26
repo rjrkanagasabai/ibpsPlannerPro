@@ -308,14 +308,19 @@ const shuffleArray = (array) => {
 export const useAppStore = create(
   persist(
     (set, get) => ({
+      // Auth State
       user: null,
       session: null,
       authLoading: true,
+
+      // UI State
       theme: "light",
       activeView: "dashboard",
       selectedDate: getFormattedDateStr(),
       toasts: [],
       confirmDialog: { isOpen: false, message: "", onConfirm: null },
+
+      // App Data
       baseTimeline: defaultTimeline,
       baseHabits: defaultHabitList,
       history: {},
@@ -357,6 +362,7 @@ export const useAppStore = create(
         set({ confirmDialog: { isOpen: false, message: "", onConfirm: null } });
       },
 
+      // --- SUPABASE AUTHENTICATION ACTIONS ---
       initAuth: async () => {
         set({ authLoading: true });
         const {
@@ -443,6 +449,7 @@ export const useAppStore = create(
         );
       },
 
+      // --- DICTIONARY CLOUD CRUD WITH OPTIMISTIC UI ---
       fetchVocabFromCloud: async () => {
         const user = get().user;
         if (!user) return;
@@ -466,6 +473,7 @@ export const useAppStore = create(
         const user = get().user;
         if (!user) return;
         const noteWithUser = { ...newNote, user_id: user.id };
+
         set((state) => ({ vocab: [noteWithUser, ...state.vocab] }));
         get().notify(`Saved "${newNote.word}" to Cloud!`, "success");
 
@@ -487,7 +495,9 @@ export const useAppStore = create(
       updateVocabNote: async (noteObj) => {
         const user = get().user;
         if (!user) return;
+
         const noteWithUser = { ...noteObj, user_id: user.id };
+
         set((state) => ({
           vocab: state.vocab.map((v) =>
             v.id === noteObj.id ? noteWithUser : v,
@@ -508,6 +518,7 @@ export const useAppStore = create(
       deleteVocabNote: async (id) => {
         const user = get().user;
         if (!user) return;
+
         set((state) => ({ vocab: state.vocab.filter((v) => v.id !== id) }));
         get().notify("Entry removed.", "info");
 
@@ -617,14 +628,14 @@ function AuthModal() {
             <Lock size={24} />
           </div>
           <h2 style={{ fontSize: "22px", margin: "0 0 6px 0" }}>
-            {isSignUp ? "Create User ID" : "Aspirant Login"}
+            {isSignUp ? "Create Aspirant ID" : "Aspirant Login"}
           </h2>
           <p
             style={{ fontSize: "13px", color: "var(--text-muted)", margin: 0 }}
           >
             {isSignUp
               ? "Set up your credentials to sync your banking prep data."
-              : "Enter your User ID and Password to access your studyspace."}
+              : "Enter your Aspirant ID and Password to access your studyspace."}
           </p>
         </div>
 
@@ -641,7 +652,7 @@ function AuthModal() {
                 marginBottom: "6px",
               }}
             >
-              User ID / Username
+              Aspirant ID / Username
             </label>
             <div style={{ position: "relative" }}>
               <User
@@ -658,7 +669,7 @@ function AuthModal() {
                 type="text"
                 className="custom-input"
                 style={{ paddingLeft: "36px" }}
-                placeholder="e.g. User_Name"
+                placeholder="e.g. Aspirant_Name"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -733,7 +744,9 @@ function AuthModal() {
             color: "var(--text-muted)",
           }}
         >
-          {isSignUp ? "Already have a User ID?" : "Don't have a User ID yet?"}{" "}
+          {isSignUp
+            ? "Already have an Aspirant ID?"
+            : "Don't have an Aspirant ID yet?"}{" "}
           <button
             onClick={() => setIsSignUp(!isSignUp)}
             style={{
@@ -747,6 +760,25 @@ function AuthModal() {
           >
             {isSignUp ? "Log In" : "Create Account"}
           </button>
+        </div>
+
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "12px",
+            background: "rgba(16, 185, 129, 0.05)",
+            borderRadius: "8px",
+            border: "1px solid rgba(16, 185, 129, 0.2)",
+            fontSize: "11px",
+            color: "var(--text-muted)",
+            lineHeight: "1.5",
+          }}
+        >
+          <strong>Privacy & Guidelines:</strong> Your scores, image notes, and
+          daily records are stored safely in your device's local storage. We
+          gather data related to Aspirant ID and Password solely to secure your
+          account, and we sync your Dictionary entries to the cloud. We do not
+          track or sell your personal data.
         </div>
       </motion.div>
     </div>
@@ -1386,6 +1418,44 @@ function UpcomingExamsWidget() {
             );
           })}
         </div>
+
+        <div
+          style={{
+            borderTop: "1px dashed var(--border)",
+            paddingTop: "20px",
+            marginTop: "8px",
+          }}
+        >
+          <h4
+            style={{
+              fontSize: "14px",
+              color: "var(--text-muted)",
+              marginBottom: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <BellRing size={14} /> Expected Notifications (Not Confirmed)
+          </h4>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+            {expectedNotifications.map((notif, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: "8px 12px",
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "20px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                }}
+              >
+                {notif}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1636,7 +1706,7 @@ function Header({ toggleSidebar, onOpenSearch }) {
   }, []);
   const todayStr = getFormattedDateStr();
 
-  const displayName = user?.user_metadata?.display_username || "Candidate";
+  const displayName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
     <header className="header">
@@ -2030,7 +2100,7 @@ function Dashboard({ history }) {
     updateHistory({ missedTasks: updated });
   };
 
-  const userName = user?.user_metadata?.display_username || "Candidate";
+  const userName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
     <div style={{ animation: "fadeIn 0.5s ease" }}>
@@ -2400,6 +2470,31 @@ function VocabTracker() {
     filteredVocab = filteredVocab.filter((v) => v.type === filterType);
   }
 
+  const renderPills = (textStr) => {
+    if (!textStr) return null;
+    const words = textStr
+      .split(",")
+      .map((w) => w.trim())
+      .filter((w) => w);
+    return words.map((w, i) => (
+      <span
+        key={i}
+        style={{
+          display: "inline-block",
+          padding: "4px 10px",
+          borderRadius: "8px",
+          fontSize: "12px",
+          fontWeight: 600,
+          background: "var(--bg)",
+          border: "1px solid var(--border)",
+          color: "var(--text-main)",
+        }}
+      >
+        {w}
+      </span>
+    ));
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -2570,74 +2665,76 @@ function VocabTracker() {
             boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
           }}
         >
+          {/* Top Row: Word & Actions */}
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "flex-start",
-              marginBottom: "20px",
-              flexWrap: "wrap",
-              gap: "12px",
+              marginBottom: "12px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-              <h2
-                style={{
-                  fontSize: "30px",
-                  margin: 0,
-                  fontWeight: 800,
-                  color: "var(--text-main)",
-                  letterSpacing: "-0.5px",
-                }}
-              >
-                {searchResult.word}
-              </h2>
-              <span
-                style={{
-                  background: "rgba(99, 102, 241, 0.1)",
-                  color: "var(--accent)",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  padding: "6px 12px",
-                  borderRadius: "20px",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                {searchResult.type}
-                {searchResult.partOfSpeech
-                  ? ` • ${searchResult.partOfSpeech}`
-                  : ""}
-              </span>
+            <h2
+              style={{
+                fontSize: "30px",
+                margin: 0,
+                fontWeight: 800,
+                color: "var(--text-main)",
+                letterSpacing: "-0.5px",
+              }}
+            >
+              {searchResult.word}
+            </h2>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               {searchResult.audio && (
                 <button
-                  className="icon-btn"
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    background: "rgba(99, 102, 241, 0.08)",
-                    border: "none",
-                  }}
+                  className="icon-btn-minimal"
                   onClick={() => playAudio(searchResult.audio)}
                   title="Listen Pronunciation"
+                  style={{ color: "var(--accent)" }}
                 >
-                  <Volume2 size={16} color="var(--accent)" />
+                  <Volume2 size={18} />
                 </button>
               )}
+              <button
+                className="btn"
+                style={{
+                  borderRadius: "12px",
+                  padding: "8px 16px",
+                  marginLeft: "12px",
+                }}
+                onClick={handleSaveSearchResult}
+              >
+                <Plus size={16} /> Save to Cloud
+              </button>
             </div>
-            <button
-              className="btn"
-              style={{ borderRadius: "12px", padding: "10px 20px" }}
-              onClick={handleSaveSearchResult}
+          </div>
+
+          {/* Badge Row */}
+          <div style={{ marginBottom: "24px" }}>
+            <span
+              style={{
+                background: "rgba(99, 102, 241, 0.1)",
+                color: "var(--accent)",
+                fontSize: "11px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                padding: "4px 12px",
+                borderRadius: "16px",
+                letterSpacing: "0.5px",
+              }}
             >
-              <Plus size={16} /> Save to Cloud
-            </button>
+              {searchResult.type}
+              {searchResult.partOfSpeech
+                ? ` • ${searchResult.partOfSpeech}`
+                : ""}
+            </span>
           </div>
 
           <div
             style={{ display: "flex", flexDirection: "column", gap: "20px" }}
           >
+            {/* Meaning Block */}
             <div>
               <span
                 style={{
@@ -2647,7 +2744,7 @@ function VocabTracker() {
                   textTransform: "uppercase",
                   letterSpacing: "0.8px",
                   display: "block",
-                  marginBottom: "6px",
+                  marginBottom: "8px",
                 }}
               >
                 Meaning
@@ -2666,101 +2763,67 @@ function VocabTracker() {
               </p>
             </div>
 
-            {/* Modern Synonyms & Antonyms Grid Section */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                gap: "16px",
-                background: "rgba(0,0,0,0.02)",
-                padding: "16px",
-                borderRadius: "14px",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div>
-                <span
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    color: "#10b981",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    display: "block",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Synonyms
-                </span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {searchResult.synonyms ? (
-                    searchResult.synonyms.split(",").map((s, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          background: "rgba(16, 185, 129, 0.12)",
-                          color: "#059669",
-                          padding: "4px 10px",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {s.trim()}
-                      </span>
-                    ))
-                  ) : (
+            {/* Synonyms & Antonyms */}
+            {(searchResult.synonyms || searchResult.antonyms) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "24px",
+                  marginTop: "12px",
+                  paddingTop: "20px",
+                  borderTop: "1px dashed var(--border)",
+                }}
+              >
+                {searchResult.synonyms && (
+                  <div style={{ flex: 1, minWidth: "150px" }}>
                     <span
-                      style={{ fontSize: "12px", color: "var(--text-muted)" }}
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
                     >
-                      None specified
+                      Synonyms
                     </span>
-                  )}
-                </div>
-              </div>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+                    >
+                      {renderPills(searchResult.synonyms)}
+                    </div>
+                  </div>
+                )}
 
-              <div>
-                <span
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    color: "#ef4444",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                    display: "block",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Antonyms
-                </span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {searchResult.antonyms ? (
-                    searchResult.antonyms.split(",").map((a, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          background: "rgba(239, 68, 68, 0.12)",
-                          color: "#dc2626",
-                          padding: "4px 10px",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {a.trim()}
-                      </span>
-                    ))
-                  ) : (
+                {searchResult.antonyms && (
+                  <div style={{ flex: 1, minWidth: "150px" }}>
                     <span
-                      style={{ fontSize: "12px", color: "var(--text-muted)" }}
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
                     >
-                      None specified
+                      Antonyms
                     </span>
-                  )}
-                </div>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+                    >
+                      {renderPills(searchResult.antonyms)}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
+            {/* Notes Context */}
             {searchResult.notes && (
               <div
                 style={{
@@ -2768,6 +2831,7 @@ function VocabTracker() {
                   padding: "16px",
                   borderRadius: "12px",
                   borderLeft: "4px solid var(--accent)",
+                  marginTop: "8px",
                 }}
               >
                 <span
@@ -2778,7 +2842,7 @@ function VocabTracker() {
                     letterSpacing: "0.8px",
                     fontWeight: 700,
                     display: "block",
-                    marginBottom: "4px",
+                    marginBottom: "6px",
                   }}
                 >
                   Usage Context
@@ -2786,7 +2850,7 @@ function VocabTracker() {
                 <span
                   style={{
                     fontStyle: "italic",
-                    fontSize: "14px",
+                    fontSize: "15px",
                     color: "var(--text-main)",
                     lineHeight: "1.5",
                   }}
@@ -2869,7 +2933,7 @@ function VocabTracker() {
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  padding: "24px",
+                  padding: "28px",
                   borderRadius: "20px",
                   border: "1px solid var(--border)",
                   boxShadow: "0 8px 24px rgba(0,0,0,0.04)",
@@ -2892,62 +2956,41 @@ function VocabTracker() {
                   ></div>
                 )}
 
-                {/* Card Header */}
+                {/* Card Header (Matches Design Image) */}
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "flex-start",
-                    marginBottom: "16px",
+                    marginBottom: "12px",
                   }}
                 >
-                  <div>
-                    <h3
-                      style={{
-                        fontSize: "22px",
-                        margin: "0 0 6px 0",
-                        fontWeight: 800,
-                        color: "var(--text-main)",
-                        letterSpacing: "-0.4px",
-                      }}
-                    >
-                      {item.word}
-                    </h3>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        padding: "4px 10px",
-                        borderRadius: "12px",
-                        background: "rgba(99, 102, 241, 0.08)",
-                        color: "var(--accent)",
-                        letterSpacing: "0.5px",
-                      }}
-                    >
-                      {item.type}
-                      {item.partOfSpeech ? ` • ${item.partOfSpeech}` : ""}
-                    </span>
-                  </div>
+                  <h3
+                    style={{
+                      fontSize: "28px",
+                      margin: 0,
+                      fontWeight: 800,
+                      color: "var(--text-main)",
+                      letterSpacing: "-0.5px",
+                    }}
+                  >
+                    {item.word}
+                  </h3>
 
-                  <div style={{ display: "flex", gap: "4px" }}>
+                  <div style={{ display: "flex", gap: "6px" }}>
                     <button
                       className="icon-btn-minimal"
                       onClick={() => toggleBookmark(item.id)}
                       title="Bookmark"
                       style={{
-                        background: isBookmarked
-                          ? "rgba(245, 158, 11, 0.1)"
-                          : "transparent",
-                        borderRadius: "10px",
+                        color: isBookmarked
+                          ? "var(--warning)"
+                          : "var(--text-muted)",
                       }}
                     >
                       <Bookmark
-                        size={16}
+                        size={18}
                         fill={isBookmarked ? "var(--warning)" : "none"}
-                        color={
-                          isBookmarked ? "var(--warning)" : "var(--text-muted)"
-                        }
                       />
                     </button>
                     <button
@@ -2956,18 +2999,36 @@ function VocabTracker() {
                         setEditingNote(item);
                         setIsModalOpen(true);
                       }}
-                      style={{ borderRadius: "10px" }}
                     >
-                      <Edit3 size={16} />
+                      <Edit3 size={18} />
                     </button>
                     <button
                       className="icon-btn-minimal"
                       onClick={() => handleDelete(item.id)}
-                      style={{ borderRadius: "10px" }}
+                      style={{ color: "var(--danger)" }}
                     >
-                      <Trash2 size={16} color="var(--danger)" />
+                      <Trash2 size={18} />
                     </button>
                   </div>
+                </div>
+
+                {/* Badge Row */}
+                <div style={{ marginBottom: "24px" }}>
+                  <span
+                    style={{
+                      background: "rgba(99, 102, 241, 0.1)",
+                      color: "var(--accent)",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      padding: "4px 12px",
+                      borderRadius: "16px",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    {item.type}
+                    {item.partOfSpeech ? ` • ${item.partOfSpeech}` : ""}
+                  </span>
                 </div>
 
                 {/* Card Body */}
@@ -2975,7 +3036,7 @@ function VocabTracker() {
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: "16px",
+                    gap: "20px",
                     flex: 1,
                   }}
                 >
@@ -2984,9 +3045,9 @@ function VocabTracker() {
                       style={{
                         fontWeight: 700,
                         color: "var(--text-muted)",
-                        fontSize: "10px",
+                        fontSize: "11px",
                         display: "block",
-                        marginBottom: "4px",
+                        marginBottom: "8px",
                         textTransform: "uppercase",
                         letterSpacing: "0.8px",
                       }}
@@ -2997,7 +3058,7 @@ function VocabTracker() {
                       style={{
                         color: "var(--text-main)",
                         fontFamily: "serif",
-                        fontSize: "15px",
+                        fontSize: "16px",
                         lineHeight: "1.6",
                         margin: 0,
                         whiteSpace: "pre-wrap",
@@ -3007,29 +3068,29 @@ function VocabTracker() {
                     </p>
                   </div>
 
-                  {/* Modern Tag Badges for Synonyms & Antonyms inside saved card */}
+                  {/* Modern Tag Layout for Synonyms & Antonyms */}
                   {(item.synonyms || item.antonyms) && (
                     <div
                       style={{
                         display: "flex",
-                        flexDirection: "column",
-                        gap: "10px",
-                        background: "rgba(0,0,0,0.02)",
-                        padding: "12px",
-                        borderRadius: "12px",
-                        border: "1px solid var(--border)",
+                        flexWrap: "wrap",
+                        gap: "24px",
+                        marginTop: "auto", // pushes down to bottom
+                        paddingTop: "20px",
+                        borderTop: "1px dashed var(--border)",
                       }}
                     >
                       {item.synonyms && (
-                        <div>
+                        <div style={{ flex: 1, minWidth: "120px" }}>
                           <span
                             style={{
-                              fontSize: "10px",
+                              fontSize: "11px",
                               fontWeight: 700,
-                              color: "#10b981",
+                              color: "var(--text-muted)",
                               textTransform: "uppercase",
                               display: "block",
-                              marginBottom: "4px",
+                              marginBottom: "8px",
+                              letterSpacing: "0.5px",
                             }}
                           >
                             Synonyms
@@ -3038,38 +3099,25 @@ function VocabTracker() {
                             style={{
                               display: "flex",
                               flexWrap: "wrap",
-                              gap: "4px",
+                              gap: "6px",
                             }}
                           >
-                            {item.synonyms.split(",").map((s, idx) => (
-                              <span
-                                key={idx}
-                                style={{
-                                  background: "rgba(16, 185, 129, 0.1)",
-                                  color: "#059669",
-                                  padding: "2px 8px",
-                                  borderRadius: "6px",
-                                  fontSize: "11px",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {s.trim()}
-                              </span>
-                            ))}
+                            {renderPills(item.synonyms)}
                           </div>
                         </div>
                       )}
 
                       {item.antonyms && (
-                        <div>
+                        <div style={{ flex: 1, minWidth: "120px" }}>
                           <span
                             style={{
-                              fontSize: "10px",
+                              fontSize: "11px",
                               fontWeight: 700,
-                              color: "#ef4444",
+                              color: "var(--text-muted)",
                               textTransform: "uppercase",
                               display: "block",
-                              marginBottom: "4px",
+                              marginBottom: "8px",
+                              letterSpacing: "0.5px",
                             }}
                           >
                             Antonyms
@@ -3078,24 +3126,10 @@ function VocabTracker() {
                             style={{
                               display: "flex",
                               flexWrap: "wrap",
-                              gap: "4px",
+                              gap: "6px",
                             }}
                           >
-                            {item.antonyms.split(",").map((a, idx) => (
-                              <span
-                                key={idx}
-                                style={{
-                                  background: "rgba(239, 68, 68, 0.1)",
-                                  color: "#dc2626",
-                                  padding: "2px 8px",
-                                  borderRadius: "6px",
-                                  fontSize: "11px",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {a.trim()}
-                              </span>
-                            ))}
+                            {renderPills(item.antonyms)}
                           </div>
                         </div>
                       )}
@@ -3105,12 +3139,12 @@ function VocabTracker() {
                   {item.notes && (
                     <div
                       style={{
-                        marginTop: "auto",
+                        marginTop: "8px",
                         background: "rgba(99, 102, 241, 0.04)",
-                        padding: "12px 14px",
+                        padding: "12px 16px",
                         borderRadius: "10px",
                         borderLeft: "3px solid var(--accent)",
-                        fontSize: "13px",
+                        fontSize: "14px",
                         lineHeight: "1.5",
                       }}
                     >
@@ -4071,7 +4105,7 @@ function SettingsView() {
     requestConfirm,
     deleteAccount,
   } = useAppStore();
-  const displayName = user?.user_metadata?.display_username || "Candidate";
+  const displayName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
     <div className="card" style={{ maxWidth: 600 }}>
