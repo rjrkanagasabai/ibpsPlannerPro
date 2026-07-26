@@ -655,7 +655,7 @@ function AuthModal() {
   return (
     <div
       className="modal-overlay"
-      style={{ zIndex: 999999, backdropFilter: "blur(8px)" }}
+      style={{ zIndex: 999, backdropFilter: "blur(8px)" }}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
