@@ -400,7 +400,7 @@ export const useAppStore = create(
           data: { session },
           error,
         } = await supabase.auth.getSession();
-        if (error) console.error("Session fetch error:", error.message);
+        // if (error) console.error("Session fetch error:", error.message);
 
         set({ session, user: session?.user || null, authLoading: false });
 
@@ -436,6 +436,7 @@ export const useAppStore = create(
         if (error) throw error;
         set({ user: data.user, session: data.session });
         get().fetchVocabFromCloud();
+        console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
         return data;
       },
 
@@ -471,7 +472,7 @@ export const useAppStore = create(
           if (error) throw error;
           if (data) set({ vocab: data });
         } catch (err) {
-          console.error("Cloud Fetch Error:", err);
+          // console.error("Cloud Fetch Error:", err);
         } finally {
           set({ isSyncing: false });
         }
@@ -498,7 +499,7 @@ export const useAppStore = create(
             throw error;
           }
         } catch (err) {
-          console.error(err);
+          // console.error(err);
           get().notify("Failed to save entry. It has been removed.", "error");
         }
       },
@@ -523,7 +524,7 @@ export const useAppStore = create(
             .upsert([noteWithUser]);
           if (error) throw error;
         } catch (err) {
-          console.error(err);
+          // console.error(err);
           get().notify("Failed to sync update to cloud.", "error");
         }
       },
@@ -543,7 +544,7 @@ export const useAppStore = create(
             .match({ id: id, user_id: user.id });
           if (error) throw error;
         } catch (err) {
-          console.error(err);
+          // console.error(err);
           get().notify("Failed to delete entry from cloud.", "error");
         }
       },
@@ -2359,7 +2360,7 @@ function VocabTracker() {
           setSuggestions(data.slice(0, 5));
         }
       } catch (e) {
-        console.error("Suggestion fetch failed", e);
+        // console.error("Suggestion fetch failed", e);
       }
     }, 200);
     return () => clearTimeout(timer);
