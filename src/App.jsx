@@ -677,7 +677,7 @@ function AuthModal() {
             <Lock size={24} />
           </div>
           <h2 style={{ fontSize: "22px", margin: "0 0 6px 0" }}>
-            {isSignUp ? "Create User ID" : "Candidate Login"}
+            {isSignUp ? "Create User ID" : "Aspirant Login"}
           </h2>
           <p
             style={{ fontSize: "13px", color: "var(--text-muted)", margin: 0 }}
@@ -4406,7 +4406,7 @@ function SettingsView() {
               color: "var(--text-main)",
             }}
           >
-            Active Candidate Account
+            Active Aspirant Account
           </label>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <div
