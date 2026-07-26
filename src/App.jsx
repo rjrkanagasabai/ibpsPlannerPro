@@ -718,7 +718,7 @@ function AuthModal() {
                 type="text"
                 className="custom-input"
                 style={{ paddingLeft: "36px" }}
-                placeholder="e.g. Banker_Raj"
+                placeholder="e.g. User_Name"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
