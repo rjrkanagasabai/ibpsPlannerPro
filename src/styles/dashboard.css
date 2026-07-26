@@ -1,0 +1,237 @@
+/* DashboardContainer.css */
+.dashboard-container {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  /* height: 100vh; */
+
+  /* overflow-y: hidden; */
+}
+
+.content-container {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  height: calc(100vh - 4rem);
+}
+
+/* Navbar.css */
+.navbar {
+  background-color: #333;
+  color: #fff;
+  /* padding: 1rem; */
+  display: flex;
+  /* flex-direction: row; */
+  align-items: center;
+  justify-content: space-between;
+  overflow-y: hidden;
+}
+.navbar button {
+  display: none;
+}
+
+/* Sidebar.css */
+.sidebar {
+  /* background-color: #f4f4f4; */
+  padding: 1rem;
+  overflow: hidden;
+  /* width: 200px; */
+  align-self: center;
+}
+
+/* MainContent.css */
+.main-content {
+  padding: 1rem;
+  overflow: scroll;
+  height: auto;
+
+  overflow-x: hidden;
+}
+.scrollable-content {
+  overflow: auto;
+  display: grid;
+  grid-template-columns: 2fr 2fr;
+  grid-template-rows: 1fr auto auto;
+  column-gap: 20px;
+}
+::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
+}
+
+/* Media Queries for responsiveness */
+@media (max-width: 768px) {
+  .content-container {
+    grid-template-columns: 1fr;
+  }
+  .navbar {
+    text-align: center;
+    width: 100%;
+  }
+  .navbar button {
+    display: block;
+  }
+  .sidebar {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    column-gap: 20px;
+  }
+}
+
+/* ReportsList.css */
+.reports-list {
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 1rem;
+  margin-top: 20px;
+}
+
+.reports-list h2 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  font-size: 25px;
+}
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  margin-left: auto;
+  margin-right: auto;
+  background-color: #05043e;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border-radius: 10px;
+  box-shadow: 0 10px 50px 0 rgba(5, 4, 62, 0.25);
+}
+
+li:nth-child(6) {
+  margin-top: 5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #363664;
+}
+
+li + li {
+  margin-top: 0.75rem;
+}
+
+a {
+  color: #fff;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 8px;
+  position: relative;
+}
+
+a:hover,
+a:focus,
+a.active {
+  background-color: #30305a;
+  outline: 0;
+}
+
+a:hover span,
+a:focus span,
+a.active span {
+  transform: scale(1);
+  opacity: 1;
+}
+
+a i {
+  font-size: 1.375rem;
+}
+
+a span {
+  position: absolute;
+  background-color: #30305a;
+  white-space: nowrap;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  left: calc(100% + 1.5rem);
+  transform-origin: center left;
+  transform: scale(0);
+  opacity: 0;
+  transition: 0.15s ease;
+}
+
+a span:before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  position: absolute;
+  background-color: #30305a;
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  border-radius: 3px;
+}
+
+details {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  margin-top: 2rem;
+  color: #05043e;
+  display: flex;
+  flex-direction: column;
+}
+
+details div {
+  background-color: #fff;
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.15);
+  padding: 1.25rem;
+  border-radius: 8px;
+  position: absolute;
+  max-height: calc(100vh - 100px);
+  width: 400px;
+  max-width: calc(100vw - 2rem);
+  bottom: calc(100% + 1rem);
+  right: 0;
+  overflow: auto;
+  transform-origin: 100% 100%;
+}
+
+details div::-webkit-scrollbar {
+  width: 15px;
+  background-color: #fff;
+}
+
+details div::-webkit-scrollbar-thumb {
+  width: 5px;
+  border-radius: 99em;
+  background-color: #ccc;
+  border: 5px solid #fff;
+}
+
+details div > * + * {
+  margin-top: 0.75em;
+}
+
+details div p > code {
+  font-size: 1rem;
+  font-family: monospace;
+  color: #185adb;
+  font-weight: 600;
+}
+
+details div pre {
+  white-space: pre-line;
+  background-color: #f9f9f9;
+  border: 1px solid #95a3b9;
+  border-radius: 6px;
+  font-family: monospace;
+  padding: 0.75em;
+  font-size: 0.875rem;
+}
+
+details[open] div {
+  animation: scale 0.25s ease;
+}

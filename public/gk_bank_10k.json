@@ -1,0 +1,222 @@
+[
+  {
+    "id": 1,
+    "q": "What is the current RBI Repo Rate as of the June 2026 Monetary Policy Committee meeting?",
+    "a": "5.25%",
+    "opt": [
+      "4.00%",
+      "5.25%",
+      "6.50%",
+      "6.75%"
+    ]
+  },
+  {
+    "id": 2,
+    "q": "Where is the headquarters of the Asian Development Bank (ADB)?",
+    "a": "Manila, Philippines",
+    "opt": [
+      "Geneva",
+      "Manila, Philippines",
+      "Beijing",
+      "Tokyo"
+    ]
+  },
+  {
+    "id": 3,
+    "q": "Which national park is famous for the one-horned rhinoceros?",
+    "a": "Kaziranga National Park",
+    "opt": [
+      "Jim Corbett",
+      "Kanha",
+      "Kaziranga National Park",
+      "Gir"
+    ]
+  },
+  {
+    "id": 4,
+    "q": "Who operates the Aadhaar Enabled Payment System (AePS)?",
+    "a": "NPCI",
+    "opt": [
+      "RBI",
+      "SBI",
+      "NPCI",
+      "Ministry of Finance"
+    ]
+  },
+  {
+    "id": 5,
+    "q": "Under the Liberalised Remittance Scheme (LRS), what is the maximum amount a resident individual can remit overseas in a financial year?",
+    "a": "USD 2,50,000",
+    "opt": [
+      "USD 1,00,000",
+      "USD 1,50,000",
+      "USD 2,00,000",
+      "USD 2,50,000"
+    ]
+  },
+  {
+    "id": 6,
+    "q": "In international banking, what is a 'NOSTRO' account?",
+    "a": "A domestic bank's account with a foreign bank in foreign currency",
+    "opt": [
+      "A foreign bank's account with a domestic bank",
+      "A domestic bank's account with a foreign bank in foreign currency",
+      "An NRI's account in India",
+      "A corporate forex account"
+    ]
+  },
+  {
+    "id": 7,
+    "q": "What does TReDS stand for?",
+    "a": "Trade Receivables Discounting System",
+    "opt": [
+      "Trade Receivables Discounting System",
+      "Transaction Recording and Discounting System",
+      "Trade Regulation and Disbursement System",
+      "Treasury Receivables Discounting System"
+    ]
+  },
+  {
+    "id": 8,
+    "q": "Where is the headquarters of the Insurance Regulatory and Development Authority of India (IRDAI) located?",
+    "a": "Hyderabad",
+    "opt": [
+      "Mumbai",
+      "New Delhi",
+      "Hyderabad",
+      "Pune"
+    ]
+  },
+  {
+    "id": 9,
+    "q": "Who was the first Indian Governor of the Reserve Bank of India?",
+    "a": "C.D. Deshmukh",
+    "opt": [
+      "Sir Osborne Smith",
+      "C.D. Deshmukh",
+      "Benegal Rama Rau",
+      "Manmohan Singh"
+    ]
+  },
+  {
+    "id": 10,
+    "q": "In the acronym 'MUDRA' Bank, what does the 'M' stand for?",
+    "a": "Micro",
+    "opt": [
+      "Medium",
+      "Money",
+      "Micro",
+      "Multi"
+    ]
+  },
+  {
+    "id": 11,
+    "q": "What does the 'S' stand for in 'SDF', a liquidity management tool introduced by the RBI?",
+    "a": "Standing",
+    "opt": [
+      "Standard",
+      "Standing",
+      "Statutory",
+      "Systematic"
+    ]
+  },
+  {
+    "id": 12,
+    "q": "What is the maximum limit for a transaction on UPI123Pay?",
+    "a": "₹5,000",
+    "opt": [
+      "₹2,000",
+      "₹5,000",
+      "₹10,000",
+      "₹1,00,000"
+    ]
+  },
+  {
+    "id": 13,
+    "q": "Where is the headquarter of Small Industries Development Bank Of India (SIDBI)?",
+    "a": "Lucknow",
+    "opt": [
+      "Pune",
+      "Hyderabad",
+      "Lucknow",
+      "Mumbai"
+    ]
+  },
+  {
+    "id": 14,
+    "q": "World Population Day is celebrated globally on which date?",
+    "a": "July 11",
+    "opt": [
+      "June 22",
+      "July 11",
+      "July 21",
+      "August 12"
+    ]
+  },
+  {
+    "id": 15,
+    "q": "What is the base year for the RBI's Digital Payments Index (DPI)?",
+    "a": "2018",
+    "opt": [
+      "2014",
+      "2016",
+      "2018",
+      "2020"
+    ]
+  },
+  {
+    "id": 16,
+    "q": "In banking terminology, what does the CASA ratio measure?",
+    "a": "Ratio of current and savings accounts to total deposits",
+    "opt": [
+      "Ratio of capital to risk-weighted assets",
+      "Ratio of current and savings accounts to total deposits",
+      "Ratio of cash to statutory liquidity",
+      "Ratio of corporate to SME loans"
+    ]
+  },
+  {
+    "id": 17,
+    "q": "Where is the Headquarters of the World Trade Organization (WTO)?",
+    "a": "Geneva, Switzerland",
+    "opt": [
+      "Geneva, Switzerland",
+      "Paris, France",
+      "Washington DC, US",
+      "New York, US"
+    ]
+  },
+  {
+    "id": 18,
+    "q": "Manas Wildlife Sanctuary is located in which Indian state?",
+    "a": "Assam",
+    "opt": [
+      "Karnataka",
+      "Kerala",
+      "Gujarat",
+      "Assam"
+    ]
+  },
+  {
+    "id": 19,
+    "q": "What is the capital city of Turkmenistan?",
+    "a": "Ashgabat",
+    "opt": [
+      "Dushanbe",
+      "Ashgabat",
+      "Bishkek",
+      "Astana"
+    ]
+  },
+  {
+    "id": 20,
+    "q": "As per the recent monetary policy, what is the current Cash Reserve Ratio (CRR)?",
+    "a": "3.00%",
+    "opt": [
+      "3.00%",
+      "4.50%",
+      "18.00%",
+      "5.25%"
+    ]
+  }
+]

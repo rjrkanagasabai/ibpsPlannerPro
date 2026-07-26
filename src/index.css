@@ -1,0 +1,775 @@
+:root {
+  /* Modern Light Theme - "Soft Zinc" */
+  --primary: #0f172a;
+  --secondary: #10b981;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --bg: #f4f4f5;
+  --card-bg: #ffffff;
+  --border: #e4e4e7;
+  --text-main: #18181b;
+  --text-muted: #71717a;
+  --sidebar-bg: #ffffff;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 24px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  /* Modern Dark Theme - "Deep Slate" */
+  --primary: #f8fafc;
+  --secondary: #34d399;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --bg: #09090b;
+  --card-bg: #18181b;
+  --border: #27272a;
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --sidebar-bg: #09090b;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Inter", sans-serif;
+}
+body {
+  background-color: var(--bg);
+  color: var(--text-main);
+  transition: var(--transition);
+  letter-spacing: -0.01em;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Poppins", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* --- SIDEBAR --- */
+.sidebar {
+  width: 260px;
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  position: fixed;
+  height: 100vh;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+  transition: var(--transition);
+}
+.logo {
+  font-family: "Poppins", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  padding: 0 12px 32px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo .icon-wrap {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: white;
+  padding: 6px;
+  border-radius: 10px;
+  display: flex;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+}
+.nav-item:hover {
+  background-color: rgba(99, 102, 241, 0.05);
+  color: var(--accent);
+}
+.nav-item.active {
+  background-color: var(--text-main);
+  color: var(--card-bg);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="dark"] .nav-item.active {
+  background-color: var(--text-main);
+  color: var(--bg);
+}
+
+/* --- HEADER --- */
+.main-content {
+  margin-left: 260px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  position: sticky;
+  top: 0;
+  background-color: rgba(var(--bg), 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 16px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(var(--border), 0.5);
+  z-index: 90;
+}
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.date-picker-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+.date-picker-wrap input[type="date"] {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.date-picker-wrap input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+}
+.clock {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--card-bg);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.icon-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+.icon-btn:hover {
+  border-color: var(--text-main);
+}
+
+/* --- CONTENT & CARDS --- */
+.content-area {
+  padding: 40px;
+  flex: 1;
+  animation: fadeIn 0.4s ease forwards;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius-md);
+  padding: 28px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
+}
+.card:hover {
+  box-shadow: var(--shadow-lg);
+}
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+}
+.stat-card .icon-wrap {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent);
+  padding: 12px;
+  border-radius: 14px;
+  width: max-content;
+  margin-bottom: 12px;
+}
+.stat-card h3 {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1;
+}
+.stat-card p {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+/* --- CUSTOM MODERN CHECKBOX --- */
+.custom-checkbox {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: var(--transition);
+  background: var(--card-bg);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.custom-checkbox:hover {
+  border-color: var(--accent);
+}
+.custom-checkbox:checked {
+  background: var(--secondary);
+  border-color: var(--secondary);
+}
+.custom-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  top: 3px;
+}
+
+/* --- CONNECTED TIMELINE (Fixed Alignment & Modern Styling) --- */
+.timeline-container {
+  position: relative;
+  padding-left: 20px;
+  margin-top: 24px;
+}
+.timeline-container::before {
+  content: "";
+  position: absolute;
+  left: 31px;
+  top: 24px;
+  bottom: 24px;
+  width: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.timeline-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 12px 0;
+  position: relative;
+  z-index: 1;
+}
+
+.timeline-item .custom-checkbox {
+  margin-top: 14px;
+  position: relative;
+  z-index: 2;
+}
+.time-badge {
+  margin-top: 6px;
+  background: var(--bg);
+  color: var(--text-main);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 90px;
+  text-align: center;
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+.timeline-content {
+  flex: 1;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+.timeline-content:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.task-name {
+  font-size: 16px;
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+/* Completed State - No Strikethrough, Modern Highlight */
+.timeline-item.completed .timeline-content {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.04);
+}
+.timeline-item.completed .time-badge {
+  border-color: rgba(16, 185, 129, 0.3);
+  color: var(--secondary);
+}
+.timeline-item.completed .task-name {
+  color: var(--secondary);
+}
+
+/* --- INPUTS & LISTS --- */
+.custom-input {
+  background: var(--bg);
+  border: 1px solid transparent;
+  color: var(--text-main);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  width: 100%;
+  transition: var(--transition);
+  font-size: 14px;
+}
+.custom-input:focus,
+.custom-input:hover {
+  border-color: var(--border);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.timeline-content .custom-input {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.timeline-content .custom-input:focus {
+  color: var(--text-main);
+}
+
+.dash-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+.dash-list-item:last-child {
+  border-bottom: none;
+}
+.dash-list-item.checked {
+  color: var(--text-muted);
+}
+
+.missed-task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg);
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  margin-bottom: 8px;
+  transition: var(--transition);
+}
+.missed-task-item:hover {
+  border-color: var(--border);
+}
+
+.scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+.scroll-area::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+
+/* --- MODERN DATA TABLE --- */
+.table-wrapper {
+  overflow-x: auto;
+  margin-top: 16px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 16px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+}
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+tr:last-child td {
+  border-bottom: none;
+}
+tr:hover td {
+  background: var(--bg);
+}
+
+/* --- HABIT HEATMAP GRID --- */
+.habit-tracker-container {
+  overflow-x: auto;
+  padding-bottom: 16px;
+  margin-top: 24px;
+}
+.habit-header-row {
+  display: flex;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding-left: 160px;
+  gap: 6px;
+}
+.habit-header-day {
+  width: 28px;
+  text-align: center;
+}
+.habit-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 6px;
+}
+.habit-name {
+  width: 154px;
+  font-size: 14px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.habit-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.habit-circle:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.habit-circle.active {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+  transform: scale(1.05);
+}
+
+/* --- BUTTONS --- */
+.btn {
+  background: var(--text-main);
+  color: var(--bg);
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition);
+  font-size: 14px;
+}
+.btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.btn-outline {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover {
+  background: var(--bg);
+  border-color: var(--text-main);
+}
+.btn-danger {
+  background: #ef4444;
+  color: white;
+}
+.btn-danger:hover {
+  background: #dc2626;
+}
+Here are the updated files implementing your requests.
+
+I have made the following improvements:
+
+Study Hours Calculation: I added a logic engine that calculates the exact duration between timeline events. It automatically excludes non-study activities (like sleeping, waking, breaking, or eating) to give you your Daily Study Target, Completed Daily Study, and a persistent All-Time Total Study Hours tracker.
+
+State Persistence: Because the hours are calculated directly from your checked timeline data and saved dynamically in appData, they will flawlessly persist in local storage even when you switch dates using the "Today" button or calendar.
+
+No-Scroll Habit Tracker: I tightened the padding, dimensions, and gaps of the habit heatmap elements. The 31-day grid is now perfectly proportioned to fit completely on-screen without requiring any horizontal scrolling.
+
+1. App.css (Updated Segment)
+Replace the /* --- HABIT HEATMAP GRID --- */ section and the .scroll-area in your CSS with this updated version to ensure everything fits cleanly:
+
+CSS
+/* --- HABIT HEATMAP GRID (No Scroll Version) --- */
+.habit-tracker-container {
+  padding-bottom: 16px;
+  margin-top: 24px;
+  width: 100%;
+}
+.habit-header-row {
+  display: flex;
+  margin-bottom: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding-left: 130px;
+  gap: 4px;
+}
+.habit-header-day {
+  width: 22px;
+  text-align: center;
+}
+.habit-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 4px;
+}
+.habit-name {
+  width: 126px;
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 8px;
+}
+.habit-circle {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.habit-circle:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  z-index: 2;
+}
+.habit-circle.active {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+  transform: scale(1.1);
+  z-index: 2;
+}
+
+/* Keep scrollbar visually clean for other components */
+.scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+.scroll-area::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+.main-content {
+  margin-left: 260px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+/* --- HABIT HEATMAP GRID (Responsive & Padded) --- */
+.habit-tracker-container {
+  overflow-x: auto; /* Contains scroll inside the card, protecting the header */
+  padding: 16px 8px 24px 8px; /* Adds the requested gap around the heatmap */
+  width: 100%;
+}
+.habit-header-row {
+  display: flex;
+  margin-bottom: 16px; /* Increased gap */
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding-left: 140px;
+  gap: 6px;
+  min-width: max-content; /* Prevents squishing */
+}
+.habit-header-day {
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.habit-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px; /* Increased gap between habits */
+  gap: 6px;
+  min-width: max-content; /* Prevents squishing */
+}
+.habit-name {
+  width: 134px;
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 12px;
+}
+.habit-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0; /* Ensures circles stay perfect squares */
+}
+.habit-circle:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  z-index: 2;
+}
+.habit-circle.active {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+  transform: scale(1.1);
+  z-index: 2;
+}
+/* --- HABIT HEATMAP GRID (Responsive & Padded with Hidden Scrollbar) --- */
+.scroll-area::-webkit-scrollbar {
+  width: 6px;
+}
+.scroll-area::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+/* --- HIDE SCROLLBARS GLOBALLY --- */
+* {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+/* --- COPYRIGHT FOOTER --- */
+.footer-copyright {
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  justify-self: end;
+  align-items: center;
+  padding: 24px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: auto; /* Pushes the footer to the bottom of the screen */
+  border-top: 1px solid transparent;
+  transition: var(--transition);
+}
+
+.footer-copyright:hover {
+  color: var(--text-main);
+}
