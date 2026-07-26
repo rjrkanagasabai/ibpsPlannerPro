@@ -684,7 +684,7 @@ function AuthModal() {
           >
             {isSignUp
               ? "Set up your credentials to sync your banking prep data."
-              : "Enter your User ID and password to access your cloud workspace."}
+              : "Enter your User ID and Password to access your cloud studyspace."}
           </p>
         </div>
 
