@@ -294,7 +294,7 @@ h6 {
 }
 .grid-3 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   gap: 24px;
   margin-bottom: 24px;
 }
@@ -1511,7 +1511,7 @@ td {
   position: fixed;
   top: 1rem;
   right: 1rem;
-  z-index: 9999; /* Must be higher than your modal overlay */
+  z-index: 99999; /* Must be higher than your modal overlay */
 
   /* Prevents the invisible container wrapper from blocking clicks to the page/modal */
   pointer-events: none;
@@ -1524,4 +1524,9 @@ td {
 .toast {
   /* Re-enables mouse interactions (clicking, hovering) on the actual toast cards */
   pointer-events: auto;
+}
+@media (min-width: 768px) {
+  .mobile-menu-btn {
+    display: none !important;
+  }
 }

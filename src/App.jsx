@@ -61,6 +61,7 @@ import {
   Key,
   ShieldCheck,
   BookMarked,
+  ShieldAlert,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
@@ -400,7 +401,7 @@ export const useAppStore = create(
           data: { session },
           error,
         } = await supabase.auth.getSession();
-        // if (error) console.error("Session fetch error:", error.message);
+        if (error) console.error("Session fetch error:", error.message);
 
         set({ session, user: session?.user || null, authLoading: false });
 
@@ -436,7 +437,6 @@ export const useAppStore = create(
         if (error) throw error;
         set({ user: data.user, session: data.session });
         get().fetchVocabFromCloud();
-
         return data;
       },
 
@@ -457,6 +457,39 @@ export const useAppStore = create(
         get().notify("Logged out successfully.", "info");
       },
 
+      deleteAccount: async () => {
+        const user = get().user;
+        if (user) {
+          try {
+            // Calls the custom Postgres RPC function to delete the user completely
+            const { error } = await supabase.rpc("delete_user");
+            if (error) {
+              console.error("RPC Delete User Error:", error);
+              // Fallback: Delete dictionary data manually if RPC isn't set up
+              await supabase.from("dictionary").delete().eq("user_id", user.id);
+            }
+            await supabase.auth.signOut();
+          } catch (err) {
+            console.error("Error deleting cloud data", err);
+          }
+        }
+        // Completely wipe all local storage and reset state
+        window.localStorage.clear();
+        set({
+          user: null,
+          session: null,
+          vocab: [],
+          history: {},
+          mocks: [],
+          habits: {},
+          premiumData: { bookmarks: [] },
+        });
+        get().notify(
+          "Your account and all cloud data have been permanently deleted.",
+          "info",
+        );
+      },
+
       // --- DICTIONARY CLOUD CRUD WITH OPTIMISTIC UI ---
       fetchVocabFromCloud: async () => {
         const user = get().user;
@@ -472,7 +505,7 @@ export const useAppStore = create(
           if (error) throw error;
           if (data) set({ vocab: data });
         } catch (err) {
-          // console.error("Cloud Fetch Error:", err);
+          console.error("Cloud Fetch Error:", err);
         } finally {
           set({ isSyncing: false });
         }
@@ -499,7 +532,7 @@ export const useAppStore = create(
             throw error;
           }
         } catch (err) {
-          // console.error(err);
+          console.error(err);
           get().notify("Failed to save entry. It has been removed.", "error");
         }
       },
@@ -524,7 +557,7 @@ export const useAppStore = create(
             .upsert([noteWithUser]);
           if (error) throw error;
         } catch (err) {
-          // console.error(err);
+          console.error(err);
           get().notify("Failed to sync update to cloud.", "error");
         }
       },
@@ -544,7 +577,7 @@ export const useAppStore = create(
             .match({ id: id, user_id: user.id });
           if (error) throw error;
         } catch (err) {
-          // console.error(err);
+          console.error(err);
           get().notify("Failed to delete entry from cloud.", "error");
         }
       },
@@ -581,7 +614,8 @@ export const useAppStore = create(
 
 // --- AUTHENTICATION MODAL ---
 function AuthModal() {
-  const { loginWithUsername, signUpWithUsername, notify } = useAppStore();
+  const { loginWithUsername, signUpWithUsername, notify, setActiveView } =
+    useAppStore();
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -602,9 +636,11 @@ function AuthModal() {
         await signUpWithUsername(username, password);
         notify("Account created! Logging in...", "success");
         await loginWithUsername(username, password);
+        setActiveView("dashboard"); // Go straight to home/dashboard
       } else {
         await loginWithUsername(username, password);
         notify(`Welcome back, ${username}!`, "success");
+        setActiveView("dashboard"); // Go straight to home/dashboard
       }
     } catch (err) {
       notify(
@@ -619,13 +655,13 @@ function AuthModal() {
   return (
     <div
       className="modal-overlay"
-      style={{ zIndex: 100, backdropFilter: "blur(8px)" }}
+      style={{ zIndex: 999999, backdropFilter: "blur(8px)" }}
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         className="modal-card"
-        style={{ maxWidth: "420px", width: "90%", padding: "32px" }}
+        style={{ maxWidth: "440px", width: "90%", padding: "32px" }}
       >
         <div style={{ textAlign: "center", marginBottom: "24px" }}>
           <div
@@ -682,7 +718,7 @@ function AuthModal() {
                 type="text"
                 className="custom-input"
                 style={{ paddingLeft: "36px" }}
-                placeholder="e.g. User_Name"
+                placeholder="e.g. Banker_Raj"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -772,6 +808,25 @@ function AuthModal() {
             {isSignUp ? "Log In" : "Create Account"}
           </button>
         </div>
+
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "12px",
+            background: "rgba(16, 185, 129, 0.05)",
+            borderRadius: "8px",
+            border: "1px solid rgba(16, 185, 129, 0.2)",
+            fontSize: "11px",
+            color: "var(--text-muted)",
+            lineHeight: "1.5",
+          }}
+        >
+          <strong>Privacy & Guidelines:</strong> Your scores, image notes, and
+          daily records are stored safely in your device's local storage. We
+          gather data related to Username and Password solely to secure your
+          account, and we sync your Dictionary entries to the cloud. We do not
+          track or sell your personal data.
+        </div>
       </motion.div>
     </div>
   );
@@ -798,7 +853,6 @@ function GlobalSearchModal({ isOpen, onClose }) {
           sub: v.meaning,
         });
       }
-      console.log(process.env.VITE_SUPABASE_URL);
     });
   }
 
@@ -1063,46 +1117,17 @@ function PomodoroTimer() {
   );
 }
 
-// function ToastContainer() {
-//   const { toasts } = useAppStore();
-//   return (
-//     <div className="toast-container">
-//       <AnimatePresence>
-//         {toasts.map((t) => (
-//           <motion.div
-//             initial={{ opacity: 0, x: 50 }}
-//             animate={{ opacity: 1, x: 0 }}
-//             exit={{ opacity: 0, x: 50 }}
-//             zIndex={{100}}
-//             key={t.id}
-//             className={`toast ${t.type}`}
-//           >
-//             <div className="toast-icon">
-//               {t.type === "success" && <CheckCircle2 size={16} />}
-//               {t.type === "error" && <AlertCircle size={16} />}
-//               {t.type === "info" && <Lightbulb size={16} />}
-//             </div>
-//             <span className="toast-message">{t.message}</span>
-//           </motion.div>
-//         ))}
-//       </AnimatePresence>
-//     </div>
-//   );
-// }
-
 function ToastContainer() {
   const { toasts } = useAppStore();
-
   return (
     <div className="toast-container">
       <AnimatePresence>
         {toasts.map((t) => (
           <motion.div
-            key={t.id}
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 50 }}
-            transition={{ duration: 0.2 }}
+            key={t.id}
             className={`toast ${t.type}`}
           >
             <div className="toast-icon">
@@ -1494,6 +1519,13 @@ export default function App() {
     initAuth();
   }, []);
 
+  // Ensure scroll to top on View Change
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const contentArea = document.querySelector(".content-area");
+    if (contentArea) contentArea.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activeView]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -1628,7 +1660,6 @@ export default function App() {
           IBPS Planner{" "}
           <span style={{ fontWeight: 400, color: "var(--accent)" }}>PRO</span>
         </div>
-
         <nav style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
           {[
             {
@@ -2135,7 +2166,6 @@ function Dashboard({ history }) {
         </div>
       </div>
 
-      <UpcomingExamsWidget />
       <VocabQuiz />
 
       <div className="grid-3" style={{ marginBottom: "32px" }}>
@@ -2175,6 +2205,7 @@ function Dashboard({ history }) {
           <p>Overall Day Progress</p>
         </div>
       </div>
+      <UpcomingExamsWidget />
 
       <div className="grid-2">
         <div
@@ -2361,7 +2392,7 @@ function VocabTracker() {
           setSuggestions(data.slice(0, 5));
         }
       } catch (e) {
-        // console.error("Suggestion fetch failed", e);
+        console.error("Suggestion fetch failed", e);
       }
     }, 200);
     return () => clearTimeout(timer);
@@ -2478,6 +2509,7 @@ function VocabTracker() {
     filteredVocab = filteredVocab.filter((v) => v.type === filterType);
   }
 
+  // Helper for rendering Pill Tags
   const renderPills = (textStr, type = "syn") => {
     if (!textStr) return null;
     const words = textStr
@@ -2511,7 +2543,7 @@ function VocabTracker() {
     <div>
       <div className="page-header">
         <div>
-          <h1 style={{ fontSize: "28px" }}>IBPS Word Power</h1>
+          <h1 style={{ fontSize: "28px" }}>Word Power</h1>
           <p style={{ color: "var(--text-muted)" }}>
             Master vocabulary, idioms, and phrasal verbs. Synced in real-time.
           </p>
@@ -3355,8 +3387,13 @@ function HabitTracker() {
     notify("New habit added", "success");
   };
 
+  const handleScroll = (amount) => {
+    if (scrollRef.current)
+      scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
+  };
+
   // Explicit pixel values for perfect CSS Grid / Flex alignment
-  const leftColWidth = 220;
+  const leftColWidth = 200;
   const cellSize = 34;
   const cellGap = 8;
 
@@ -3384,166 +3421,220 @@ function HabitTracker() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: "24px 0", overflow: "hidden" }}>
+      <div
+        className="card"
+        style={{ padding: "24px", overflow: "hidden", position: "relative" }}
+      >
+        {/* Navigation Arrows for the Grid */}
         <div
-          className="habit-tracker-scroll"
-          ref={scrollRef}
-          style={{ overflowX: "auto", padding: "0 24px" }}
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "8px",
+            marginBottom: "16px",
+          }}
         >
-          {/* Strict Flexbox Header Row */}
+          <button
+            className="icon-btn-minimal"
+            onClick={() => handleScroll(-300)}
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            className="icon-btn-minimal"
+            onClick={() => handleScroll(300)}
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", width: "100%" }}>
+          {/* STATIC HABIT NAMES COLUMN */}
           <div
             style={{
+              flex: `0 0 ${leftColWidth}px`,
               display: "flex",
-              alignItems: "center",
-              marginBottom: "16px",
+              flexDirection: "column",
+              gap: "12px",
+              borderRight: "1px solid var(--border)",
+              paddingRight: "16px",
+              zIndex: 2,
+              // background: "var(--bg)",
             }}
           >
-            <div style={{ flex: `0 0 ${leftColWidth}px` }}></div>
-            <div style={{ display: "flex", gap: `${cellGap}px` }}>
-              {Array.from({ length: daysInMonth }, (_, i) => {
-                const isToday =
-                  i + 1 === new Date().getDate() &&
-                  month === new Date().getMonth();
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      width: `${cellSize}px`,
-                      textAlign: "center",
-                      fontSize: "12px",
-                      fontWeight: isToday ? 800 : 600,
-                      color: isToday ? "var(--accent)" : "var(--text-muted)",
-                      background: isToday
-                        ? "rgba(99, 102, 241, 0.1)"
-                        : "transparent",
-                      borderRadius: "6px",
-                      padding: "4px 0",
-                    }}
-                  >
-                    {i + 1}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            {/* Empty space matching header height */}
+            <div style={{ height: "24px", marginBottom: "16px" }}></div>
 
-          {/* Strict Flexbox Habit Rows */}
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-          >
             {currentHabits.map((h, hIndex) => (
               <div
                 key={hIndex}
-                style={{ display: "flex", alignItems: "center" }}
+                style={{
+                  height: `${cellSize}px`,
+                  display: "flex",
+                  alignItems: "center",
+                }}
               >
-                {/* Habit Name / Edit controls */}
-                <div
-                  style={{
-                    flex: `0 0 ${leftColWidth}px`,
-                    paddingRight: "16px",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  {isEditing ? (
-                    <div
+                {isEditing ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      width: "100%",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="custom-input"
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
+                        padding: "4px 8px",
+                        fontSize: "13px",
                         width: "100%",
                       }}
+                      value={h.name}
+                      onChange={(e) => handleNameChange(hIndex, e.target.value)}
+                    />
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => deleteHabit(hIndex)}
                     >
-                      <input
-                        type="text"
-                        className="custom-input"
-                        style={{
-                          padding: "4px 8px",
-                          fontSize: "13px",
-                          width: "100%",
-                        }}
-                        value={h.name}
-                        onChange={(e) =>
-                          handleNameChange(hIndex, e.target.value)
-                        }
-                      />
-                      <button
-                        className="icon-btn-minimal"
-                        onClick={() => deleteHabit(hIndex)}
-                      >
-                        <Trash2 size={14} color="var(--danger)" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={h.name}
-                    >
-                      {h.name}
-                    </div>
-                  )}
-                </div>
-
-                {/* Day Heatmap Cells */}
-                <div style={{ display: "flex", gap: `${cellGap}px` }}>
-                  {Array.from({ length: daysInMonth }, (_, dIndex) => {
-                    const state = h.days && h.days[dIndex];
-                    const isDone = state === "done" || state === true;
-                    const isPartial = state === "partial";
-                    const isMissed = state === "missed";
-
-                    let cellBg = "var(--bg)";
-                    let cellBorder = "1px solid var(--border)";
-                    let content = null;
-
-                    if (isDone) {
-                      cellBg = "#10b981";
-                      cellBorder = "1px solid #10b981";
-                      content = <CheckCircle2 size={16} color="#fff" />;
-                    } else if (isPartial) {
-                      cellBg = "#f59e0b";
-                      cellBorder = "1px solid #f59e0b";
-                      content = (
-                        <Minus size={16} color="#fff" strokeWidth={3} />
-                      );
-                    } else if (isMissed) {
-                      cellBg = "#ef4444";
-                      cellBorder = "1px solid #ef4444";
-                      content = <X size={16} color="#fff" strokeWidth={3} />;
-                    }
-
-                    return (
-                      <motion.div
-                        whileHover={{ scale: 1.15 }}
-                        whileTap={{ scale: 0.9 }}
-                        key={dIndex}
-                        onClick={() => toggleHabit(hIndex, dIndex)}
-                        style={{
-                          width: `${cellSize}px`,
-                          height: `${cellSize}px`,
-                          borderRadius: "8px",
-                          background: cellBg,
-                          border: cellBorder,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        {content}
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                      <Trash2 size={14} color="var(--danger)" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={h.name}
+                  >
+                    {h.name}
+                  </div>
+                )}
               </div>
             ))}
+          </div>
+
+          {/* SCROLLABLE GRID AREA */}
+          <div
+            ref={scrollRef}
+            style={{
+              flex: 1,
+              overflowX: "auto",
+              paddingLeft: "16px",
+              scrollBehavior: "smooth",
+            }}
+          >
+            <div style={{ minWidth: "max-content", paddingRight: "16px" }}>
+              {/* Header Dates */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: `${cellGap}px`,
+                  marginBottom: "16px",
+                }}
+              >
+                {Array.from({ length: daysInMonth }, (_, i) => {
+                  const isToday =
+                    i + 1 === new Date().getDate() &&
+                    month === new Date().getMonth();
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        width: `${cellSize}px`,
+                        textAlign: "center",
+                        fontSize: "12px",
+                        fontWeight: isToday ? 800 : 600,
+                        color: isToday ? "var(--accent)" : "var(--text-muted)",
+                        background: isToday
+                          ? "rgba(99, 102, 241, 0.1)"
+                          : "transparent",
+                        borderRadius: "6px",
+                        height: "24px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {i + 1}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Grid Rows */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {currentHabits.map((h, hIndex) => (
+                  <div
+                    key={hIndex}
+                    style={{ display: "flex", gap: `${cellGap}px` }}
+                  >
+                    {Array.from({ length: daysInMonth }, (_, dIndex) => {
+                      const state = h.days && h.days[dIndex];
+                      const isDone = state === "done" || state === true;
+                      const isPartial = state === "partial";
+                      const isMissed = state === "missed";
+
+                      let cellBg = "var(--bg)";
+                      let cellBorder = "1px solid var(--border)";
+                      let content = null;
+
+                      if (isDone) {
+                        cellBg = "#10b981";
+                        cellBorder = "1px solid #10b981";
+                        content = <CheckCircle2 size={16} color="#fff" />;
+                      } else if (isPartial) {
+                        cellBg = "#f59e0b";
+                        cellBorder = "1px solid #f59e0b";
+                        content = (
+                          <Minus size={16} color="#fff" strokeWidth={3} />
+                        );
+                      } else if (isMissed) {
+                        cellBg = "#ef4444";
+                        cellBorder = "1px solid #ef4444";
+                        content = <X size={16} color="#fff" strokeWidth={3} />;
+                      }
+
+                      return (
+                        <motion.div
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          key={dIndex}
+                          onClick={() => toggleHabit(hIndex, dIndex)}
+                          style={{
+                            width: `${cellSize}px`,
+                            height: `${cellSize}px`,
+                            borderRadius: "8px",
+                            background: cellBg,
+                            border: cellBorder,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          {content}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -4029,8 +4120,6 @@ function MockTracker() {
         date: selectedDate,
         name: "",
         score: "",
-        accuracy: "",
-        percentile: "",
         remarks: "",
       },
       ...mocks,
@@ -4083,20 +4172,6 @@ function MockTracker() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           {mocks.map((m) => {
-            const accNum = parseFloat(m.accuracy) || 0;
-            let accColor = "var(--text-muted)";
-            let accBg = "var(--border)";
-            if (accNum >= 90) {
-              accColor = "#10b981";
-              accBg = "rgba(16, 185, 129, 0.2)";
-            } else if (accNum >= 75) {
-              accColor = "#f59e0b";
-              accBg = "rgba(245, 158, 11, 0.2)";
-            } else if (accNum > 0) {
-              accColor = "#ef4444";
-              accBg = "rgba(239, 68, 68, 0.2)";
-            }
-
             return (
               <div
                 key={m.id}
@@ -4210,13 +4285,20 @@ function MockTracker() {
 
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                    display: "flex",
                     gap: "24px",
                     padding: "24px",
+                    alignItems: "center",
+                    flexWrap: "wrap",
                   }}
                 >
-                  <div style={{ display: "flex", flexDirection: "column" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      width: "150px",
+                    }}
+                  >
                     <label
                       style={{
                         fontSize: "12px",
@@ -4244,138 +4326,41 @@ function MockTracker() {
                     />
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: "12px",
-                          color: "var(--text-muted)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Accuracy
-                      </label>
-                      <span
-                        style={{
-                          fontSize: "14px",
-                          fontWeight: 700,
-                          color: accColor,
-                        }}
-                      >
-                        {m.accuracy}%
-                      </span>
-                    </div>
-                    <input
-                      type="number"
-                      className="custom-input"
-                      placeholder="%"
-                      value={m.accuracy}
-                      onChange={(e) =>
-                        updateMock(m.id, "accuracy", e.target.value)
-                      }
-                      style={{
-                        fontSize: "16px",
-                        padding: "12px",
-                        marginBottom: "8px",
-                      }}
-                    />
-                    <div
-                      style={{
-                        height: "6px",
-                        background: accBg,
-                        borderRadius: "4px",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${accNum}%`,
-                          height: "100%",
-                          background: accColor,
-                          transition: "width 0.4s ease",
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      flex: 1,
+                      minWidth: "250px",
+                    }}
+                  >
                     <label
                       style={{
                         fontSize: "12px",
                         color: "var(--text-muted)",
                         fontWeight: 600,
                         marginBottom: "8px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
                       }}
                     >
-                      Percentile
+                      <Edit3 size={14} /> Mistakes & Learnings
                     </label>
-                    <div style={{ position: "relative" }}>
-                      <input
-                        type="number"
-                        className="custom-input"
-                        placeholder="90"
-                        value={m.percentile}
-                        onChange={(e) =>
-                          updateMock(m.id, "percentile", e.target.value)
-                        }
-                        style={{
-                          fontSize: "18px",
-                          fontWeight: 700,
-                          padding: "12px",
-                          paddingRight: "36px",
-                          width: "100%",
-                        }}
-                      />
-                      <span
-                        style={{
-                          position: "absolute",
-                          right: "16px",
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          color: "var(--text-muted)",
-                          fontWeight: 700,
-                        }}
-                      >
-                        %ile
-                      </span>
-                    </div>
+                    <textarea
+                      className="custom-input"
+                      placeholder="What went wrong? e.g. Silly mistake in Syllogism, need to revise Only/A Few concepts..."
+                      value={m.remarks}
+                      onChange={(e) =>
+                        updateMock(m.id, "remarks", e.target.value)
+                      }
+                      rows="2"
+                      style={{
+                        background: "rgba(99, 102, 241, 0.03)",
+                        border: "1px dashed var(--border)",
+                      }}
+                    />
                   </div>
-                </div>
-
-                <div style={{ padding: "0 24px 24px 24px" }}>
-                  <label
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      fontWeight: 600,
-                      marginBottom: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <Edit3 size={14} /> Mistakes & Learnings
-                  </label>
-                  <textarea
-                    className="custom-input"
-                    placeholder="What went wrong? e.g. Silly mistake in Syllogism, need to revise Only/A Few concepts..."
-                    value={m.remarks}
-                    onChange={(e) =>
-                      updateMock(m.id, "remarks", e.target.value)
-                    }
-                    rows="2"
-                    style={{
-                      background: "rgba(99, 102, 241, 0.03)",
-                      border: "1px dashed var(--border)",
-                    }}
-                  />
                 </div>
               </div>
             );
@@ -4388,7 +4373,14 @@ function MockTracker() {
 
 // --- CLEAN SETTINGS VIEW (ALIGNED TO MATCH REFERENCE DESIGN) ---
 function SettingsView() {
-  const { user, logout, premiumData, setPremiumData } = useAppStore();
+  const {
+    user,
+    logout,
+    premiumData,
+    setPremiumData,
+    requestConfirm,
+    deleteAccount,
+  } = useAppStore();
   const displayName = user?.user_metadata?.display_username || "Candidate";
 
   return (
@@ -4482,13 +4474,58 @@ function SettingsView() {
         </div>
 
         {/* Actions */}
-        <div>
-          <button
-            className="btn btn-outline"
-            onClick={logout}
-            style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
-          >
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <button className="btn btn-outline" onClick={logout}>
             <LogOut size={16} /> Sign Out Account
+          </button>
+        </div>
+
+        <div
+          style={{
+            marginTop: "24px",
+            paddingTop: "24px",
+            borderTop: "1px solid var(--border)",
+          }}
+        >
+          <h3
+            style={{
+              color: "var(--danger)",
+              fontSize: "16px",
+              marginBottom: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <ShieldAlert size={18} /> Danger Zone
+          </h3>
+          <p
+            style={{
+              fontSize: "13px",
+              color: "var(--text-muted)",
+              marginBottom: "16px",
+              lineHeight: "1.6",
+            }}
+          >
+            This will immediately and permanently delete your account, wipe all
+            your cloud dictionary entries, and clear your local storage. This
+            action cannot be undone.
+          </p>
+          <button
+            className="btn btn-danger"
+            style={{
+              background: "var(--danger)",
+              color: "white",
+              border: "none",
+            }}
+            onClick={() =>
+              requestConfirm(
+                "Delete your account and wipe ALL cloud data permanently? This CANNOT be undone.",
+                deleteAccount,
+              )
+            }
+          >
+            <Trash2 size={16} /> Delete Account & Data
           </button>
         </div>
       </div>
