@@ -798,7 +798,7 @@ function GlobalSearchModal({ isOpen, onClose }) {
           sub: v.meaning,
         });
       }
-      console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
+      console.log(process.env.VITE_SUPABASE_URL);
     });
   }
 
