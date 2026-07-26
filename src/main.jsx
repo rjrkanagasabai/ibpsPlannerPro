@@ -7,7 +7,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
     <footer className="footer-copyright">
-      &copy; {new Date().getFullYear()} @ IBPS Planner{" "}
+      &copy; {new Date().getFullYear()} @ IBPS Planner Pro{" "}
     </footer>
   </React.StrictMode>,
 );
