@@ -436,7 +436,7 @@ export const useAppStore = create(
         if (error) throw error;
         set({ user: data.user, session: data.session });
         get().fetchVocabFromCloud();
-        console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
+
         return data;
       },
 
@@ -798,6 +798,7 @@ function GlobalSearchModal({ isOpen, onClose }) {
           sub: v.meaning,
         });
       }
+      console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
     });
   }
 
