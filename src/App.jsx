@@ -1669,9 +1669,7 @@ export default function App() {
             },
             { id: "today", icon: CalendarCheck, label: "Daily Plan" },
             { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
-            {
-              /* { id: "notes", icon: FileText, label: "Image Notes" } */
-            },
+
             { id: "quant", icon: Calculator, label: "Quant Rotation" },
             { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
             { id: "mocks", icon: LineChart, label: "Mock Tracker" },
