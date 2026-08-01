@@ -628,14 +628,14 @@ function AuthModal() {
             <Lock size={24} />
           </div>
           <h2 style={{ fontSize: "22px", margin: "0 0 6px 0" }}>
-            {isSignUp ? "Create User ID" : "Aspirant Login"}
+            {isSignUp ? "Create Aspirant ID" : "Aspirant Login"}
           </h2>
           <p
             style={{ fontSize: "13px", color: "var(--text-muted)", margin: 0 }}
           >
             {isSignUp
               ? "Set up your credentials to sync your banking prep data."
-              : "Enter your User ID and Password to access your studyspace."}
+              : "Enter your Aspirant ID and Password to access your studyspace."}
           </p>
         </div>
 
@@ -652,7 +652,7 @@ function AuthModal() {
                 marginBottom: "6px",
               }}
             >
-              User ID / Username
+              Aspirant ID / Username
             </label>
             <div style={{ position: "relative" }}>
               <User
@@ -669,7 +669,7 @@ function AuthModal() {
                 type="text"
                 className="custom-input"
                 style={{ paddingLeft: "36px" }}
-                placeholder="e.g. User_Name"
+                placeholder="e.g. Aspirant_Name"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -744,7 +744,9 @@ function AuthModal() {
             color: "var(--text-muted)",
           }}
         >
-          {isSignUp ? "Already have a User ID?" : "Don't have a User ID yet?"}{" "}
+          {isSignUp
+            ? "Already have an Aspirant ID?"
+            : "Don't have an Aspirant ID yet?"}{" "}
           <button
             onClick={() => setIsSignUp(!isSignUp)}
             style={{
@@ -774,7 +776,7 @@ function AuthModal() {
         >
           <strong>Privacy & Guidelines:</strong> Your scores, image notes, and
           daily records are stored safely in your device's local storage. We
-          gather data related to Username and Password solely to secure your
+          gather data related to Aspirant ID and Password solely to secure your
           account, and we sync your Dictionary entries to the cloud. We do not
           track or sell your personal data.
         </div>
@@ -1704,7 +1706,7 @@ function Header({ toggleSidebar, onOpenSearch }) {
   }, []);
   const todayStr = getFormattedDateStr();
 
-  const displayName = user?.user_metadata?.display_username || "Candidate";
+  const displayName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
     <header className="header">
@@ -2098,7 +2100,7 @@ function Dashboard({ history }) {
     updateHistory({ missedTasks: updated });
   };
 
-  const userName = user?.user_metadata?.display_username || "Candidate";
+  const userName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
     <div style={{ animation: "fadeIn 0.5s ease" }}>
@@ -2468,8 +2470,7 @@ function VocabTracker() {
     filteredVocab = filteredVocab.filter((v) => v.type === filterType);
   }
 
-  // Helper for rendering Pill Tags in Modern UI style
-  const renderPills = (textStr, type = "syn") => {
+  const renderPills = (textStr) => {
     if (!textStr) return null;
     const words = textStr
       .split(",")
@@ -2484,11 +2485,9 @@ function VocabTracker() {
           borderRadius: "8px",
           fontSize: "12px",
           fontWeight: 600,
-          background:
-            type === "syn"
-              ? "rgba(16, 185, 129, 0.12)"
-              : "rgba(239, 68, 68, 0.12)",
-          color: type === "syn" ? "#059669" : "#dc2626",
+          background: "var(--bg)",
+          border: "1px solid var(--border)",
+          color: "var(--text-main)",
         }}
       >
         {w}
@@ -2782,7 +2781,7 @@ function VocabTracker() {
                       style={{
                         fontSize: "11px",
                         fontWeight: 700,
-                        color: "#10b981",
+                        color: "var(--text-muted)",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
                         display: "block",
@@ -2794,7 +2793,7 @@ function VocabTracker() {
                     <div
                       style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
                     >
-                      {renderPills(searchResult.synonyms, "syn")}
+                      {renderPills(searchResult.synonyms)}
                     </div>
                   </div>
                 )}
@@ -2805,7 +2804,7 @@ function VocabTracker() {
                       style={{
                         fontSize: "11px",
                         fontWeight: 700,
-                        color: "#ef4444",
+                        color: "var(--text-muted)",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
                         display: "block",
@@ -2817,7 +2816,7 @@ function VocabTracker() {
                     <div
                       style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
                     >
-                      {renderPills(searchResult.antonyms, "ant")}
+                      {renderPills(searchResult.antonyms)}
                     </div>
                   </div>
                 )}
@@ -3044,23 +3043,23 @@ function VocabTracker() {
                   <div>
                     <span
                       style={{
-                        fontSize: "11px",
                         fontWeight: 700,
                         color: "var(--text-muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.8px",
+                        fontSize: "11px",
                         display: "block",
                         marginBottom: "8px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.8px",
                       }}
                     >
                       Meaning
                     </span>
                     <p
                       style={{
+                        color: "var(--text-main)",
                         fontFamily: "serif",
                         fontSize: "16px",
                         lineHeight: "1.6",
-                        color: "var(--text-main)",
                         margin: 0,
                         whiteSpace: "pre-wrap",
                       }}
@@ -3085,9 +3084,9 @@ function VocabTracker() {
                         <div style={{ flex: 1, minWidth: "120px" }}>
                           <span
                             style={{
-                              fontSize: "10px",
+                              fontSize: "11px",
                               fontWeight: 700,
-                              color: "#10b981",
+                              color: "var(--text-muted)",
                               textTransform: "uppercase",
                               display: "block",
                               marginBottom: "8px",
@@ -3103,7 +3102,7 @@ function VocabTracker() {
                               gap: "6px",
                             }}
                           >
-                            {renderPills(item.synonyms, "syn")}
+                            {renderPills(item.synonyms)}
                           </div>
                         </div>
                       )}
@@ -3112,9 +3111,9 @@ function VocabTracker() {
                         <div style={{ flex: 1, minWidth: "120px" }}>
                           <span
                             style={{
-                              fontSize: "10px",
+                              fontSize: "11px",
                               fontWeight: 700,
-                              color: "#ef4444",
+                              color: "var(--text-muted)",
                               textTransform: "uppercase",
                               display: "block",
                               marginBottom: "8px",
@@ -3130,7 +3129,7 @@ function VocabTracker() {
                               gap: "6px",
                             }}
                           >
-                            {renderPills(item.antonyms, "ant")}
+                            {renderPills(item.antonyms)}
                           </div>
                         </div>
                       )}
@@ -4106,7 +4105,7 @@ function SettingsView() {
     requestConfirm,
     deleteAccount,
   } = useAppStore();
-  const displayName = user?.user_metadata?.display_username || "Candidate";
+  const displayName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
     <div className="card" style={{ maxWidth: 600 }}>

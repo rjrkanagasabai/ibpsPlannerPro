@@ -62,6 +62,9 @@ import {
   ShieldCheck,
   BookMarked,
   ShieldAlert,
+  MessageSquare,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
@@ -563,7 +566,8 @@ export const useAppStore = create(
   ),
 );
 
-// --- AUTHENTICATION MODAL ---
+// --- ALL VIEW & SUB-COMPONENTS ---
+
 function AuthModal() {
   const { loginWithUsername, signUpWithUsername, notify, setActiveView } =
     useAppStore();
@@ -785,7 +789,6 @@ function AuthModal() {
   );
 }
 
-// --- GLOBAL SEARCH MODAL ---
 function GlobalSearchModal({ isOpen, onClose }) {
   const { vocab } = useAppStore();
   const [searchTerm, setSearchTerm] = useState("");
@@ -896,7 +899,6 @@ function GlobalSearchModal({ isOpen, onClose }) {
   );
 }
 
-// --- POMODORO TIMER ---
 function PomodoroTimer() {
   const { notify, setPremiumData } = useAppStore();
   const [isOpen, setIsOpen] = useState(false);
@@ -1130,174 +1132,94 @@ function ConfirmModal() {
   );
 }
 
-function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
-  const { selectedDate, notify } = useAppStore();
-  const [word, setWord] = useState("");
-  const [type, setType] = useState("Vocabulary");
-  const [partOfSpeech, setPartOfSpeech] = useState("");
-  const [meaning, setMeaning] = useState("");
-  const [synonyms, setSynonyms] = useState("");
-  const [antonyms, setAntonyms] = useState("");
-  const [notes, setNotes] = useState("");
+function Header({ toggleSidebar, onOpenSearch }) {
+  const { theme, setTheme, selectedDate, setSelectedDate, user, logout } =
+    useAppStore();
+  const [time, setTime] = useState("");
 
   useEffect(() => {
-    if (initialData) {
-      setWord(initialData.word);
-      setType(initialData.type || "Vocabulary");
-      setPartOfSpeech(initialData.partOfSpeech || "");
-      setMeaning(initialData.meaning || "");
-      setSynonyms(initialData.synonyms || "");
-      setAntonyms(initialData.antonyms || "");
-      setNotes(initialData.notes || "");
-    } else {
-      setWord("");
-      setType("Vocabulary");
-      setPartOfSpeech("");
-      setMeaning("");
-      setSynonyms("");
-      setAntonyms("");
-      setNotes("");
-    }
-  }, [isOpen, initialData]);
-
-  if (!isOpen) return null;
-
-  const handleSave = () => {
-    if (!word.trim() || !meaning.trim())
-      return notify("Word and Meaning required.", "error");
-    onSave({
-      id: initialData ? initialData.id : Date.now().toString(),
-      word,
-      type,
-      partOfSpeech,
-      meaning,
-      synonyms,
-      antonyms,
-      notes,
-      dateAdded: initialData ? initialData.dateAdded : selectedDate,
-    });
-    onClose();
-  };
-
-  const labelStyle = {
-    display: "block",
-    fontSize: "13px",
-    fontWeight: "600",
-    marginBottom: "8px",
-    color: "var(--text-main)",
-  };
+    const updateTime = () =>
+      setTime(
+        new Date().toLocaleTimeString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        }),
+      );
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const todayStr = getFormattedDateStr();
+  const displayName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
-      <div
-        className="modal-card"
-        style={{ maxWidth: "550px", width: "90%", padding: "32px" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3
-          className="modal-title"
-          style={{ marginBottom: "28px", fontSize: "20px" }}
-        >
-          {initialData ? "Edit Study Note" : "Custom Study Note"}
-        </h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Word / Phrase</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={word}
-              onChange={(e) => setWord(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Category</label>
-            <select
-              className="custom-input"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-            >
-              <option value="Vocabulary">Vocabulary</option>
-              <option value="Phrasal Verb">Phrasal Verb</option>
-              <option value="Idiom">Idiom</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Part of Speech</label>
-            <input
-              type="text"
-              className="custom-input"
-              placeholder="noun, verb"
-              value={partOfSpeech}
-              onChange={(e) => setPartOfSpeech(e.target.value)}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "20px" }}>
-          <label style={labelStyle}>Meaning / Definition</label>
-          <textarea
-            className="custom-input"
-            value={meaning}
-            onChange={(e) => setMeaning(e.target.value)}
-            rows="4"
+    <header className="header">
+      <div className="header-left">
+        <button className="icon-btn mobile-menu-btn" onClick={toggleSidebar}>
+          <Menu size={18} />
+        </button>
+        <div className="date-picker-wrap">
+          <Calendar size={16} style={{ color: "var(--text-muted)" }} />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
           />
         </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Synonyms (comma separated)</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={synonyms}
-              onChange={(e) => setSynonyms(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Antonyms (comma separated)</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={antonyms}
-              onChange={(e) => setAntonyms(e.target.value)}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "32px" }}>
-          <label style={labelStyle}>Usage Context / Example Sentence</label>
-          <textarea
-            className="custom-input"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows="3"
-          />
-        </div>
-        <div
-          className="modal-actions"
-          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
-        >
-          <button className="btn btn-outline" onClick={onClose}>
-            Cancel
+        {selectedDate !== todayStr && (
+          <button
+            className="btn btn-outline hide-on-mobile"
+            style={{ padding: "8px 12px", fontSize: "13px" }}
+            onClick={() => setSelectedDate(todayStr)}
+          >
+            Today
           </button>
-          <button className="btn" onClick={handleSave}>
-            <Save size={16} /> Save Note
-          </button>
-        </div>
+        )}
       </div>
-    </div>
+      <div className="header-right">
+        <div
+          className="btn btn-outline hide-on-mobile"
+          style={{
+            padding: "6px 12px",
+            fontSize: "12px",
+            gap: "6px",
+            borderColor: "rgba(99, 102, 241, 0.3)",
+            pointerEvents: "none",
+          }}
+        >
+          <User size={14} color="var(--accent)" />
+          <span>{displayName}</span>
+        </div>
+        <button
+          className="btn btn-outline hide-on-mobile"
+          style={{
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            padding: "6px 12px",
+            fontSize: "12px",
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+          }}
+          onClick={onOpenSearch}
+        >
+          <Search size={14} /> Search (Ctrl+K)
+        </button>
+        <div className="clock hide-on-mobile">{time}</div>
+        <button
+          className="icon-btn"
+          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+        >
+          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
+        <button className="icon-btn" onClick={logout} title="Sign Out">
+          <LogOut size={18} color="var(--danger)" />
+        </button>
+      </div>
+    </header>
   );
 }
 
@@ -1343,7 +1265,6 @@ function UpcomingExamsWidget() {
           <CalendarDays size={20} color="var(--accent)" /> UPCOMING EXAMS 2026
         </h3>
       </div>
-
       <div
         style={{ maxHeight: "360px", overflowY: "auto", padding: "12px 20px" }}
       >
@@ -1418,7 +1339,6 @@ function UpcomingExamsWidget() {
             );
           })}
         </div>
-
         <div
           style={{
             borderTop: "1px dashed var(--border)",
@@ -1461,323 +1381,6 @@ function UpcomingExamsWidget() {
   );
 }
 
-// --- MAIN APP COMPONENT ---
-export default function App() {
-  const {
-    user,
-    authLoading,
-    initAuth,
-    fetchVocabFromCloud,
-    theme,
-    activeView,
-    setActiveView,
-    selectedDate,
-    setAppData,
-    history,
-  } = useAppStore();
-
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-  useEffect(() => {
-    initAuth();
-  }, []);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    const contentArea = document.querySelector(".content-area");
-    if (contentArea) contentArea.scrollTo({ top: 0, behavior: "smooth" });
-  }, [activeView]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel("public:dictionary")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "dictionary" },
-        () => {
-          fetchVocabFromCloud();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, fetchVocabFromCloud]);
-
-  useEffect(() => {
-    document.body.setAttribute("data-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    setAppData((state) => {
-      const existing = state.history[selectedDate] || {};
-      if (
-        existing.quant &&
-        existing.reasoning &&
-        existing.timeline &&
-        existing.missedTasks &&
-        existing.imageNotes &&
-        existing.vocabStats
-      )
-        return state;
-      return {
-        ...state,
-        history: {
-          ...state.history,
-          [selectedDate]: {
-            timeline: (
-              existing.timeline ||
-              state.baseTimeline ||
-              defaultTimeline
-            ).map((t) => ({ ...t })),
-            notes: existing.notes || "",
-            quant: (
-              existing.quant ||
-              quantTopics.map((t) => ({ topic: t, checked: false, notes: "" }))
-            ).map((q) => ({ ...q })),
-            reasoning: (
-              existing.reasoning ||
-              reasoningTopics.map((t) => ({ ...t, checked: false, notes: "" }))
-            ).map((r) => ({ ...r })),
-            missedTasks: (existing.missedTasks || []).map((m) => ({ ...m })),
-            imageNotes: (existing.imageNotes || []).map((n) => ({ ...n })),
-            vocabStats: existing.vocabStats || {
-              score: 0,
-              correct: 0,
-              wrong: 0,
-              quizzesCompleted: 0,
-            },
-          },
-        },
-      };
-    });
-  }, [selectedDate, setAppData]);
-
-  if (authLoading) {
-    return (
-      <div
-        style={{
-          height: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--bg)",
-        }}
-      >
-        <Loader2
-          className="spinner"
-          size={40}
-          color="var(--accent)"
-          style={{ animation: "spin 1s linear infinite" }}
-        />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="app-container">
-        <AuthModal />
-        <ToastContainer />
-      </div>
-    );
-  }
-
-  const currentHistory = history[selectedDate] || {
-    timeline: defaultTimeline.map((t) => ({ ...t })),
-    notes: "",
-    quant: quantTopics.map((t) => ({ topic: t, checked: false, notes: "" })),
-    reasoning: reasoningTopics.map((t) => ({
-      ...t,
-      checked: false,
-      notes: "",
-    })),
-    missedTasks: [],
-    imageNotes: [],
-    vocabStats: { score: 0, correct: 0, wrong: 0, quizzesCompleted: 0 },
-  };
-
-  return (
-    <div className="app-container">
-      {isSidebarOpen && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
-      <PomodoroTimer />
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
-
-      <aside className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
-        <div className="logo">
-          <div className="icon-wrap">
-            <Target size={20} />
-          </div>{" "}
-          IBPS Planner{" "}
-          <span style={{ fontWeight: 400, color: "var(--accent)" }}>PRO</span>
-        </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          {[
-            {
-              id: "dashboard",
-              icon: LayoutDashboard,
-              label: "Dashboard & Quiz",
-            },
-            { id: "today", icon: CalendarCheck, label: "Daily Plan" },
-            { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
-            { id: "quant", icon: Calculator, label: "Quant Rotation" },
-            { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
-            { id: "mocks", icon: LineChart, label: "Mock Tracker" },
-            { id: "habits", icon: CheckCircle, label: "Habit Tracker" },
-            { id: "settings", icon: Settings, label: "Settings" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              className={`nav-item ${activeView === item.id ? "active" : ""}`}
-              onClick={() => {
-                setActiveView(item.id);
-                setIsSidebarOpen(false);
-              }}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="main-content">
-        <Header
-          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          onOpenSearch={() => setIsSearchOpen(true)}
-        />
-        <div className="content-area">
-          {activeView === "dashboard" && <Dashboard history={currentHistory} />}
-          {activeView === "today" && (
-            <DailyPlan timeline={currentHistory.timeline} />
-          )}
-          {activeView === "vocab" && <VocabTracker />}
-          {activeView === "quant" && (
-            <QuantRotation quant={currentHistory.quant} />
-          )}
-          {activeView === "reasoning" && (
-            <ReasoningRotation reasoning={currentHistory.reasoning} />
-          )}
-          {activeView === "mocks" && <MockTracker />}
-          {activeView === "habits" && <HabitTracker />}
-          {activeView === "settings" && <SettingsView />}
-        </div>
-      </main>
-
-      <ToastContainer />
-      <ConfirmModal />
-    </div>
-  );
-}
-
-// --- VIEW & SUB-COMPONENTS ---
-
-function Header({ toggleSidebar, onOpenSearch }) {
-  const { theme, setTheme, selectedDate, setSelectedDate, user, logout } =
-    useAppStore();
-  const [time, setTime] = useState("");
-
-  useEffect(() => {
-    const updateTime = () =>
-      setTime(
-        new Date().toLocaleTimeString("en-IN", {
-          timeZone: "Asia/Kolkata",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-        }),
-      );
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const todayStr = getFormattedDateStr();
-
-  const displayName = user?.user_metadata?.display_username || "Aspirant";
-
-  return (
-    <header className="header">
-      <div className="header-left">
-        <button className="icon-btn mobile-menu-btn" onClick={toggleSidebar}>
-          <Menu size={18} />
-        </button>
-        <div className="date-picker-wrap">
-          <Calendar size={16} style={{ color: "var(--text-muted)" }} />
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-        </div>
-        {selectedDate !== todayStr && (
-          <button
-            className="btn btn-outline hide-on-mobile"
-            style={{ padding: "8px 12px", fontSize: "13px" }}
-            onClick={() => setSelectedDate(todayStr)}
-          >
-            Today
-          </button>
-        )}
-      </div>
-
-      <div className="header-right">
-        <div
-          className="btn btn-outline hide-on-mobile"
-          style={{
-            padding: "6px 12px",
-            fontSize: "12px",
-            gap: "6px",
-            borderColor: "rgba(99, 102, 241, 0.3)",
-            pointerEvents: "none",
-          }}
-        >
-          <User size={14} color="var(--accent)" />
-          <span>{displayName}</span>
-        </div>
-
-        <button
-          className="btn btn-outline hide-on-mobile"
-          style={{
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-            padding: "6px 12px",
-            fontSize: "12px",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-          }}
-          onClick={onOpenSearch}
-        >
-          <Search size={14} /> Search (Ctrl+K)
-        </button>
-        <div className="clock hide-on-mobile">{time}</div>
-        <button
-          className="icon-btn"
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-        >
-          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-        </button>
-        <button className="icon-btn" onClick={logout} title="Sign Out">
-          <LogOut size={18} color="var(--danger)" />
-        </button>
-      </div>
-    </header>
-  );
-}
-
 function VocabQuiz() {
   const { vocab, selectedDate, notify, premiumData } = useAppStore();
   const [quizState, setQuizState] = useState("idle");
@@ -1794,7 +1397,7 @@ function VocabQuiz() {
     let pool = [];
 
     if (modeToUse === "bookmarks") {
-      pool = vocab.filter((v) => premiumData.bookmarks.includes(v.id));
+      pool = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
       pool = shuffleArray(pool);
     } else if (modeToUse === "weekly") {
       const sevenDaysAgo = new Date(selectedDate);
@@ -1822,7 +1425,6 @@ function VocabQuiz() {
       let distractors = shuffleArray(vocab.filter((v) => v.id !== target.id))
         .slice(0, 3)
         .map((v) => v.meaning);
-
       generatedQs.push({
         targetId: target.id,
         targetWord: target.word,
@@ -2117,9 +1719,7 @@ function Dashboard({ history }) {
           </p>
         </div>
       </div>
-
       <VocabQuiz />
-
       <div className="grid-3" style={{ marginBottom: "32px" }}>
         <div className="card stat-card">
           <div
@@ -2158,7 +1758,6 @@ function Dashboard({ history }) {
         </div>
       </div>
       <UpcomingExamsWidget />
-
       <div className="grid-2">
         <div
           className="card"
@@ -2205,7 +1804,6 @@ function Dashboard({ history }) {
             ))}
           </div>
         </div>
-
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <div
             className="card"
@@ -2262,7 +1860,6 @@ function Dashboard({ history }) {
               ))}
             </div>
           </div>
-
           <div
             className="card"
             style={{ display: "flex", flexDirection: "column", padding: "0" }}
@@ -2306,7 +1903,177 @@ function Dashboard({ history }) {
   );
 }
 
-// --- MODERNIZED IBPS DICTIONARY & VOCAB TRACKER ---
+function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
+  const { selectedDate, notify } = useAppStore();
+  const [word, setWord] = useState("");
+  const [type, setType] = useState("Vocabulary");
+  const [partOfSpeech, setPartOfSpeech] = useState("");
+  const [meaning, setMeaning] = useState("");
+  const [synonyms, setSynonyms] = useState("");
+  const [antonyms, setAntonyms] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (initialData) {
+      setWord(initialData.word);
+      setType(initialData.type || "Vocabulary");
+      setPartOfSpeech(initialData.partOfSpeech || "");
+      setMeaning(initialData.meaning || "");
+      setSynonyms(initialData.synonyms || "");
+      setAntonyms(initialData.antonyms || "");
+      setNotes(initialData.notes || "");
+    } else {
+      setWord("");
+      setType("Vocabulary");
+      setPartOfSpeech("");
+      setMeaning("");
+      setSynonyms("");
+      setAntonyms("");
+      setNotes("");
+    }
+  }, [isOpen, initialData]);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (!word.trim() || !meaning.trim())
+      return notify("Word and Meaning required.", "error");
+    onSave({
+      id: initialData ? initialData.id : Date.now().toString(),
+      word,
+      type,
+      partOfSpeech,
+      meaning,
+      synonyms,
+      antonyms,
+      notes,
+      dateAdded: initialData ? initialData.dateAdded : selectedDate,
+    });
+    onClose();
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: "13px",
+    fontWeight: "600",
+    marginBottom: "8px",
+    color: "var(--text-main)",
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
+      <div
+        className="modal-card"
+        style={{ maxWidth: "550px", width: "90%", padding: "32px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3
+          className="modal-title"
+          style={{ marginBottom: "28px", fontSize: "20px" }}
+        >
+          {initialData ? "Edit Study Note" : "Custom Study Note"}
+        </h3>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr 1fr",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Word / Phrase</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Category</label>
+            <select
+              className="custom-input"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
+              <option value="Vocabulary">Vocabulary</option>
+              <option value="Phrasal Verb">Phrasal Verb</option>
+              <option value="Idiom">Idiom</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Part of Speech</label>
+            <input
+              type="text"
+              className="custom-input"
+              placeholder="noun, verb"
+              value={partOfSpeech}
+              onChange={(e) => setPartOfSpeech(e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: "20px" }}>
+          <label style={labelStyle}>Meaning / Definition</label>
+          <textarea
+            className="custom-input"
+            value={meaning}
+            onChange={(e) => setMeaning(e.target.value)}
+            rows="4"
+          />
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Synonyms (comma separated)</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={synonyms}
+              onChange={(e) => setSynonyms(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Antonyms (comma separated)</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={antonyms}
+              onChange={(e) => setAntonyms(e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: "32px" }}>
+          <label style={labelStyle}>Usage Context / Example Sentence</label>
+          <textarea
+            className="custom-input"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows="3"
+          />
+        </div>
+        <div
+          className="modal-actions"
+          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
+        >
+          <button className="btn btn-outline" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn" onClick={handleSave}>
+            <Save size={16} /> Save Note
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VocabTracker() {
   const {
     vocab,
@@ -2318,7 +2085,6 @@ function VocabTracker() {
     premiumData,
     setPremiumData,
   } = useAppStore();
-
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -2355,7 +2121,6 @@ function VocabTracker() {
     setSearchError("");
     setSearchResult(null);
     setShowSuggestions(false);
-
     try {
       const res = await fetch(
         `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term.trim().toLowerCase())}`,
@@ -2368,26 +2133,21 @@ function VocabTracker() {
         let antonymsList = [];
         let examplesList = [];
         let partsOfSpeechSet = new Set();
-
         entry.meanings?.forEach((m) => {
           const pos = m.partOfSpeech || "";
           if (pos) partsOfSpeechSet.add(pos);
-
           if (m.synonyms) synonymsList.push(...m.synonyms);
           if (m.antonyms) antonymsList.push(...m.antonyms);
-
           const firstDef = m.definitions?.[0]?.definition;
           if (firstDef) {
             meaningsList.push(`${pos ? `[${pos}] ` : ""}${firstDef}`);
           }
-
           m.definitions?.forEach((def) => {
             if (def.example) examplesList.push(def.example);
             if (def.synonyms) synonymsList.push(...def.synonyms);
             if (def.antonyms) antonymsList.push(...def.antonyms);
           });
         });
-
         let detectedType = "Vocabulary";
         const wordCount = term.trim().split(" ").length;
         if (wordCount > 2) {
@@ -2395,12 +2155,10 @@ function VocabTracker() {
         } else if (wordCount === 2) {
           detectedType = "Phrasal Verb";
         }
-
         const audioUrl = entry.phonetics?.find((p) => p.audio)?.audio || "";
         const combinedMeaning =
           meaningsList.join("\n") || "No definition found.";
         const allPoS = Array.from(partsOfSpeechSet).join(", ") || "word";
-
         setSearchResult({
           word: entry.word || term,
           type: detectedType,
@@ -2445,7 +2203,6 @@ function VocabTracker() {
       deleteVocabNote(id);
     });
   };
-
   const toggleBookmark = (id) => {
     setPremiumData((prev) => {
       const isBookmarked = prev.bookmarks?.includes(id);
@@ -2457,7 +2214,6 @@ function VocabTracker() {
       };
     });
   };
-
   const playAudio = (url) => {
     if (!url) return;
     new Audio(url).play();
@@ -2465,11 +2221,10 @@ function VocabTracker() {
 
   let filteredVocab = vocab.filter((v) => v.dateAdded === selectedDate);
   if (filterType === "Bookmarks") {
-    filteredVocab = vocab.filter((v) => premiumData.bookmarks?.includes(v.id));
+    filteredVocab = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
   } else if (filterType !== "All") {
     filteredVocab = filteredVocab.filter((v) => v.type === filterType);
   }
-
   const renderPills = (textStr) => {
     if (!textStr) return null;
     const words = textStr
@@ -2514,7 +2269,6 @@ function VocabTracker() {
           <Plus size={16} /> Custom Entry
         </button>
       </div>
-
       <div
         style={{
           position: "relative",
@@ -2570,7 +2324,6 @@ function VocabTracker() {
             {isSearching ? <Loader2 size={16} className="spinner" /> : "Search"}
           </button>
         </div>
-
         <AnimatePresence>
           {showSuggestions && suggestions.length > 0 && (
             <motion.div
@@ -2650,7 +2403,6 @@ function VocabTracker() {
         </div>
       )}
 
-      {/* MODERN PREVIEW CARD DESIGN */}
       {searchResult && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -2665,7 +2417,6 @@ function VocabTracker() {
             boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
           }}
         >
-          {/* Top Row: Word & Actions */}
           <div
             style={{
               display: "flex",
@@ -2709,8 +2460,6 @@ function VocabTracker() {
               </button>
             </div>
           </div>
-
-          {/* Badge Row */}
           <div style={{ marginBottom: "24px" }}>
             <span
               style={{
@@ -2730,11 +2479,9 @@ function VocabTracker() {
                 : ""}
             </span>
           </div>
-
           <div
             style={{ display: "flex", flexDirection: "column", gap: "20px" }}
           >
-            {/* Meaning Block */}
             <div>
               <span
                 style={{
@@ -2762,8 +2509,6 @@ function VocabTracker() {
                 {searchResult.meaning}
               </p>
             </div>
-
-            {/* Synonyms & Antonyms */}
             {(searchResult.synonyms || searchResult.antonyms) && (
               <div
                 style={{
@@ -2797,7 +2542,6 @@ function VocabTracker() {
                     </div>
                   </div>
                 )}
-
                 {searchResult.antonyms && (
                   <div style={{ flex: 1, minWidth: "150px" }}>
                     <span
@@ -2822,8 +2566,6 @@ function VocabTracker() {
                 )}
               </div>
             )}
-
-            {/* Notes Context */}
             {searchResult.notes && (
               <div
                 style={{
@@ -2923,7 +2665,7 @@ function VocabTracker() {
           }}
         >
           {filteredVocab.map((item) => {
-            const isBookmarked = premiumData.bookmarks?.includes(item.id);
+            const isBookmarked = premiumData?.bookmarks?.includes(item.id);
             return (
               <motion.div
                 whileHover={{ y: -4 }}
@@ -2942,7 +2684,6 @@ function VocabTracker() {
                   overflow: "hidden",
                 }}
               >
-                {/* Top Glowing Accent Bar if bookmarked */}
                 {isBookmarked && (
                   <div
                     style={{
@@ -2955,8 +2696,6 @@ function VocabTracker() {
                     }}
                   ></div>
                 )}
-
-                {/* Card Header (Matches Design Image) */}
                 <div
                   style={{
                     display: "flex",
@@ -2976,7 +2715,6 @@ function VocabTracker() {
                   >
                     {item.word}
                   </h3>
-
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
                       className="icon-btn-minimal"
@@ -3011,8 +2749,6 @@ function VocabTracker() {
                     </button>
                   </div>
                 </div>
-
-                {/* Badge Row */}
                 <div style={{ marginBottom: "24px" }}>
                   <span
                     style={{
@@ -3030,8 +2766,6 @@ function VocabTracker() {
                     {item.partOfSpeech ? ` • ${item.partOfSpeech}` : ""}
                   </span>
                 </div>
-
-                {/* Card Body */}
                 <div
                   style={{
                     display: "flex",
@@ -3067,15 +2801,13 @@ function VocabTracker() {
                       {item.meaning}
                     </p>
                   </div>
-
-                  {/* Modern Tag Layout for Synonyms & Antonyms */}
                   {(item.synonyms || item.antonyms) && (
                     <div
                       style={{
                         display: "flex",
                         flexWrap: "wrap",
                         gap: "24px",
-                        marginTop: "auto", // pushes down to bottom
+                        marginTop: "auto",
                         paddingTop: "20px",
                         borderTop: "1px dashed var(--border)",
                       }}
@@ -3106,7 +2838,6 @@ function VocabTracker() {
                           </div>
                         </div>
                       )}
-
                       {item.antonyms && (
                         <div style={{ flex: 1, minWidth: "120px" }}>
                           <span
@@ -3135,7 +2866,6 @@ function VocabTracker() {
                       )}
                     </div>
                   )}
-
                   {item.notes && (
                     <div
                       style={{
@@ -3164,7 +2894,6 @@ function VocabTracker() {
           })}
         </div>
       )}
-
       <VocabModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -3177,7 +2906,6 @@ function VocabTracker() {
   );
 }
 
-// --- MODERN TIMELINE VIEW ---
 function DailyPlan({ timeline }) {
   const { updateHistory, notify } = useAppStore();
 
@@ -3223,7 +2951,6 @@ function DailyPlan({ timeline }) {
           </button>
         </div>
       </div>
-
       <div
         style={{
           position: "relative",
@@ -3363,7 +3090,7 @@ function DailyPlan({ timeline }) {
                         <BookOpen size={12} />
                       ) : (
                         <Coffee size={12} />
-                      )}
+                      )}{" "}
                       {item.isStudy ? "Study Session" : "Break"}
                     </button>
                     <button
@@ -3410,330 +3137,6 @@ function DailyPlan({ timeline }) {
   );
 }
 
-// --- MODERN HABIT HEATMAP TRACKER VIEW ---
-function HabitTracker() {
-  const {
-    selectedDate,
-    habits,
-    baseHabits,
-    setAppData,
-    notify,
-    requestConfirm,
-  } = useAppStore();
-  const scrollRef = useRef(null);
-  const [isEditing, setIsEditing] = useState(false);
-
-  const dateParts = (selectedDate || getFormattedDateStr()).split("-");
-  const year = parseInt(dateParts[0], 10),
-    month = parseInt(dateParts[1], 10) - 1;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthName = new Date(year, month, 1).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
-
-  const currentHabits =
-    habits[monthKey] ||
-    (baseHabits || []).map((h) => ({
-      name: h,
-      days: Array(daysInMonth).fill(""),
-    }));
-
-  const updateHabits = (newHabits) =>
-    setAppData((state) => ({
-      ...state,
-      baseHabits: newHabits.map((h) => h.name),
-      habits: { ...state.habits, [monthKey]: newHabits },
-    }));
-
-  const toggleHabit = (hIndex, dIndex) => {
-    const newHabits = [...currentHabits];
-    const existingDays = newHabits[hIndex].days
-      ? [...newHabits[hIndex].days]
-      : Array(daysInMonth).fill("");
-    while (existingDays.length < daysInMonth) existingDays.push("");
-
-    const currentState = existingDays[dIndex];
-    let nextState = "";
-    if (currentState === "done" || currentState === true) nextState = "partial";
-    else if (currentState === "partial") nextState = "missed";
-    else if (currentState === "missed") nextState = "";
-    else nextState = "done";
-
-    existingDays[dIndex] = nextState;
-    newHabits[hIndex] = { ...newHabits[hIndex], days: existingDays };
-    updateHabits(newHabits);
-  };
-
-  const handleNameChange = (hIndex, val) => {
-    const newHabits = [...currentHabits];
-    newHabits[hIndex].name = val;
-    updateHabits(newHabits);
-  };
-
-  const deleteHabit = (hIndex) => {
-    requestConfirm("Remove this habit?", () => {
-      updateHabits(currentHabits.filter((_, i) => i !== hIndex));
-      notify("Habit deleted", "info");
-    });
-  };
-
-  const addHabit = () => {
-    updateHabits([
-      ...currentHabits,
-      { name: "New Habit", days: Array(daysInMonth).fill("") },
-    ]);
-    setIsEditing(true);
-    notify("New habit added", "success");
-  };
-
-  const handleScroll = (amount) => {
-    if (scrollRef.current)
-      scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
-  };
-
-  const leftColWidth = 200;
-  const cellSize = 34;
-  const cellGap = 8;
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Habits Heatmap</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Consistency calendar for <strong>{monthName}</strong> ({daysInMonth}{" "}
-            Days)
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button
-            className={`btn ${isEditing ? "" : "btn-outline"}`}
-            onClick={() => setIsEditing(!isEditing)}
-          >
-            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}
-            <span>{isEditing ? "Done Editing" : "Edit Habits"}</span>
-          </button>
-          <button className="btn" onClick={addHabit}>
-            <Plus size={16} /> Add Habit
-          </button>
-        </div>
-      </div>
-
-      <div
-        className="card"
-        style={{ padding: "24px", overflow: "hidden", position: "relative" }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: "8px",
-            marginBottom: "16px",
-          }}
-        >
-          <button
-            className="icon-btn-minimal"
-            onClick={() => handleScroll(-300)}
-            style={{ border: "1px solid var(--border)" }}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            className="icon-btn-minimal"
-            onClick={() => handleScroll(300)}
-            style={{ border: "1px solid var(--border)" }}
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-
-        <div style={{ display: "flex", width: "100%" }}>
-          <div
-            style={{
-              flex: `0 0 ${leftColWidth}px`,
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-              borderRight: "1px solid var(--border)",
-              paddingRight: "16px",
-              zIndex: 2,
-            }}
-          >
-            <div style={{ height: "24px", marginBottom: "16px" }}></div>
-            {currentHabits.map((h, hIndex) => (
-              <div
-                key={hIndex}
-                style={{
-                  height: `${cellSize}px`,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                {isEditing ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      width: "100%",
-                    }}
-                  >
-                    <input
-                      type="text"
-                      className="custom-input"
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: "13px",
-                        width: "100%",
-                      }}
-                      value={h.name}
-                      onChange={(e) => handleNameChange(hIndex, e.target.value)}
-                    />
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => deleteHabit(hIndex)}
-                    >
-                      <Trash2 size={14} color="var(--danger)" />
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                    title={h.name}
-                  >
-                    {h.name}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div
-            ref={scrollRef}
-            style={{
-              flex: 1,
-              overflowX: "auto",
-              paddingLeft: "16px",
-              scrollBehavior: "smooth",
-            }}
-          >
-            <div style={{ minWidth: "max-content", paddingRight: "16px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  gap: `${cellGap}px`,
-                  marginBottom: "16px",
-                }}
-              >
-                {Array.from({ length: daysInMonth }, (_, i) => {
-                  const isToday =
-                    i + 1 === new Date().getDate() &&
-                    month === new Date().getMonth();
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        width: `${cellSize}px`,
-                        textAlign: "center",
-                        fontSize: "12px",
-                        fontWeight: isToday ? 800 : 600,
-                        color: isToday ? "var(--accent)" : "var(--text-muted)",
-                        background: isToday
-                          ? "rgba(99, 102, 241, 0.1)"
-                          : "transparent",
-                        borderRadius: "6px",
-                        height: "24px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {i + 1}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                {currentHabits.map((h, hIndex) => (
-                  <div
-                    key={hIndex}
-                    style={{ display: "flex", gap: `${cellGap}px` }}
-                  >
-                    {Array.from({ length: daysInMonth }, (_, dIndex) => {
-                      const state = h.days && h.days[dIndex];
-                      const isDone = state === "done" || state === true;
-                      const isPartial = state === "partial";
-                      const isMissed = state === "missed";
-
-                      let cellBg = "var(--bg)";
-                      let cellBorder = "1px solid var(--border)";
-                      let content = null;
-
-                      if (isDone) {
-                        cellBg = "#10b981";
-                        cellBorder = "1px solid #10b981";
-                        content = <CheckCircle2 size={16} color="#fff" />;
-                      } else if (isPartial) {
-                        cellBg = "#f59e0b";
-                        cellBorder = "1px solid #f59e0b";
-                        content = (
-                          <Minus size={16} color="#fff" strokeWidth={3} />
-                        );
-                      } else if (isMissed) {
-                        cellBg = "#ef4444";
-                        cellBorder = "1px solid #ef4444";
-                        content = <X size={16} color="#fff" strokeWidth={3} />;
-                      }
-
-                      return (
-                        <motion.div
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.9 }}
-                          key={dIndex}
-                          onClick={() => toggleHabit(hIndex, dIndex)}
-                          style={{
-                            width: `${cellSize}px`,
-                            height: `${cellSize}px`,
-                            borderRadius: "8px",
-                            background: cellBg,
-                            border: cellBorder,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                          }}
-                        >
-                          {content}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function QuantRotation({ quant = [] }) {
   const { updateHistory } = useAppStore();
   const handleChange = (index, field, value) => {
@@ -3742,7 +3145,6 @@ function QuantRotation({ quant = [] }) {
     );
     updateHistory({ quant: updated });
   };
-
   return (
     <div>
       <div className="page-header">
@@ -3790,7 +3192,6 @@ function ReasoningRotation({ reasoning = [] }) {
     );
     updateHistory({ reasoning: updated });
   };
-
   return (
     <div>
       <div className="page-header">
@@ -4007,7 +3408,6 @@ function MockTracker() {
                     <Trash2 size={16} />
                   </button>
                 </div>
-
                 <div
                   style={{
                     display: "flex",
@@ -4050,7 +3450,6 @@ function MockTracker() {
                       }}
                     />
                   </div>
-
                   <div
                     style={{
                       display: "flex",
@@ -4096,6 +3495,322 @@ function MockTracker() {
   );
 }
 
+function HabitTracker() {
+  const {
+    selectedDate,
+    habits,
+    baseHabits,
+    setAppData,
+    notify,
+    requestConfirm,
+  } = useAppStore();
+  const scrollRef = useRef(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const dateParts = (selectedDate || getFormattedDateStr()).split("-");
+  const year = parseInt(dateParts[0], 10),
+    month = parseInt(dateParts[1], 10) - 1;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthName = new Date(year, month, 1).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+
+  const currentHabits =
+    habits[monthKey] ||
+    (baseHabits || []).map((h) => ({
+      name: h,
+      days: Array(daysInMonth).fill(""),
+    }));
+
+  const updateHabits = (newHabits) =>
+    setAppData((state) => ({
+      ...state,
+      baseHabits: newHabits.map((h) => h.name),
+      habits: { ...state.habits, [monthKey]: newHabits },
+    }));
+
+  const toggleHabit = (hIndex, dIndex) => {
+    const newHabits = [...currentHabits];
+    const existingDays = newHabits[hIndex].days
+      ? [...newHabits[hIndex].days]
+      : Array(daysInMonth).fill("");
+    while (existingDays.length < daysInMonth) existingDays.push("");
+
+    const currentState = existingDays[dIndex];
+    let nextState = "";
+    if (currentState === "done" || currentState === true) nextState = "partial";
+    else if (currentState === "partial") nextState = "missed";
+    else if (currentState === "missed") nextState = "";
+    else nextState = "done";
+
+    existingDays[dIndex] = nextState;
+    newHabits[hIndex] = { ...newHabits[hIndex], days: existingDays };
+    updateHabits(newHabits);
+  };
+
+  const handleNameChange = (hIndex, val) => {
+    const newHabits = [...currentHabits];
+    newHabits[hIndex].name = val;
+    updateHabits(newHabits);
+  };
+
+  const deleteHabit = (hIndex) => {
+    requestConfirm("Remove this habit?", () => {
+      updateHabits(currentHabits.filter((_, i) => i !== hIndex));
+      notify("Habit deleted", "info");
+    });
+  };
+
+  const addHabit = () => {
+    updateHabits([
+      ...currentHabits,
+      { name: "New Habit", days: Array(daysInMonth).fill("") },
+    ]);
+    setIsEditing(true);
+    notify("New habit added", "success");
+  };
+
+  const handleScroll = (amount) => {
+    if (scrollRef.current)
+      scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
+  };
+
+  const leftColWidth = 200;
+  const cellSize = 34;
+  const cellGap = 8;
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Habits Heatmap</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Consistency calendar for <strong>{monthName}</strong> ({daysInMonth}{" "}
+            Days)
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            className={`btn ${isEditing ? "" : "btn-outline"}`}
+            onClick={() => setIsEditing(!isEditing)}
+          >
+            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}
+            <span>{isEditing ? "Done Editing" : "Edit Habits"}</span>
+          </button>
+          <button className="btn" onClick={addHabit}>
+            <Plus size={16} /> Add Habit
+          </button>
+        </div>
+      </div>
+      <div
+        className="card"
+        style={{ padding: "24px", overflow: "hidden", position: "relative" }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "8px",
+            marginBottom: "16px",
+          }}
+        >
+          <button
+            className="icon-btn-minimal"
+            onClick={() => handleScroll(-300)}
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            className="icon-btn-minimal"
+            onClick={() => handleScroll(300)}
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        <div style={{ display: "flex", width: "100%" }}>
+          <div
+            style={{
+              flex: `0 0 ${leftColWidth}px`,
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              borderRight: "1px solid var(--border)",
+              paddingRight: "16px",
+              zIndex: 2,
+            }}
+          >
+            <div style={{ height: "24px", marginBottom: "16px" }}></div>
+            {currentHabits.map((h, hIndex) => (
+              <div
+                key={hIndex}
+                style={{
+                  height: `${cellSize}px`,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                {isEditing ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      width: "100%",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="custom-input"
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: "13px",
+                        width: "100%",
+                      }}
+                      value={h.name}
+                      onChange={(e) => handleNameChange(hIndex, e.target.value)}
+                    />
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => deleteHabit(hIndex)}
+                    >
+                      <Trash2 size={14} color="var(--danger)" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={h.name}
+                  >
+                    {h.name}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div
+            ref={scrollRef}
+            style={{
+              flex: 1,
+              overflowX: "auto",
+              paddingLeft: "16px",
+              scrollBehavior: "smooth",
+            }}
+          >
+            <div style={{ minWidth: "max-content", paddingRight: "16px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: `${cellGap}px`,
+                  marginBottom: "16px",
+                }}
+              >
+                {Array.from({ length: daysInMonth }, (_, i) => {
+                  const isToday =
+                    i + 1 === new Date().getDate() &&
+                    month === new Date().getMonth();
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        width: `${cellSize}px`,
+                        textAlign: "center",
+                        fontSize: "12px",
+                        fontWeight: isToday ? 800 : 600,
+                        color: isToday ? "var(--accent)" : "var(--text-muted)",
+                        background: isToday
+                          ? "rgba(99, 102, 241, 0.1)"
+                          : "transparent",
+                        borderRadius: "6px",
+                        height: "24px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {i + 1}
+                    </div>
+                  );
+                })}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {currentHabits.map((h, hIndex) => (
+                  <div
+                    key={hIndex}
+                    style={{ display: "flex", gap: `${cellGap}px` }}
+                  >
+                    {Array.from({ length: daysInMonth }, (_, dIndex) => {
+                      const state = h.days && h.days[dIndex];
+                      const isDone = state === "done" || state === true;
+                      const isPartial = state === "partial";
+                      const isMissed = state === "missed";
+                      let cellBg = "var(--bg)";
+                      let cellBorder = "1px solid var(--border)";
+                      let content = null;
+                      if (isDone) {
+                        cellBg = "#10b981";
+                        cellBorder = "1px solid #10b981";
+                        content = <CheckCircle2 size={16} color="#fff" />;
+                      } else if (isPartial) {
+                        cellBg = "#f59e0b";
+                        cellBorder = "1px solid #f59e0b";
+                        content = (
+                          <Minus size={16} color="#fff" strokeWidth={3} />
+                        );
+                      } else if (isMissed) {
+                        cellBg = "#ef4444";
+                        cellBorder = "1px solid #ef4444";
+                        content = <X size={16} color="#fff" strokeWidth={3} />;
+                      }
+                      return (
+                        <motion.div
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          key={dIndex}
+                          onClick={() => toggleHabit(hIndex, dIndex)}
+                          style={{
+                            width: `${cellSize}px`,
+                            height: `${cellSize}px`,
+                            borderRadius: "8px",
+                            background: cellBg,
+                            border: cellBorder,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          {content}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsView() {
   const {
     user,
@@ -4115,7 +3830,6 @@ function SettingsView() {
       <p style={{ color: "var(--text-muted)", marginBottom: 32 }}>
         Manage your profile credentials and local data preference.
       </p>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <div
           style={{ borderBottom: "1px solid var(--border)", paddingBottom: 24 }}
@@ -4177,7 +3891,6 @@ function SettingsView() {
             </div>
           </div>
         </div>
-
         <div
           style={{ borderBottom: "1px solid var(--border)", paddingBottom: 24 }}
         >
@@ -4194,13 +3907,11 @@ function SettingsView() {
             style={{ maxWidth: "300px" }}
           />
         </div>
-
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <button className="btn btn-outline" onClick={logout}>
             <LogOut size={16} /> Sign Out Account
           </button>
         </div>
-
         <div
           style={{
             marginTop: "24px",
@@ -4249,6 +3960,903 @@ function SettingsView() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- FULLSCREEN STUDY MATERIALS MODULE ---
+function StudyMaterialsModule() {
+  const { user, notify } = useAppStore();
+  const [documents, setDocuments] = useState([]);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [notes, setNotes] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [newNote, setNewNote] = useState("");
+  const [pageNumber, setPageNumber] = useState(1);
+
+  // Focus / Expand States
+  const [showLibrary, setShowLibrary] = useState(true);
+  const [showNotes, setShowNotes] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const isAdmin = user?.user_metadata?.display_username === "AdminSeenu";
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDoc) {
+      fetchNotes(selectedDoc.id);
+    }
+  }, [selectedDoc]);
+
+  const fetchDocuments = async () => {
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      notify("Failed to load PDFs.", "error");
+    } else {
+      setDocuments(data || []);
+      if (data && data.length > 0 && !selectedDoc) {
+        setSelectedDoc(data[0]);
+      }
+    }
+  };
+
+  const fetchNotes = async (docId) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("document_notes")
+      .select("*")
+      .eq("document_id", docId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (!error) setNotes(data || []);
+  };
+
+  const handleFileUpload = async (event) => {
+    if (!isAdmin) return notify("Only the admin can upload PDFs.", "error");
+
+    try {
+      setUploading(true);
+      const file = event.target.files[0];
+      if (!file || file.type !== "application/pdf") {
+        return notify("Please select a valid PDF file.", "error");
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("pdf-files")
+        .upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("pdf-files")
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase.from("documents").insert([
+        {
+          title: file.name.replace(".pdf", ""),
+          file_path: filePath,
+          file_url: urlData.publicUrl,
+        },
+      ]);
+      if (dbError) throw dbError;
+
+      notify("PDF uploaded successfully!", "success");
+      fetchDocuments();
+    } catch (error) {
+      notify("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteDoc = async (id, filePath) => {
+    if (!isAdmin) return;
+    try {
+      await supabase.storage.from("pdf-files").remove([filePath]);
+      await supabase.from("documents").delete().eq("id", id);
+      notify("Document removed.", "info");
+      if (selectedDoc?.id === id) setSelectedDoc(null);
+      fetchDocuments();
+    } catch (err) {
+      notify("Failed to delete document.", "error");
+    }
+  };
+
+  const handleAddNote = async (e) => {
+    e.preventDefault();
+    if (!newNote.trim() || !selectedDoc || !user) return;
+
+    const { error } = await supabase.from("document_notes").insert([
+      {
+        document_id: selectedDoc.id,
+        user_id: user.id,
+        content: newNote,
+        page_number: parseInt(pageNumber) || 1,
+      },
+    ]);
+
+    if (error) {
+      notify("Failed to save note.", "error");
+    } else {
+      setNewNote("");
+      fetchNotes(selectedDoc.id);
+      notify("Note saved!", "success");
+    }
+  };
+
+  const handleDeleteNote = async (id) => {
+    await supabase.from("document_notes").delete().eq("id", id);
+    fetchNotes(selectedDoc.id);
+  };
+
+  return (
+    <div
+      style={
+        isFullscreen
+          ? {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99999,
+              display: "flex",
+              background: "var(--bg)",
+              animation: "fadeIn 0.2s",
+            }
+          : {
+              display: "flex",
+              height: "calc(100vh - 80px)",
+              background: "var(--bg)",
+              borderRadius: "16px",
+              overflow: "hidden",
+              border: "1px solid var(--border)",
+              animation: "fadeIn 0.5s ease",
+            }
+      }
+    >
+      {/* Left Sidebar: Document List */}
+      {showLibrary && (
+        <div
+          style={{
+            width: "280px",
+            borderRight: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            background: "rgba(0,0,0,0.02)",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: "20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "16px",
+                fontWeight: 700,
+                margin: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <BookOpen size={18} color="var(--accent)" /> Library
+            </h2>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {isAdmin && (
+                <label
+                  className="btn"
+                  style={{
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    height: "30px",
+                    margin: 0,
+                  }}
+                >
+                  <UploadCloud size={14} />
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleFileUpload}
+                    style={{ display: "none" }}
+                    disabled={uploading}
+                  />
+                </label>
+              )}
+              <button
+                className="icon-btn-minimal"
+                onClick={() => setShowLibrary(false)}
+                title="Close Library"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div
+            className="scroll-area"
+            style={{
+              flex: 1,
+              padding: "12px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            {uploading && (
+              <div
+                style={{
+                  padding: "12px",
+                  textAlign: "center",
+                  fontSize: "12px",
+                  color: "var(--accent)",
+                  background: "rgba(99,102,241,0.1)",
+                  borderRadius: "8px",
+                }}
+              >
+                Uploading PDF...
+              </div>
+            )}
+            {documents.length === 0 && !uploading && (
+              <p
+                style={{
+                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "var(--text-muted)",
+                  marginTop: "20px",
+                }}
+              >
+                No documents available.
+              </p>
+            )}
+
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                onClick={() => setSelectedDoc(doc)}
+                className="dash-list-item"
+                style={{
+                  cursor: "pointer",
+                  background:
+                    selectedDoc?.id === doc.id
+                      ? "rgba(99,102,241,0.1)"
+                      : "transparent",
+                  border:
+                    selectedDoc?.id === doc.id
+                      ? "1px solid rgba(99,102,241,0.3)"
+                      : "1px solid transparent",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <FileText
+                    size={16}
+                    color={
+                      selectedDoc?.id === doc.id
+                        ? "var(--accent)"
+                        : "var(--text-muted)"
+                    }
+                  />
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {doc.title}
+                  </span>
+                </div>
+                {isAdmin && (
+                  <button
+                    className="icon-btn-minimal"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteDoc(doc.id, doc.file_path);
+                    }}
+                    style={{ color: "var(--danger)", padding: "4px" }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Center: Modern PDF Viewer */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+        }}
+      >
+        {selectedDoc ? (
+          <>
+            <div
+              style={{
+                padding: "12px 24px",
+                borderBottom: "1px solid var(--border)",
+                background: "var(--bg)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                {!showLibrary && (
+                  <button
+                    className="icon-btn-minimal"
+                    onClick={() => setShowLibrary(true)}
+                    title="Show Library"
+                    style={{ border: "1px solid var(--border)" }}
+                  >
+                    <BookOpen size={16} />
+                  </button>
+                )}
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {selectedDoc.title}
+                </span>
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    padding: "4px 10px",
+                    background: "rgba(245,158,11,0.1)",
+                    color: "var(--warning)",
+                    borderRadius: "12px",
+                    fontWeight: 700,
+                  }}
+                >
+                  READ ONLY
+                </span>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Viewer"}
+                  style={{ border: "1px solid var(--border)" }}
+                >
+                  {isFullscreen ? (
+                    <Minimize size={16} />
+                  ) : (
+                    <Maximize size={16} />
+                  )}
+                </button>
+                {!showNotes && (
+                  <button
+                    className="icon-btn-minimal"
+                    onClick={() => setShowNotes(true)}
+                    title="Show Notes"
+                    style={{ border: "1px solid var(--border)" }}
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div
+              style={{
+                flex: 1,
+                padding: isFullscreen ? "0" : "16px",
+                background: "rgba(0,0,0,0.05)",
+              }}
+            >
+              <object
+                data={`${selectedDoc.file_url}#toolbar=0&navpanes=0`}
+                type="application/pdf"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: isFullscreen ? "0" : "12px",
+                  border: isFullscreen ? "none" : "1px solid var(--border)",
+                  boxShadow: isFullscreen
+                    ? "none"
+                    : "0 10px 30px rgba(0,0,0,0.1)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  <p>Unable to render PDF preview directly.</p>
+                  <a
+                    href={selectedDoc.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      color: "var(--accent)",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Open PDF in new tab
+                  </a>
+                </div>
+              </object>
+            </div>
+          </>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              color: "var(--text-muted)",
+            }}
+          >
+            <FileText
+              size={48}
+              style={{ opacity: 0.2, marginBottom: "16px" }}
+            />
+            <p>Select a document from the library to start reading.</p>
+            {!showLibrary && (
+              <button
+                className="btn btn-outline"
+                style={{ marginTop: "16px" }}
+                onClick={() => setShowLibrary(true)}
+              >
+                <BookOpen size={16} /> Open Library
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Right Sidebar: Personal Notes */}
+      {showNotes && (
+        <div
+          style={{
+            width: "320px",
+            borderLeft: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            background: "var(--bg)",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: "20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Edit3 size={18} color="var(--accent)" />
+              <h3 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>
+                My Notes
+              </h3>
+            </div>
+            <button
+              className="icon-btn-minimal"
+              onClick={() => setShowNotes(false)}
+              title="Close Notes"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <form
+            onSubmit={handleAddNote}
+            style={{
+              padding: "16px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--text-muted)",
+                }}
+              >
+                Page
+              </span>
+              <input
+                type="number"
+                min="1"
+                value={pageNumber}
+                onChange={(e) => setPageNumber(e.target.value)}
+                className="custom-input"
+                style={{ width: "60px", padding: "6px", textAlign: "center" }}
+              />
+            </div>
+            <textarea
+              rows="3"
+              placeholder="Write personal takeaways here..."
+              className="custom-input"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              style={{ resize: "none" }}
+            />
+            <button
+              type="submit"
+              className="btn"
+              disabled={!selectedDoc || !newNote.trim()}
+              style={{ width: "100%", justifyContent: "center" }}
+            >
+              <Plus size={16} /> Save Note
+            </button>
+          </form>
+
+          <div
+            className="scroll-area"
+            style={{
+              flex: 1,
+              padding: "16px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            {notes.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: "var(--text-muted)",
+                  marginTop: "20px",
+                  padding: "20px",
+                }}
+              >
+                <MessageSquare
+                  size={32}
+                  style={{ opacity: 0.2, margin: "0 auto 12px auto" }}
+                />
+                <p style={{ fontSize: "13px" }}>
+                  No notes saved for this document.
+                </p>
+              </div>
+            ) : (
+              notes.map((note) => (
+                <div
+                  key={note.id}
+                  className="card"
+                  style={{
+                    padding: "16px",
+                    background: "rgba(0,0,0,0.02)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--accent)",
+                        background: "rgba(99,102,241,0.1)",
+                        padding: "4px 8px",
+                        borderRadius: "8px",
+                      }}
+                    >
+                      PAGE {note.page_number}
+                    </span>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => handleDeleteNote(note.id)}
+                      style={{ color: "var(--text-muted)", padding: 0 }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      margin: 0,
+                      lineHeight: 1.5,
+                      color: "var(--text-main)",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {note.content}
+                  </p>
+                  <span
+                    style={{ fontSize: "10px", color: "var(--text-muted)" }}
+                  >
+                    {new Date(note.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- MAIN EXPORTED APP COMPONENT ---
+export default function App() {
+  const {
+    user,
+    authLoading,
+    initAuth,
+    fetchVocabFromCloud,
+    theme,
+    activeView,
+    setActiveView,
+    selectedDate,
+    setAppData,
+    history,
+  } = useAppStore();
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  const isAdmin = user?.user_metadata?.display_username === "AdminSeennu";
+
+  useEffect(() => {
+    initAuth();
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const contentArea = document.querySelector(".content-area");
+    if (contentArea) contentArea.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activeView]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel("public:dictionary")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "dictionary" },
+        () => {
+          fetchVocabFromCloud();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchVocabFromCloud]);
+
+  useEffect(() => {
+    document.body.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    setAppData((state) => {
+      const existing = state.history[selectedDate] || {};
+      if (
+        existing.quant &&
+        existing.reasoning &&
+        existing.timeline &&
+        existing.missedTasks &&
+        existing.imageNotes &&
+        existing.vocabStats
+      )
+        return state;
+      return {
+        ...state,
+        history: {
+          ...state.history,
+          [selectedDate]: {
+            timeline: (
+              existing.timeline ||
+              state.baseTimeline ||
+              defaultTimeline
+            ).map((t) => ({ ...t })),
+            notes: existing.notes || "",
+            quant: (
+              existing.quant ||
+              quantTopics.map((t) => ({ topic: t, checked: false, notes: "" }))
+            ).map((q) => ({ ...q })),
+            reasoning: (
+              existing.reasoning ||
+              reasoningTopics.map((t) => ({ ...t, checked: false, notes: "" }))
+            ).map((r) => ({ ...r })),
+            missedTasks: (existing.missedTasks || []).map((m) => ({ ...m })),
+            imageNotes: (existing.imageNotes || []).map((n) => ({ ...n })),
+            vocabStats: existing.vocabStats || {
+              score: 0,
+              correct: 0,
+              wrong: 0,
+              quizzesCompleted: 0,
+            },
+          },
+        },
+      };
+    });
+  }, [selectedDate, setAppData]);
+
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--bg)",
+        }}
+      >
+        <Loader2
+          className="spinner"
+          size={40}
+          color="var(--accent)"
+          style={{ animation: "spin 1s linear infinite" }}
+        />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="app-container">
+        <AuthModal />
+        <ToastContainer />
+      </div>
+    );
+  }
+
+  const currentHistory = history[selectedDate] || {
+    timeline: defaultTimeline.map((t) => ({ ...t })),
+    notes: "",
+    quant: quantTopics.map((t) => ({ topic: t, checked: false, notes: "" })),
+    reasoning: reasoningTopics.map((t) => ({
+      ...t,
+      checked: false,
+      notes: "",
+    })),
+    missedTasks: [],
+    imageNotes: [],
+    vocabStats: { score: 0, correct: 0, wrong: 0, quizzesCompleted: 0 },
+  };
+
+  return (
+    <div className="app-container">
+      {isSidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
+      )}
+      <PomodoroTimer />
+      <GlobalSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
+
+      <aside className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
+        <div className="logo">
+          <div className="icon-wrap">
+            <Target size={20} />
+          </div>{" "}
+          IBPS Planner{" "}
+          <span style={{ fontWeight: 400, color: "var(--accent)" }}>PRO</span>
+        </div>
+        <nav style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {[
+            {
+              id: "dashboard",
+              icon: LayoutDashboard,
+              label: "Dashboard & Quiz",
+            },
+            { id: "today", icon: CalendarCheck, label: "Daily Plan" },
+            {
+              id: "materials",
+              icon: UploadCloud,
+              label: isAdmin ? "Admin: PDFs" : "Study Materials",
+            },
+            { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
+            { id: "quant", icon: Calculator, label: "Quant Rotation" },
+            { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
+            { id: "mocks", icon: LineChart, label: "Mock Tracker" },
+            { id: "habits", icon: CheckCircle, label: "Habit Tracker" },
+            { id: "settings", icon: Settings, label: "Settings" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              className={`nav-item ${activeView === item.id ? "active" : ""}`}
+              onClick={() => {
+                setActiveView(item.id);
+                setIsSidebarOpen(false);
+              }}
+            >
+              <item.icon size={18} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <main className="main-content">
+        <Header
+          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onOpenSearch={() => setIsSearchOpen(true)}
+        />
+        <div className="content-area">
+          {activeView === "dashboard" && <Dashboard history={currentHistory} />}
+          {activeView === "today" && (
+            <DailyPlan timeline={currentHistory.timeline} />
+          )}
+          {activeView === "materials" && <StudyMaterialsModule />}
+          {activeView === "vocab" && <VocabTracker />}
+          {activeView === "quant" && (
+            <QuantRotation quant={currentHistory.quant} />
+          )}
+          {activeView === "reasoning" && (
+            <ReasoningRotation reasoning={currentHistory.reasoning} />
+          )}
+          {activeView === "mocks" && <MockTracker />}
+          {activeView === "habits" && <HabitTracker />}
+          {activeView === "settings" && <SettingsView />}
+        </div>
+      </main>
+
+      <ToastContainer />
+      <ConfirmModal />
     </div>
   );
 }
