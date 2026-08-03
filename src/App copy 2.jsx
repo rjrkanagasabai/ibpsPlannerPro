@@ -65,6 +65,14 @@ import {
   MessageSquare,
   Maximize,
   Minimize,
+  PenTool,
+  MousePointer2,
+  Tag,
+  Layers,
+  Filter,
+  Move,
+  GripHorizontal,
+  LayoutGrid,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
@@ -252,6 +260,16 @@ const expectedNotifications = [
   "UIICL AO",
 ];
 
+const NOTE_TOPICS = [
+  "Quants",
+  "Reasoning",
+  "English",
+  "Current Affairs",
+  "Static GK",
+  "Banking Awareness",
+  "General",
+];
+
 const getFormattedDateStr = (d = new Date()) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
@@ -330,6 +348,7 @@ export const useAppStore = create(
       mocks: [],
       habits: {},
       vocab: [],
+      digitalNotes: [],
       isSyncing: false,
 
       premiumData: {
@@ -373,19 +392,14 @@ export const useAppStore = create(
         } = await supabase.auth.getSession();
         set({ session, user: session?.user || null, authLoading: false });
 
-        if (session?.user) {
-          get().fetchVocabFromCloud();
-        }
+        if (session?.user) get().fetchVocabFromCloud();
 
         supabase.auth.onAuthStateChange((_event, session) => {
           const currentUser = get().user;
           set({ session, user: session?.user || null, authLoading: false });
-
-          if (session?.user && session.user.id !== currentUser?.id) {
+          if (session?.user && session.user.id !== currentUser?.id)
             get().fetchVocabFromCloud();
-          } else if (!session?.user) {
-            set({ vocab: [] });
-          }
+          else if (!session?.user) set({ vocab: [] });
         });
       },
 
@@ -430,9 +444,8 @@ export const useAppStore = create(
         if (user) {
           try {
             const { error } = await supabase.rpc("delete_user");
-            if (error) {
+            if (error)
               await supabase.from("dictionary").delete().eq("user_id", user.id);
-            }
             await supabase.auth.signOut();
           } catch (err) {}
         }
@@ -444,6 +457,7 @@ export const useAppStore = create(
           history: {},
           mocks: [],
           habits: {},
+          digitalNotes: [],
           premiumData: { bookmarks: [] },
         });
         get().notify(
@@ -452,7 +466,6 @@ export const useAppStore = create(
         );
       },
 
-      // --- DICTIONARY CLOUD CRUD WITH OPTIMISTIC UI ---
       fetchVocabFromCloud: async () => {
         const user = get().user;
         if (!user) return;
@@ -463,7 +476,6 @@ export const useAppStore = create(
             .select("*")
             .eq("user_id", user.id)
             .order("dateAdded", { ascending: false });
-
           if (error) throw error;
           if (data) set({ vocab: data });
         } catch (err) {
@@ -476,10 +488,8 @@ export const useAppStore = create(
         const user = get().user;
         if (!user) return;
         const noteWithUser = { ...newNote, user_id: user.id };
-
         set((state) => ({ vocab: [noteWithUser, ...state.vocab] }));
         get().notify(`Saved "${newNote.word}" to Cloud!`, "success");
-
         try {
           const { error } = await supabase
             .from("dictionary")
@@ -491,23 +501,20 @@ export const useAppStore = create(
             throw error;
           }
         } catch (err) {
-          get().notify("Failed to save entry. It has been removed.", "error");
+          get().notify("Failed to save entry.", "error");
         }
       },
 
       updateVocabNote: async (noteObj) => {
         const user = get().user;
         if (!user) return;
-
         const noteWithUser = { ...noteObj, user_id: user.id };
-
         set((state) => ({
           vocab: state.vocab.map((v) =>
             v.id === noteObj.id ? noteWithUser : v,
           ),
         }));
         get().notify("Note updated instantly!", "success");
-
         try {
           const { error } = await supabase
             .from("dictionary")
@@ -521,10 +528,8 @@ export const useAppStore = create(
       deleteVocabNote: async (id) => {
         const user = get().user;
         if (!user) return;
-
         set((state) => ({ vocab: state.vocab.filter((v) => v.id !== id) }));
         get().notify("Entry removed.", "info");
-
         try {
           const { error } = await supabase
             .from("dictionary")
@@ -535,6 +540,23 @@ export const useAppStore = create(
           get().notify("Failed to delete entry from cloud.", "error");
         }
       },
+
+      // Digital Notes Board Actions
+      addDigitalNote: (note) =>
+        set((state) => ({
+          digitalNotes: [...(state.digitalNotes || []), note],
+        })),
+      updateDigitalNote: (id, updates) =>
+        set((state) => ({
+          digitalNotes: state.digitalNotes.map((n) =>
+            n.id === id ? { ...n, ...updates } : n,
+          ),
+        })),
+      deleteDigitalNote: (id) =>
+        set((state) => ({
+          digitalNotes: state.digitalNotes.filter((n) => n.id !== id),
+        })),
+      clearDigitalNotes: () => set({ digitalNotes: [] }),
 
       updateHistory: (newHistoryData) => {
         const date = get().selectedDate;
@@ -559,6 +581,7 @@ export const useAppStore = create(
         mocks: state.mocks,
         habits: state.habits,
         baseTimeline: state.baseTimeline,
+        digitalNotes: state.digitalNotes,
         baseHabits: state.baseHabits,
         premiumData: state.premiumData,
       }),
@@ -566,7 +589,69 @@ export const useAppStore = create(
   ),
 );
 
-// --- ALL VIEW & SUB-COMPONENTS ---
+// --- COMPONENTS ---
+
+// Helper Draggable Component
+function DraggableItem({
+  initialX,
+  initialY,
+  children,
+  onDragEnd,
+  dragHandleClass = "drag-handle",
+}) {
+  const [pos, setPos] = useState({ x: initialX, y: initialY });
+  const dragRef = useRef({
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    initX: 0,
+    initY: 0,
+  });
+
+  const onPointerDown = (e) => {
+    if (dragHandleClass && !e.target.closest(`.${dragHandleClass}`)) return;
+    dragRef.current = {
+      isDragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: pos.x,
+      initY: pos.y,
+    };
+    e.target.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    setPos({ x: dragRef.current.initX + dx, y: dragRef.current.initY + dy });
+  };
+
+  const onPointerUp = (e) => {
+    if (!dragRef.current.isDragging) return;
+    dragRef.current.isDragging = false;
+    e.target.releasePointerCapture(e.pointerId);
+    if (onDragEnd) onDragEnd(pos.x, pos.y);
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: pos.x,
+        top: pos.y,
+        pointerEvents: "auto",
+        zIndex: 100,
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      {children}
+    </div>
+  );
+}
 
 function AuthModal() {
   const { loginWithUsername, signUpWithUsername, notify, setActiveView } =
@@ -585,7 +670,6 @@ function AuthModal() {
       );
     }
     setLoading(true);
-
     try {
       if (isSignUp) {
         await signUpWithUsername(username, password);
@@ -642,7 +726,6 @@ function AuthModal() {
               : "Enter your Aspirant ID and Password to access your studyspace."}
           </p>
         </div>
-
         <form
           onSubmit={handleSubmit}
           style={{ display: "flex", flexDirection: "column", gap: "16px" }}
@@ -680,7 +763,6 @@ function AuthModal() {
               />
             </div>
           </div>
-
           <div>
             <label
               style={{
@@ -714,7 +796,6 @@ function AuthModal() {
               />
             </div>
           </div>
-
           <button
             type="submit"
             className="btn"
@@ -739,7 +820,6 @@ function AuthModal() {
             )}
           </button>
         </form>
-
         <div
           style={{
             marginTop: "20px",
@@ -765,25 +845,6 @@ function AuthModal() {
             {isSignUp ? "Log In" : "Create Account"}
           </button>
         </div>
-
-        <div
-          style={{
-            marginTop: "20px",
-            padding: "12px",
-            background: "rgba(16, 185, 129, 0.05)",
-            borderRadius: "8px",
-            border: "1px solid rgba(16, 185, 129, 0.2)",
-            fontSize: "11px",
-            color: "var(--text-muted)",
-            lineHeight: "1.5",
-          }}
-        >
-          <strong>Privacy & Guidelines:</strong> Your scores, image notes, and
-          daily records are stored safely in your device's local storage. We
-          gather data related to Aspirant ID and Password solely to secure your
-          account, and we sync your Dictionary entries to the cloud. We do not
-          track or sell your personal data.
-        </div>
       </motion.div>
     </div>
   );
@@ -792,9 +853,7 @@ function AuthModal() {
 function GlobalSearchModal({ isOpen, onClose }) {
   const { vocab } = useAppStore();
   const [searchTerm, setSearchTerm] = useState("");
-
   if (!isOpen) return null;
-
   const results = [];
   if (searchTerm.length > 2) {
     const lower = searchTerm.toLowerCase();
@@ -811,7 +870,6 @@ function GlobalSearchModal({ isOpen, onClose }) {
       }
     });
   }
-
   return (
     <div
       className="modal-overlay"
@@ -908,9 +966,9 @@ function PomodoroTimer() {
 
   useEffect(() => {
     let interval = null;
-    if (isActive && timeLeft > 0) {
+    if (isActive && timeLeft > 0)
       interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (isActive && timeLeft === 0) {
+    else if (isActive && timeLeft === 0) {
       setIsActive(false);
       notify(`Time's up! You completed a ${mode} minute session.`, "success");
       setPremiumData((prev) => ({
@@ -1098,7 +1156,6 @@ function ToastContainer() {
 function ConfirmModal() {
   const { confirmDialog, closeConfirm } = useAppStore();
   if (!confirmDialog.isOpen) return null;
-
   return (
     <div
       className="modal-overlay"
@@ -1236,7 +1293,6 @@ function UpcomingExamsWidget() {
         return { bg: "rgba(245, 158, 11, 0.1)", text: "#f59e0b" };
     }
   };
-
   return (
     <div
       className="card"
@@ -1395,7 +1451,6 @@ function VocabQuiz() {
     const modeToUse =
       typeof overrideMode === "string" ? overrideMode : quizMode;
     let pool = [];
-
     if (modeToUse === "bookmarks") {
       pool = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
       pool = shuffleArray(pool);
@@ -1412,9 +1467,7 @@ function VocabQuiz() {
     } else {
       pool = vocab.filter((v) => v.dateAdded && v.dateAdded <= selectedDate);
     }
-
     const selectedWords = pool.slice(0, modeToUse === "daily" ? 15 : 50);
-
     if (selectedWords.length < 4)
       return notify(`Need at least 4 saved words to generate a quiz!`, "error");
 
@@ -1446,8 +1499,8 @@ function VocabQuiz() {
     if (isAnswered) return;
     setSelectedOption(option);
     setIsAnswered(true);
-    const isCorrect = option === questions[currentIndex].correctOption;
-    if (isCorrect) setScoreThisRound((prev) => prev + 1);
+    if (option === questions[currentIndex].correctOption)
+      setScoreThisRound((prev) => prev + 1);
   };
 
   const handleNext = () => {
@@ -1694,14 +1747,12 @@ function Dashboard({ history }) {
       notify("Task added to backlog", "info");
     }
   };
-
   const toggleMissed = (index) => {
     const updated = (history.missedTasks || []).map((t, i) =>
       i === index ? { ...t, checked: !t.checked } : t,
     );
     updateHistory({ missedTasks: updated });
   };
-
   const userName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
@@ -1951,7 +2002,6 @@ function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
     });
     onClose();
   };
-
   const labelStyle = {
     display: "block",
     fontSize: "13px",
@@ -2139,9 +2189,8 @@ function VocabTracker() {
           if (m.synonyms) synonymsList.push(...m.synonyms);
           if (m.antonyms) antonymsList.push(...m.antonyms);
           const firstDef = m.definitions?.[0]?.definition;
-          if (firstDef) {
+          if (firstDef)
             meaningsList.push(`${pos ? `[${pos}] ` : ""}${firstDef}`);
-          }
           m.definitions?.forEach((def) => {
             if (def.example) examplesList.push(def.example);
             if (def.synonyms) synonymsList.push(...def.synonyms);
@@ -2150,30 +2199,22 @@ function VocabTracker() {
         });
         let detectedType = "Vocabulary";
         const wordCount = term.trim().split(" ").length;
-        if (wordCount > 2) {
-          detectedType = "Idiom";
-        } else if (wordCount === 2) {
-          detectedType = "Phrasal Verb";
-        }
-        const audioUrl = entry.phonetics?.find((p) => p.audio)?.audio || "";
-        const combinedMeaning =
-          meaningsList.join("\n") || "No definition found.";
-        const allPoS = Array.from(partsOfSpeechSet).join(", ") || "word";
+        if (wordCount > 2) detectedType = "Idiom";
+        else if (wordCount === 2) detectedType = "Phrasal Verb";
         setSearchResult({
           word: entry.word || term,
           type: detectedType,
-          partOfSpeech: allPoS,
-          meaning: combinedMeaning,
+          partOfSpeech: Array.from(partsOfSpeechSet).join(", ") || "word",
+          meaning: meaningsList.join("\n") || "No definition found.",
           synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
           antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
           notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-          audio: audioUrl,
+          audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
         });
-      } else {
+      } else
         setSearchError(
           `No direct online entry for "${term}". You can add it manually!`,
         );
-      }
     } catch (err) {
       setSearchError("Unable to connect to dictionary API.");
     } finally {
@@ -2185,24 +2226,13 @@ function VocabTracker() {
     if (!searchResult) return;
     addVocabNote({
       id: Date.now().toString(),
-      word: searchResult.word,
-      type: searchResult.type,
-      partOfSpeech: searchResult.partOfSpeech,
-      meaning: searchResult.meaning,
-      synonyms: searchResult.synonyms,
-      antonyms: searchResult.antonyms,
-      notes: searchResult.notes,
+      ...searchResult,
       dateAdded: selectedDate,
     });
     setSearchResult(null);
     setQuery("");
   };
 
-  const handleDelete = (id) => {
-    requestConfirm("Are you sure you want to delete this cloud entry?", () => {
-      deleteVocabNote(id);
-    });
-  };
   const toggleBookmark = (id) => {
     setPremiumData((prev) => {
       const isBookmarked = prev.bookmarks?.includes(id);
@@ -2214,40 +2244,35 @@ function VocabTracker() {
       };
     });
   };
-  const playAudio = (url) => {
-    if (!url) return;
-    new Audio(url).play();
-  };
 
   let filteredVocab = vocab.filter((v) => v.dateAdded === selectedDate);
-  if (filterType === "Bookmarks") {
+  if (filterType === "Bookmarks")
     filteredVocab = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
-  } else if (filterType !== "All") {
+  else if (filterType !== "All")
     filteredVocab = filteredVocab.filter((v) => v.type === filterType);
-  }
   const renderPills = (textStr) => {
     if (!textStr) return null;
-    const words = textStr
+    return textStr
       .split(",")
       .map((w) => w.trim())
-      .filter((w) => w);
-    return words.map((w, i) => (
-      <span
-        key={i}
-        style={{
-          display: "inline-block",
-          padding: "4px 10px",
-          borderRadius: "8px",
-          fontSize: "12px",
-          fontWeight: 600,
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
-          color: "var(--text-main)",
-        }}
-      >
-        {w}
-      </span>
-    ));
+      .filter((w) => w)
+      .map((w, i) => (
+        <span
+          key={i}
+          style={{
+            display: "inline-block",
+            padding: "4px 10px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            fontWeight: 600,
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            color: "var(--text-main)",
+          }}
+        >
+          {w}
+        </span>
+      ));
   };
 
   return (
@@ -2440,7 +2465,7 @@ function VocabTracker() {
               {searchResult.audio && (
                 <button
                   className="icon-btn-minimal"
-                  onClick={() => playAudio(searchResult.audio)}
+                  onClick={() => new Audio(searchResult.audio).play()}
                   title="Listen Pronunciation"
                   style={{ color: "var(--accent)" }}
                 >
@@ -2528,7 +2553,6 @@ function VocabTracker() {
                         fontWeight: 700,
                         color: "var(--text-muted)",
                         textTransform: "uppercase",
-                        letterSpacing: "0.5px",
                         display: "block",
                         marginBottom: "8px",
                       }}
@@ -2550,7 +2574,6 @@ function VocabTracker() {
                         fontWeight: 700,
                         color: "var(--text-muted)",
                         textTransform: "uppercase",
-                        letterSpacing: "0.5px",
                         display: "block",
                         marginBottom: "8px",
                       }}
@@ -2742,7 +2765,11 @@ function VocabTracker() {
                     </button>
                     <button
                       className="icon-btn-minimal"
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() =>
+                        requestConfirm("Delete this cloud entry?", () =>
+                          deleteVocabNote(item.id),
+                        )
+                      }
                       style={{ color: "var(--danger)" }}
                     >
                       <Trash2 size={18} />
@@ -2822,7 +2849,6 @@ function VocabTracker() {
                               textTransform: "uppercase",
                               display: "block",
                               marginBottom: "8px",
-                              letterSpacing: "0.5px",
                             }}
                           >
                             Synonyms
@@ -2848,7 +2874,6 @@ function VocabTracker() {
                               textTransform: "uppercase",
                               display: "block",
                               marginBottom: "8px",
-                              letterSpacing: "0.5px",
                             }}
                           >
                             Antonyms
@@ -2908,19 +2933,16 @@ function VocabTracker() {
 
 function DailyPlan({ timeline }) {
   const { updateHistory, notify } = useAppStore();
-
   const handleChange = (index, field, value) => {
     const updated = timeline.map((item, i) =>
       i === index ? { ...item, [field]: value } : item,
     );
     updateHistory({ timeline: updated });
   };
-
   const deleteTask = (index) => {
     updateHistory({ timeline: timeline.filter((_, i) => i !== index) });
     notify("Task removed", "info");
   };
-
   const addTask = () => {
     updateHistory({
       timeline: [
@@ -3140,10 +3162,11 @@ function DailyPlan({ timeline }) {
 function QuantRotation({ quant = [] }) {
   const { updateHistory } = useAppStore();
   const handleChange = (index, field, value) => {
-    const updated = quant.map((item, i) =>
-      i === index ? { ...item, [field]: value } : item,
-    );
-    updateHistory({ quant: updated });
+    updateHistory({
+      quant: quant.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item,
+      ),
+    });
   };
   return (
     <div>
@@ -3187,10 +3210,11 @@ function QuantRotation({ quant = [] }) {
 function ReasoningRotation({ reasoning = [] }) {
   const { updateHistory } = useAppStore();
   const handleChange = (index, field, value) => {
-    const updated = reasoning.map((item, i) =>
-      i === index ? { ...item, [field]: value } : item,
-    );
-    updateHistory({ reasoning: updated });
+    updateHistory({
+      reasoning: reasoning.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item,
+      ),
+    });
   };
   return (
     <div>
@@ -3238,7 +3262,6 @@ function ReasoningRotation({ reasoning = [] }) {
 
 function MockTracker() {
   const { mocks, setMocks, selectedDate, notify } = useAppStore();
-
   const addMock = () => {
     setMocks([
       {
@@ -3252,11 +3275,9 @@ function MockTracker() {
     ]);
     notify("New Mock Test card added.", "info");
   };
-
   const updateMock = (id, field, value) => {
     setMocks(mocks.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
   };
-
   const deleteMock = (id) => {
     setMocks(mocks.filter((m) => m.id !== id));
     notify("Mock Test deleted.", "info");
@@ -3275,7 +3296,6 @@ function MockTracker() {
           <Plus size={16} /> Log New Test
         </button>
       </div>
-
       {mocks.length === 0 ? (
         <div
           className="card"
@@ -3297,198 +3317,190 @@ function MockTracker() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {mocks.map((m) => {
-            return (
+          {mocks.map((m) => (
+            <div
+              key={m.id}
+              className="card"
+              style={{
+                padding: 0,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
               <div
-                key={m.id}
-                className="card"
                 style={{
-                  padding: 0,
-                  overflow: "hidden",
+                  padding: "16px 24px",
+                  background: "rgba(0,0,0,0.02)",
+                  borderBottom: "1px solid var(--border)",
                   display: "flex",
-                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "16px",
                 }}
               >
                 <div
                   style={{
-                    padding: "16px 24px",
-                    background: "rgba(0,0,0,0.02)",
-                    borderBottom: "1px solid var(--border)",
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    flexWrap: "wrap",
                     gap: "16px",
+                    flex: 1,
+                    minWidth: "300px",
                   }}
                 >
                   <div
                     style={{
                       display: "flex",
-                      alignItems: "center",
-                      gap: "16px",
-                      flex: 1,
-                      minWidth: "300px",
+                      flexDirection: "column",
+                      width: "140px",
                     }}
                   >
-                    <div
+                    <label
                       style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        width: "140px",
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
                       }}
                     >
-                      <label
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-muted)",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        Date Taken
-                      </label>
-                      <input
-                        type="date"
-                        className="custom-input"
-                        value={m.date}
-                        onChange={(e) =>
-                          updateMock(m.id, "date", e.target.value)
-                        }
-                        style={{ padding: "8px", fontSize: "13px" }}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        flex: 1,
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-muted)",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        Test Name / Provider
-                      </label>
-                      <input
-                        type="text"
-                        className="custom-input"
-                        placeholder="e.g. IBPS PO Prelims Mock 1"
-                        value={m.name}
-                        onChange={(e) =>
-                          updateMock(m.id, "name", e.target.value)
-                        }
-                        style={{
-                          padding: "8px",
-                          fontSize: "15px",
-                          fontWeight: 600,
-                          border: "none",
-                          background: "transparent",
-                        }}
-                      />
-                    </div>
+                      Date Taken
+                    </label>
+                    <input
+                      type="date"
+                      className="custom-input"
+                      value={m.date}
+                      onChange={(e) => updateMock(m.id, "date", e.target.value)}
+                      style={{ padding: "8px", fontSize: "13px" }}
+                    />
                   </div>
-                  <button
-                    className="icon-btn-minimal"
-                    onClick={() => deleteMock(m.id)}
+                  <div
                     style={{
-                      color: "var(--danger)",
-                      background: "rgba(239,68,68,0.1)",
-                      borderRadius: "8px",
-                      width: "36px",
-                      height: "36px",
+                      display: "flex",
+                      flexDirection: "column",
+                      flex: 1,
                     }}
                   >
-                    <Trash2 size={16} />
-                  </button>
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Test Name / Provider
+                    </label>
+                    <input
+                      type="text"
+                      className="custom-input"
+                      placeholder="e.g. IBPS PO Prelims Mock 1"
+                      value={m.name}
+                      onChange={(e) => updateMock(m.id, "name", e.target.value)}
+                      style={{
+                        padding: "8px",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        border: "none",
+                        background: "transparent",
+                      }}
+                    />
+                  </div>
+                </div>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={() => deleteMock(m.id)}
+                  style={{
+                    color: "var(--danger)",
+                    background: "rgba(239,68,68,0.1)",
+                    borderRadius: "8px",
+                    width: "36px",
+                    height: "36px",
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "24px",
+                  padding: "24px",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    width: "150px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Score / Marks
+                  </label>
+                  <input
+                    type="number"
+                    className="custom-input"
+                    placeholder="00.00"
+                    value={m.score}
+                    onChange={(e) => updateMock(m.id, "score", e.target.value)}
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: 800,
+                      padding: "12px",
+                      color: "var(--text-main)",
+                    }}
+                  />
                 </div>
                 <div
                   style={{
                     display: "flex",
-                    gap: "24px",
-                    padding: "24px",
-                    alignItems: "center",
-                    flexWrap: "wrap",
+                    flexDirection: "column",
+                    flex: 1,
+                    minWidth: "250px",
                   }}
                 >
-                  <div
+                  <label
                     style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                      marginBottom: "8px",
                       display: "flex",
-                      flexDirection: "column",
-                      width: "150px",
+                      alignItems: "center",
+                      gap: "6px",
                     }}
                   >
-                    <label
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--text-muted)",
-                        fontWeight: 600,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Score / Marks
-                    </label>
-                    <input
-                      type="number"
-                      className="custom-input"
-                      placeholder="00.00"
-                      value={m.score}
-                      onChange={(e) =>
-                        updateMock(m.id, "score", e.target.value)
-                      }
-                      style={{
-                        fontSize: "24px",
-                        fontWeight: 800,
-                        padding: "12px",
-                        color: "var(--text-main)",
-                      }}
-                    />
-                  </div>
-                  <div
+                    <Edit3 size={14} /> Mistakes & Learnings
+                  </label>
+                  <textarea
+                    className="custom-input"
+                    placeholder="What went wrong? e.g. Silly mistake in Syllogism..."
+                    value={m.remarks}
+                    onChange={(e) =>
+                      updateMock(m.id, "remarks", e.target.value)
+                    }
+                    rows="2"
                     style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      flex: 1,
-                      minWidth: "250px",
+                      background: "rgba(99, 102, 241, 0.03)",
+                      border: "1px dashed var(--border)",
                     }}
-                  >
-                    <label
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--text-muted)",
-                        fontWeight: 600,
-                        marginBottom: "8px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                      }}
-                    >
-                      <Edit3 size={14} /> Mistakes & Learnings
-                    </label>
-                    <textarea
-                      className="custom-input"
-                      placeholder="What went wrong? e.g. Silly mistake in Syllogism..."
-                      value={m.remarks}
-                      onChange={(e) =>
-                        updateMock(m.id, "remarks", e.target.value)
-                      }
-                      rows="2"
-                      style={{
-                        background: "rgba(99, 102, 241, 0.03)",
-                        border: "1px dashed var(--border)",
-                      }}
-                    />
-                  </div>
+                  />
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -3506,7 +3518,6 @@ function HabitTracker() {
   } = useAppStore();
   const scrollRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
-
   const dateParts = (selectedDate || getFormattedDateStr()).split("-");
   const year = parseInt(dateParts[0], 10),
     month = parseInt(dateParts[1], 10) - 1;
@@ -3523,7 +3534,6 @@ function HabitTracker() {
       name: h,
       days: Array(daysInMonth).fill(""),
     }));
-
   const updateHabits = (newHabits) =>
     setAppData((state) => ({
       ...state,
@@ -3537,32 +3547,27 @@ function HabitTracker() {
       ? [...newHabits[hIndex].days]
       : Array(daysInMonth).fill("");
     while (existingDays.length < daysInMonth) existingDays.push("");
-
     const currentState = existingDays[dIndex];
     let nextState = "";
     if (currentState === "done" || currentState === true) nextState = "partial";
     else if (currentState === "partial") nextState = "missed";
     else if (currentState === "missed") nextState = "";
     else nextState = "done";
-
     existingDays[dIndex] = nextState;
     newHabits[hIndex] = { ...newHabits[hIndex], days: existingDays };
     updateHabits(newHabits);
   };
-
   const handleNameChange = (hIndex, val) => {
     const newHabits = [...currentHabits];
     newHabits[hIndex].name = val;
     updateHabits(newHabits);
   };
-
   const deleteHabit = (hIndex) => {
     requestConfirm("Remove this habit?", () => {
       updateHabits(currentHabits.filter((_, i) => i !== hIndex));
       notify("Habit deleted", "info");
     });
   };
-
   const addHabit = () => {
     updateHabits([
       ...currentHabits,
@@ -3571,12 +3576,10 @@ function HabitTracker() {
     setIsEditing(true);
     notify("New habit added", "success");
   };
-
   const handleScroll = (amount) => {
     if (scrollRef.current)
       scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
   };
-
   const leftColWidth = 200;
   const cellSize = 34;
   const cellGap = 8;
@@ -3756,23 +3759,20 @@ function HabitTracker() {
                   >
                     {Array.from({ length: daysInMonth }, (_, dIndex) => {
                       const state = h.days && h.days[dIndex];
-                      const isDone = state === "done" || state === true;
-                      const isPartial = state === "partial";
-                      const isMissed = state === "missed";
                       let cellBg = "var(--bg)";
                       let cellBorder = "1px solid var(--border)";
                       let content = null;
-                      if (isDone) {
+                      if (state === "done" || state === true) {
                         cellBg = "#10b981";
                         cellBorder = "1px solid #10b981";
                         content = <CheckCircle2 size={16} color="#fff" />;
-                      } else if (isPartial) {
+                      } else if (state === "partial") {
                         cellBg = "#f59e0b";
                         cellBorder = "1px solid #f59e0b";
                         content = (
                           <Minus size={16} color="#fff" strokeWidth={3} />
                         );
-                      } else if (isMissed) {
+                      } else if (state === "missed") {
                         cellBg = "#ef4444";
                         cellBorder = "1px solid #ef4444";
                         content = <X size={16} color="#fff" strokeWidth={3} />;
@@ -3964,7 +3964,7 @@ function SettingsView() {
   );
 }
 
-// --- FULLSCREEN STUDY MATERIALS MODULE ---
+// --- STANDARD PDF VIEWER ---
 function StudyMaterialsModule() {
   const { user, notify } = useAppStore();
   const [documents, setDocuments] = useState([]);
@@ -3973,18 +3973,14 @@ function StudyMaterialsModule() {
   const [uploading, setUploading] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [pageNumber, setPageNumber] = useState(1);
-
-  // Focus / Expand States
   const [showLibrary, setShowLibrary] = useState(true);
   const [showNotes, setShowNotes] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
   const isAdmin = user?.user_metadata?.display_username === "AdminSeenu";
 
   useEffect(() => {
     fetchDocuments();
   }, []);
-
   useEffect(() => {
     if (selectedDoc) {
       fetchNotes(selectedDoc.id);
@@ -4014,33 +4010,24 @@ function StudyMaterialsModule() {
       .eq("document_id", docId)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
-
     if (!error) setNotes(data || []);
   };
 
   const handleFileUpload = async (event) => {
     if (!isAdmin) return notify("Only the admin can upload PDFs.", "error");
-
     try {
       setUploading(true);
       const file = event.target.files[0];
-      if (!file || file.type !== "application/pdf") {
+      if (!file || file.type !== "application/pdf")
         return notify("Please select a valid PDF file.", "error");
-      }
-
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
+      const filePath = `${Date.now()}.${file.name.split(".").pop()}`;
       const { error: uploadError } = await supabase.storage
         .from("pdf-files")
         .upload(filePath, file);
       if (uploadError) throw uploadError;
-
       const { data: urlData } = supabase.storage
         .from("pdf-files")
         .getPublicUrl(filePath);
-
       const { error: dbError } = await supabase.from("documents").insert([
         {
           title: file.name.replace(".pdf", ""),
@@ -4049,7 +4036,6 @@ function StudyMaterialsModule() {
         },
       ]);
       if (dbError) throw dbError;
-
       notify("PDF uploaded successfully!", "success");
       fetchDocuments();
     } catch (error) {
@@ -4075,7 +4061,6 @@ function StudyMaterialsModule() {
   const handleAddNote = async (e) => {
     e.preventDefault();
     if (!newNote.trim() || !selectedDoc || !user) return;
-
     const { error } = await supabase.from("document_notes").insert([
       {
         document_id: selectedDoc.id,
@@ -4084,7 +4069,6 @@ function StudyMaterialsModule() {
         page_number: parseInt(pageNumber) || 1,
       },
     ]);
-
     if (error) {
       notify("Failed to save note.", "error");
     } else {
@@ -4125,7 +4109,6 @@ function StudyMaterialsModule() {
             }
       }
     >
-      {/* Left Sidebar: Document List */}
       {showLibrary && (
         <div
           style={{
@@ -4189,7 +4172,6 @@ function StudyMaterialsModule() {
               </button>
             </div>
           </div>
-
           <div
             className="scroll-area"
             style={{
@@ -4227,7 +4209,6 @@ function StudyMaterialsModule() {
                 No documents available.
               </p>
             )}
-
             {documents.map((doc) => (
               <div
                 key={doc.id}
@@ -4293,8 +4274,6 @@ function StudyMaterialsModule() {
           </div>
         </div>
       )}
-
-      {/* Center: Modern PDF Viewer */}
       <div
         style={{
           flex: 1,
@@ -4454,8 +4433,6 @@ function StudyMaterialsModule() {
           </div>
         )}
       </div>
-
-      {/* Right Sidebar: Personal Notes */}
       {showNotes && (
         <div
           style={{
@@ -4490,7 +4467,6 @@ function StudyMaterialsModule() {
               <X size={16} />
             </button>
           </div>
-
           <form
             onSubmit={handleAddNote}
             style={{
@@ -4537,7 +4513,6 @@ function StudyMaterialsModule() {
               <Plus size={16} /> Save Note
             </button>
           </form>
-
           <div
             className="scroll-area"
             style={{
@@ -4583,7 +4558,7 @@ function StudyMaterialsModule() {
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      alignItems: "center",
+                      alignItems: "flex-start",
                     }}
                   >
                     <span
@@ -4618,7 +4593,11 @@ function StudyMaterialsModule() {
                     {note.content}
                   </p>
                   <span
-                    style={{ fontSize: "10px", color: "var(--text-muted)" }}
+                    style={{
+                      fontSize: "10px",
+                      color: "var(--text-muted)",
+                      marginTop: "4px",
+                    }}
                   >
                     {new Date(note.created_at).toLocaleDateString()}
                   </span>
@@ -4628,6 +4607,652 @@ function StudyMaterialsModule() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// --- REDESIGNED: SMART DIGITAL NOTES BOARD MODULE ---
+function DigitalNotesBoard() {
+  const {
+    digitalNotes,
+    addDigitalNote,
+    updateDigitalNote,
+    deleteDigitalNote,
+    clearDigitalNotes,
+    notify,
+    requestConfirm,
+  } = useAppStore();
+
+  // Dual-Layer Filtering
+  const [topicFilter, setTopicFilter] = useState("All");
+  const [subtopicFilter, setSubtopicFilter] = useState("All");
+
+  const [draftNote, setDraftNote] = useState(null);
+  const boardRef = useRef(null);
+  const datalistId = "subtopics-datalist";
+
+  // When Topic changes, always reset Sub-topic to "All"
+  useEffect(() => {
+    setSubtopicFilter("All");
+  }, [topicFilter]);
+
+  // Extract unique subtopics based on currently selected topic
+  const currentSubtopics = [
+    "All",
+    ...new Set(
+      digitalNotes
+        .filter((n) => topicFilter === "All" || n.topic === topicFilter)
+        .map((n) => n.subtopic)
+        .filter((st) => st && st.trim() !== ""),
+    ),
+  ];
+
+  // The actual notes to display
+  const filteredNotes = digitalNotes.filter((n) => {
+    if (topicFilter !== "All" && n.topic !== topicFilter) return false;
+    if (subtopicFilter !== "All" && n.subtopic !== subtopicFilter) return false;
+    return true;
+  });
+
+  // Global Paste Interceptor
+  useEffect(() => {
+    const handlePaste = (e) => {
+      // Don't intercept if user is typing in an input inside a draft
+      if (
+        document.activeElement.tagName === "INPUT" ||
+        document.activeElement.tagName === "TEXTAREA"
+      ) {
+        const hasImage = Array.from(e.clipboardData?.items || []).some(
+          (item) => item.type.indexOf("image") !== -1,
+        );
+        if (!hasImage) return; // Let text paste naturally
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          e.preventDefault();
+          const blob = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const scrollContainer = boardRef.current;
+            const x = scrollContainer ? scrollContainer.scrollLeft + 150 : 150;
+            const y = scrollContainer ? scrollContainer.scrollTop + 150 : 150;
+
+            // Auto-inherit active filters for smooth workflow
+            const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
+            const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
+
+            setDraftNote({
+              id: Date.now().toString(),
+              x,
+              y,
+              imageBase64: event.target.result,
+              text: "",
+              topic: defaultTopic,
+              subtopic: defaultSub,
+              type: "image",
+              width: 320,
+              height: "auto",
+            });
+            notify("Image pasted! Fill in tags and save.", "success");
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [topicFilter, subtopicFilter, notify]);
+
+  const handleBoardClick = (e) => {
+    if (draftNote) return;
+    if (
+      e.target.closest(".saved-note-card") ||
+      e.target.closest(".board-toolbar")
+    )
+      return;
+
+    const rect = boardRef.current.getBoundingClientRect();
+    const scrollLeft = boardRef.current.scrollLeft;
+    const scrollTop = boardRef.current.scrollTop;
+
+    // Auto-inherit
+    const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
+    const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
+
+    setDraftNote({
+      id: Date.now().toString(),
+      x: e.clientX - rect.left + scrollLeft,
+      y: e.clientY - rect.top + scrollTop,
+      imageBase64: null,
+      text: "",
+      topic: defaultTopic,
+      subtopic: defaultSub,
+      type: "text",
+      width: 280,
+      height: "auto",
+    });
+  };
+
+  const handleSaveDraft = () => {
+    if (!draftNote.text.trim() && draftNote.type !== "image") {
+      return notify("Enter some text or paste an image.", "error");
+    }
+    addDigitalNote({ ...draftNote, date: new Date().toISOString() });
+    setDraftNote(null);
+    notify("Note dropped on canvas!", "success");
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "calc(100vh - 80px)",
+        background: "var(--bg)",
+        borderRadius: "16px",
+        border: "1px solid var(--border)",
+        overflow: "hidden",
+        boxShadow: "0 10px 40px rgba(0,0,0,0.03)",
+      }}
+    >
+      {/* Hidden Datalist for Subtopic Autocomplete */}
+      <datalist id={datalistId}>
+        {currentSubtopics
+          .filter((s) => s !== "All")
+          .map((s) => (
+            <option key={s} value={s} />
+          ))}
+      </datalist>
+
+      {/* Upper Toolbar: Topics */}
+      <div
+        className="board-toolbar"
+        style={{
+          padding: "16px 24px",
+          borderBottom: "1px solid var(--border)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: "var(--bg)",
+          zIndex: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              padding: "10px",
+              background: "rgba(99, 102, 241, 0.1)",
+              borderRadius: "12px",
+              color: "var(--accent)",
+            }}
+          >
+            <LayoutGrid size={22} />
+          </div>
+          <div>
+            <h2
+              style={{
+                fontSize: "18px",
+                margin: "0 0 4px 0",
+                fontWeight: 800,
+                color: "var(--text-main)",
+              }}
+            >
+              Smart Notes Canvas
+            </h2>
+            <span
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: 500,
+              }}
+            >
+              Click to type • <strong>Ctrl+V</strong> to paste images
+            </span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          {/* Primary Topic Filter */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "rgba(0,0,0,0.03)",
+              padding: "6px 16px",
+              borderRadius: "24px",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Filter size={14} color="var(--text-muted)" />
+            <select
+              className="custom-input"
+              style={{
+                border: "none",
+                background: "transparent",
+                padding: "0",
+                fontSize: "13px",
+                outline: "none",
+                fontWeight: 600,
+                color: "var(--text-main)",
+                cursor: "pointer",
+              }}
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+            >
+              <option value="All">All Main Topics</option>
+              {NOTE_TOPICS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          {digitalNotes.length > 0 && (
+            <button
+              className="icon-btn-minimal"
+              title="Clear Entire Canvas"
+              style={{
+                color: "var(--danger)",
+                background: "rgba(239, 68, 68, 0.1)",
+                padding: "8px",
+                borderRadius: "8px",
+              }}
+              onClick={() =>
+                requestConfirm(
+                  "Clear the entire canvas? This deletes all notes.",
+                  clearDigitalNotes,
+                )
+              }
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sub-Toolbar: Sub-Topic Boards */}
+      {currentSubtopics.length > 1 && (
+        <div
+          className="board-toolbar scroll-area"
+          style={{
+            padding: "12px 24px",
+            borderBottom: "1px solid var(--border)",
+            background: "rgba(0,0,0,0.015)",
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            zIndex: 9,
+          }}
+        >
+          {currentSubtopics.map((sub) => (
+            <button
+              key={sub}
+              onClick={() => setSubtopicFilter(sub)}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "20px",
+                fontSize: "12px",
+                fontWeight: subtopicFilter === sub ? 700 : 500,
+                border:
+                  subtopicFilter === sub
+                    ? "1px solid var(--accent)"
+                    : "1px solid var(--border)",
+                background:
+                  subtopicFilter === sub ? "var(--accent)" : "var(--bg)",
+                color: subtopicFilter === sub ? "#fff" : "var(--text-main)",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {sub === "All" ? "All Sub-boards" : sub}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Infinite Canvas Area */}
+      <div
+        ref={boardRef}
+        onClick={handleBoardClick}
+        style={{
+          flex: 1,
+          overflow: "auto",
+          position: "relative",
+          cursor: draftNote ? "default" : "crosshair",
+          // Modern Dot Matrix Background
+          backgroundImage:
+            "radial-gradient(rgba(99, 102, 241, 0.15) 1.5px, transparent 1.5px)",
+          backgroundSize: "24px 24px",
+          backgroundColor: "var(--bg)",
+        }}
+      >
+        <div
+          style={{
+            width: "3000px",
+            height: "3000px",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            pointerEvents: "none",
+          }}
+        ></div>
+
+        {/* Render Filtered Saved Notes */}
+        {filteredNotes.map((note) => (
+          <DraggableItem
+            key={note.id}
+            initialX={note.x}
+            initialY={note.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(x, y) => updateDigitalNote(note.id, { x, y })}
+          >
+            <div
+              className="saved-note-card"
+              style={{
+                background: "rgba(255, 255, 255, 0.85)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                border: "1px solid rgba(0,0,0,0.08)",
+                borderRadius: "16px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
+                display: "flex",
+                flexDirection: "column",
+                width: note.width || 320,
+                minWidth: "180px",
+                height: note.height || "auto",
+                minHeight: "100px",
+                resize: "both",
+                overflow: "hidden",
+              }}
+            >
+              {/* Grip Header */}
+              <div
+                className="drag-handle"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 14px",
+                  background: "rgba(99, 102, 241, 0.04)",
+                  borderBottom: "1px solid rgba(0,0,0,0.05)",
+                  cursor: "grab",
+                }}
+              >
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <GripHorizontal
+                    size={14}
+                    color="var(--text-muted)"
+                    style={{ opacity: 0.7 }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "var(--accent)",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {note.topic}
+                  </span>
+                </div>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteDigitalNote(note.id);
+                  }}
+                  style={{
+                    padding: "4px",
+                    color: "var(--danger)",
+                    opacity: 0.6,
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div
+                style={{
+                  padding: "14px",
+                  flex: 1,
+                  overflowY: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {note.type === "image" && note.imageBase64 && (
+                  <img
+                    src={note.imageBase64}
+                    alt="Pasted"
+                    style={{
+                      width: "100%",
+                      height: "auto",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(0,0,0,0.05)",
+                      objectFit: "contain",
+                    }}
+                    draggable="false"
+                  />
+                )}
+                {note.text && (
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      margin: 0,
+                      color: "#1f2937",
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.6,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {note.text}
+                  </p>
+                )}
+
+                {/* EXPLICIT SUB-TOPIC BADGE AT THE BOTTOM */}
+                {note.subtopic && (
+                  <div
+                    style={{
+                      marginTop: "auto",
+                      paddingTop: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        background: "rgba(99, 102, 241, 0.1)",
+                        color: "var(--accent)",
+                        padding: "4px 10px",
+                        borderRadius: "12px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <Tag size={12} /> {note.subtopic}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </DraggableItem>
+        ))}
+
+        {/* Draft Note Window */}
+        {draftNote && (
+          <DraggableItem
+            initialX={draftNote.x}
+            initialY={draftNote.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(x, y) => setDraftNote({ ...draftNote, x, y })}
+          >
+            <div
+              className="saved-note-card"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "320px",
+                padding: "0",
+                borderRadius: "16px",
+                background: "var(--bg)",
+                border: "2px solid var(--accent)",
+                boxShadow: "0 24px 48px rgba(99, 102, 241, 0.2)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                className="drag-handle"
+                style={{
+                  background: "var(--accent)",
+                  padding: "10px 14px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "grab",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <Edit3 size={14} />{" "}
+                  {draftNote.type === "image"
+                    ? "Save Image Board"
+                    : "Save Text Board"}
+                </span>
+                <button
+                  className="icon-btn-minimal"
+                  style={{ color: "#fff" }}
+                  onClick={() => setDraftNote(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div
+                style={{
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <select
+                    className="custom-input"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                    value={draftNote.topic}
+                    onChange={(e) =>
+                      setDraftNote({ ...draftNote, topic: e.target.value })
+                    }
+                  >
+                    {NOTE_TOPICS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  list={datalistId}
+                  type="text"
+                  className="custom-input"
+                  placeholder="Sub-topic (e.g. Syllogism Rule 2)..."
+                  style={{
+                    padding: "10px 12px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    background: "rgba(0,0,0,0.02)",
+                  }}
+                  value={draftNote.subtopic}
+                  onChange={(e) =>
+                    setDraftNote({ ...draftNote, subtopic: e.target.value })
+                  }
+                />
+
+                {draftNote.type === "image" && draftNote.imageBase64 && (
+                  <div
+                    style={{
+                      border: "1px dashed var(--border)",
+                      padding: "4px",
+                      borderRadius: "8px",
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                  >
+                    <img
+                      src={draftNote.imageBase64}
+                      alt="Draft Preview"
+                      style={{ width: "100%", borderRadius: "4px" }}
+                    />
+                  </div>
+                )}
+
+                <textarea
+                  className="custom-input"
+                  placeholder={
+                    draftNote.type === "image"
+                      ? "Optional description or formula..."
+                      : "Start typing your notes here..."
+                  }
+                  rows="3"
+                  style={{
+                    padding: "12px",
+                    fontSize: "14px",
+                    resize: "none",
+                    lineHeight: 1.5,
+                    background: "rgba(0,0,0,0.02)",
+                  }}
+                  value={draftNote.text}
+                  autoFocus={draftNote.type === "text"}
+                  onChange={(e) =>
+                    setDraftNote({ ...draftNote, text: e.target.value })
+                  }
+                />
+                <button
+                  className="btn"
+                  onClick={handleSaveDraft}
+                  style={{
+                    width: "100%",
+                    justifyContent: "center",
+                    padding: "12px",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                  }}
+                >
+                  <Save size={16} /> Pin to Board
+                </button>
+              </div>
+            </div>
+          </DraggableItem>
+        )}
+      </div>
     </div>
   );
 }
@@ -4646,16 +5271,13 @@ export default function App() {
     setAppData,
     history,
   } = useAppStore();
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-
   const isAdmin = user?.user_metadata?.display_username === "AdminSeenu";
 
   useEffect(() => {
     initAuth();
   }, []);
-
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     const contentArea = document.querySelector(".content-area");
@@ -4664,7 +5286,6 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-
     const channel = supabase
       .channel("public:dictionary")
       .on(
@@ -4675,7 +5296,6 @@ export default function App() {
         },
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
@@ -4751,14 +5371,13 @@ export default function App() {
     );
   }
 
-  if (!user) {
+  if (!user)
     return (
       <div className="app-container">
         <AuthModal />
         <ToastContainer />
       </div>
     );
-  }
 
   const currentHistory = history[selectedDate] || {
     timeline: defaultTimeline.map((t) => ({ ...t })),
@@ -4804,6 +5423,7 @@ export default function App() {
               label: "Dashboard & Quiz",
             },
             { id: "today", icon: CalendarCheck, label: "Daily Plan" },
+            { id: "digital_notes", icon: PenTool, label: "Smart Notes Canvas" },
             {
               id: "materials",
               icon: UploadCloud,
@@ -4841,6 +5461,7 @@ export default function App() {
           {activeView === "today" && (
             <DailyPlan timeline={currentHistory.timeline} />
           )}
+          {activeView === "digital_notes" && <DigitalNotesBoard />}
           {activeView === "materials" && <StudyMaterialsModule />}
           {activeView === "vocab" && <VocabTracker />}
           {activeView === "quant" && (
