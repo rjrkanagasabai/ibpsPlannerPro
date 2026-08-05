@@ -392,14 +392,20 @@ export const useAppStore = create(
         } = await supabase.auth.getSession();
         set({ session, user: session?.user || null, authLoading: false });
 
-        if (session?.user) get().fetchVocabFromCloud();
+        if (session?.user) {
+          get().fetchVocabFromCloud();
+          get().fetchDigitalNotesFromCloud();
+        }
 
         supabase.auth.onAuthStateChange((_event, session) => {
           const currentUser = get().user;
           set({ session, user: session?.user || null, authLoading: false });
-          if (session?.user && session.user.id !== currentUser?.id)
+          if (session?.user && session.user.id !== currentUser?.id) {
             get().fetchVocabFromCloud();
-          else if (!session?.user) set({ vocab: [] });
+            get().fetchDigitalNotesFromCloud();
+          } else if (!session?.user) {
+            set({ vocab: [], digitalNotes: [] });
+          }
         });
       },
 
@@ -419,6 +425,7 @@ export const useAppStore = create(
         if (error) throw error;
         set({ user: data.user, session: data.session });
         get().fetchVocabFromCloud();
+        get().fetchDigitalNotesFromCloud();
         return data;
       },
 
@@ -435,7 +442,7 @@ export const useAppStore = create(
 
       logout: async () => {
         await supabase.auth.signOut();
-        set({ user: null, session: null, vocab: [] });
+        set({ user: null, session: null, vocab: [], digitalNotes: [] });
         get().notify("Logged out successfully.", "info");
       },
 
@@ -444,8 +451,13 @@ export const useAppStore = create(
         if (user) {
           try {
             const { error } = await supabase.rpc("delete_user");
-            if (error)
+            if (error) {
               await supabase.from("dictionary").delete().eq("user_id", user.id);
+              await supabase
+                .from("digital_notes")
+                .delete()
+                .eq("user_id", user.id);
+            }
             await supabase.auth.signOut();
           } catch (err) {}
         }
@@ -541,22 +553,103 @@ export const useAppStore = create(
         }
       },
 
-      // Digital Notes Board Actions
-      addDigitalNote: (note) =>
+      // --- DIGITAL NOTES BOARD CLOUD ACTIONS ---
+      fetchDigitalNotesFromCloud: async () => {
+        const user = get().user;
+        if (!user) return;
+        try {
+          const { data, error } = await supabase
+            .from("digital_notes")
+            .select("*")
+            .eq("user_id", user.id);
+          if (error) throw error;
+          if (data) set({ digitalNotes: data });
+        } catch (err) {
+          console.error("Failed to fetch digital notes:", err);
+        }
+      },
+
+      addDigitalNote: async (note) => {
+        const user = get().user;
+        if (!user) return;
+
+        const noteWithUser = { ...note, user_id: user.id };
+
+        // Optimistic UI Update
         set((state) => ({
-          digitalNotes: [...(state.digitalNotes || []), note],
-        })),
-      updateDigitalNote: (id, updates) =>
+          digitalNotes: [...(state.digitalNotes || []), noteWithUser],
+        }));
+
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .insert([noteWithUser]);
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to save canvas note to cloud.", "error");
+        }
+      },
+
+      updateDigitalNote: async (id, updates) => {
+        const user = get().user;
+        if (!user) return;
+
+        // Optimistic UI Update
         set((state) => ({
           digitalNotes: state.digitalNotes.map((n) =>
             n.id === id ? { ...n, ...updates } : n,
           ),
-        })),
-      deleteDigitalNote: (id) =>
+        }));
+
+        try {
+          const updatedNote = get().digitalNotes.find((n) => n.id === id);
+          if (updatedNote) {
+            const { error } = await supabase
+              .from("digital_notes")
+              .upsert([updatedNote]);
+            if (error) throw error;
+          }
+        } catch (err) {
+          get().notify("Failed to sync canvas update.", "error");
+        }
+      },
+
+      deleteDigitalNote: async (id) => {
+        const user = get().user;
+        if (!user) return;
+
         set((state) => ({
           digitalNotes: state.digitalNotes.filter((n) => n.id !== id),
-        })),
-      clearDigitalNotes: () => set({ digitalNotes: [] }),
+        }));
+
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .delete()
+            .match({ id, user_id: user.id });
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to delete canvas note from cloud.", "error");
+        }
+      },
+
+      clearDigitalNotes: async () => {
+        const user = get().user;
+        if (!user) return;
+
+        set({ digitalNotes: [] });
+        get().notify("Canvas cleared.", "info");
+
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .delete()
+            .eq("user_id", user.id);
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to clear cloud notes.", "error");
+        }
+      },
 
       updateHistory: (newHistoryData) => {
         const date = get().selectedDate;
@@ -581,7 +674,7 @@ export const useAppStore = create(
         mocks: state.mocks,
         habits: state.habits,
         baseTimeline: state.baseTimeline,
-        digitalNotes: state.digitalNotes,
+        digitalNotes: state.digitalNotes, // Keeps local cache for instant load
         baseHabits: state.baseHabits,
         premiumData: state.premiumData,
       }),
@@ -3976,8 +4069,10 @@ function StudyMaterialsModule() {
   const [showLibrary, setShowLibrary] = useState(true);
   const [showNotes, setShowNotes] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const isAdmin = user?.user_metadata?.display_username === "AdminSeenu";
 
+  const isAdmin =
+    user?.user_metadata?.display_username ===
+    import.meta.env.VITE_ADMIN_USERNAME;
   useEffect(() => {
     fetchDocuments();
   }, []);
@@ -4744,7 +4839,7 @@ function DigitalNotesBoard() {
     }
     addDigitalNote({ ...draftNote, date: new Date().toISOString() });
     setDraftNote(null);
-    notify("Note dropped on canvas!", "success");
+    notify("Note saved to cloud!", "success");
   };
 
   return (
@@ -4864,7 +4959,7 @@ function DigitalNotesBoard() {
               }}
               onClick={() =>
                 requestConfirm(
-                  "Clear the entire canvas? This deletes all notes.",
+                  "Clear the entire canvas from cloud? This deletes all notes.",
                   clearDigitalNotes,
                 )
               }
@@ -5263,7 +5358,6 @@ export default function App() {
     user,
     authLoading,
     initAuth,
-    fetchVocabFromCloud,
     theme,
     activeView,
     setActiveView,
@@ -5273,7 +5367,9 @@ export default function App() {
   } = useAppStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const isAdmin = user?.user_metadata?.display_username === "AdminSeenu";
+  const isAdmin =
+    user?.user_metadata?.display_username ===
+    import.meta.env.VITE_ADMIN_USERNAME;
 
   useEffect(() => {
     initAuth();
@@ -5283,23 +5379,6 @@ export default function App() {
     const contentArea = document.querySelector(".content-area");
     if (contentArea) contentArea.scrollTo({ top: 0, behavior: "smooth" });
   }, [activeView]);
-
-  useEffect(() => {
-    if (!user) return;
-    const channel = supabase
-      .channel("public:dictionary")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "dictionary" },
-        () => {
-          fetchVocabFromCloud();
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, fetchVocabFromCloud]);
 
   useEffect(() => {
     document.body.setAttribute("data-theme", theme);
