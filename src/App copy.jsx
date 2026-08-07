@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -62,6 +62,19 @@ import {
   ShieldCheck,
   BookMarked,
   ShieldAlert,
+  MessageSquare,
+  Maximize,
+  Minimize,
+  PenTool,
+  MousePointer2,
+  Tag,
+  Layers,
+  Filter,
+  Move,
+  GripHorizontal,
+  LayoutGrid,
+  SortAsc,
+  SortDesc,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
@@ -249,6 +262,16 @@ const expectedNotifications = [
   "UIICL AO",
 ];
 
+const NOTE_TOPICS = [
+  "Quants",
+  "Reasoning",
+  "English",
+  "Current Affairs",
+  "Static GK",
+  "Banking Awareness",
+  "General",
+];
+
 const getFormattedDateStr = (d = new Date()) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
@@ -308,27 +331,22 @@ const shuffleArray = (array) => {
 export const useAppStore = create(
   persist(
     (set, get) => ({
-      // Auth State
       user: null,
       session: null,
       authLoading: true,
-
-      // UI State
       theme: "light",
       activeView: "dashboard",
       selectedDate: getFormattedDateStr(),
       toasts: [],
       confirmDialog: { isOpen: false, message: "", onConfirm: null },
-
-      // App Data
       baseTimeline: defaultTimeline,
       baseHabits: defaultHabitList,
       history: {},
       mocks: [],
       habits: {},
       vocab: [],
+      digitalNotes: [],
       isSyncing: false,
-
       premiumData: {
         currentStreak: 0,
         longestStreak: 0,
@@ -350,19 +368,20 @@ export const useAppStore = create(
       notify: (message, type = "success") => {
         const id = Date.now() + Math.random();
         set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
-        setTimeout(() => {
-          set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
-        }, 3000);
+        setTimeout(
+          () =>
+            set((state) => ({
+              toasts: state.toasts.filter((t) => t.id !== id),
+            })),
+          3000,
+        );
       },
 
-      requestConfirm: (message, onConfirm) => {
-        set({ confirmDialog: { isOpen: true, message, onConfirm } });
-      },
-      closeConfirm: () => {
-        set({ confirmDialog: { isOpen: false, message: "", onConfirm: null } });
-      },
+      requestConfirm: (message, onConfirm) =>
+        set({ confirmDialog: { isOpen: true, message, onConfirm } }),
+      closeConfirm: () =>
+        set({ confirmDialog: { isOpen: false, message: "", onConfirm: null } }),
 
-      // --- SUPABASE AUTHENTICATION ACTIONS ---
       initAuth: async () => {
         set({ authLoading: true });
         const {
@@ -372,26 +391,26 @@ export const useAppStore = create(
 
         if (session?.user) {
           get().fetchVocabFromCloud();
+          get().fetchDigitalNotesFromCloud();
         }
 
         supabase.auth.onAuthStateChange((_event, session) => {
           const currentUser = get().user;
           set({ session, user: session?.user || null, authLoading: false });
-
           if (session?.user && session.user.id !== currentUser?.id) {
             get().fetchVocabFromCloud();
+            get().fetchDigitalNotesFromCloud();
           } else if (!session?.user) {
-            set({ vocab: [] });
+            set({ vocab: [], digitalNotes: [] });
           }
         });
       },
 
-      generateInternalEmail: (username) => {
-        return `${username
+      generateInternalEmail: (username) =>
+        `${username
           .trim()
           .toLowerCase()
-          .replace(/[^a-z0-9]/g, "")}@ibpsplanner.internal`;
-      },
+          .replace(/[^a-z0-9]/g, "")}@ibpsplanner.internal`,
 
       loginWithUsername: async (username, password) => {
         const internalEmail = get().generateInternalEmail(username);
@@ -402,6 +421,7 @@ export const useAppStore = create(
         if (error) throw error;
         set({ user: data.user, session: data.session });
         get().fetchVocabFromCloud();
+        get().fetchDigitalNotesFromCloud();
         return data;
       },
 
@@ -418,7 +438,7 @@ export const useAppStore = create(
 
       logout: async () => {
         await supabase.auth.signOut();
-        set({ user: null, session: null, vocab: [] });
+        set({ user: null, session: null, vocab: [], digitalNotes: [] });
         get().notify("Logged out successfully.", "info");
       },
 
@@ -429,6 +449,10 @@ export const useAppStore = create(
             const { error } = await supabase.rpc("delete_user");
             if (error) {
               await supabase.from("dictionary").delete().eq("user_id", user.id);
+              await supabase
+                .from("digital_notes")
+                .delete()
+                .eq("user_id", user.id);
             }
             await supabase.auth.signOut();
           } catch (err) {}
@@ -441,6 +465,7 @@ export const useAppStore = create(
           history: {},
           mocks: [],
           habits: {},
+          digitalNotes: [],
           premiumData: { bookmarks: [] },
         });
         get().notify(
@@ -449,7 +474,6 @@ export const useAppStore = create(
         );
       },
 
-      // --- DICTIONARY CLOUD CRUD WITH OPTIMISTIC UI ---
       fetchVocabFromCloud: async () => {
         const user = get().user;
         if (!user) return;
@@ -460,7 +484,6 @@ export const useAppStore = create(
             .select("*")
             .eq("user_id", user.id)
             .order("dateAdded", { ascending: false });
-
           if (error) throw error;
           if (data) set({ vocab: data });
         } catch (err) {
@@ -473,10 +496,8 @@ export const useAppStore = create(
         const user = get().user;
         if (!user) return;
         const noteWithUser = { ...newNote, user_id: user.id };
-
         set((state) => ({ vocab: [noteWithUser, ...state.vocab] }));
         get().notify(`Saved "${newNote.word}" to Cloud!`, "success");
-
         try {
           const { error } = await supabase
             .from("dictionary")
@@ -488,23 +509,20 @@ export const useAppStore = create(
             throw error;
           }
         } catch (err) {
-          get().notify("Failed to save entry. It has been removed.", "error");
+          get().notify("Failed to save entry.", "error");
         }
       },
 
       updateVocabNote: async (noteObj) => {
         const user = get().user;
         if (!user) return;
-
         const noteWithUser = { ...noteObj, user_id: user.id };
-
         set((state) => ({
           vocab: state.vocab.map((v) =>
             v.id === noteObj.id ? noteWithUser : v,
           ),
         }));
         get().notify("Note updated instantly!", "success");
-
         try {
           const { error } = await supabase
             .from("dictionary")
@@ -518,10 +536,8 @@ export const useAppStore = create(
       deleteVocabNote: async (id) => {
         const user = get().user;
         if (!user) return;
-
         set((state) => ({ vocab: state.vocab.filter((v) => v.id !== id) }));
         get().notify("Entry removed.", "info");
-
         try {
           const { error } = await supabase
             .from("dictionary")
@@ -530,6 +546,90 @@ export const useAppStore = create(
           if (error) throw error;
         } catch (err) {
           get().notify("Failed to delete entry from cloud.", "error");
+        }
+      },
+
+      fetchDigitalNotesFromCloud: async () => {
+        const user = get().user;
+        if (!user) return;
+        try {
+          const { data, error } = await supabase
+            .from("digital_notes")
+            .select("*")
+            .eq("user_id", user.id);
+          if (error) throw error;
+          if (data) set({ digitalNotes: data });
+        } catch (err) {}
+      },
+
+      addDigitalNote: async (note) => {
+        const user = get().user;
+        if (!user) return;
+        const noteWithUser = { ...note, user_id: user.id };
+        set((state) => ({
+          digitalNotes: [...(state.digitalNotes || []), noteWithUser],
+        }));
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .insert([noteWithUser]);
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to save canvas note to cloud.", "error");
+        }
+      },
+
+      updateDigitalNote: async (id, updates) => {
+        const user = get().user;
+        if (!user) return;
+        set((state) => ({
+          digitalNotes: state.digitalNotes.map((n) =>
+            n.id === id ? { ...n, ...updates } : n,
+          ),
+        }));
+        try {
+          const updatedNote = get().digitalNotes.find((n) => n.id === id);
+          if (updatedNote) {
+            const { error } = await supabase
+              .from("digital_notes")
+              .upsert([updatedNote]);
+            if (error) throw error;
+          }
+        } catch (err) {
+          get().notify("Failed to sync canvas update.", "error");
+        }
+      },
+
+      deleteDigitalNote: async (id) => {
+        const user = get().user;
+        if (!user) return;
+        set((state) => ({
+          digitalNotes: state.digitalNotes.filter((n) => n.id !== id),
+        }));
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .delete()
+            .match({ id, user_id: user.id });
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to delete canvas note from cloud.", "error");
+        }
+      },
+
+      clearDigitalNotes: async () => {
+        const user = get().user;
+        if (!user) return;
+        set({ digitalNotes: [] });
+        get().notify("Canvas cleared.", "info");
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .delete()
+            .eq("user_id", user.id);
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to clear cloud notes.", "error");
         }
       },
 
@@ -556,6 +656,7 @@ export const useAppStore = create(
         mocks: state.mocks,
         habits: state.habits,
         baseTimeline: state.baseTimeline,
+        digitalNotes: state.digitalNotes,
         baseHabits: state.baseHabits,
         premiumData: state.premiumData,
       }),
@@ -563,7 +664,70 @@ export const useAppStore = create(
   ),
 );
 
-// --- AUTHENTICATION MODAL ---
+// --- COMPONENTS ---
+
+// Helper Draggable Component
+function DraggableItem({
+  initialX,
+  initialY,
+  children,
+  onDragEnd,
+  dragHandleClass = "drag-handle",
+}) {
+  const [pos, setPos] = useState({ x: initialX, y: initialY });
+  const dragRef = useRef({
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    initX: 0,
+    initY: 0,
+  });
+
+  const onPointerDown = (e) => {
+    if (dragHandleClass && !e.target.closest(`.${dragHandleClass}`)) return;
+    dragRef.current = {
+      isDragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: pos.x,
+      initY: pos.y,
+    };
+    e.target.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  };
+
+  const onPointerMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    setPos({ x: dragRef.current.initX + dx, y: dragRef.current.initY + dy });
+  };
+
+  const onPointerUp = (e) => {
+    if (!dragRef.current.isDragging) return;
+    dragRef.current.isDragging = false;
+    e.target.releasePointerCapture(e.pointerId);
+    if (onDragEnd) onDragEnd(pos.x, pos.y);
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: pos.x,
+        top: pos.y,
+        pointerEvents: "auto",
+        zIndex: 100,
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      {children}
+    </div>
+  );
+}
+
 function AuthModal() {
   const { loginWithUsername, signUpWithUsername, notify, setActiveView } =
     useAppStore();
@@ -581,7 +745,6 @@ function AuthModal() {
       );
     }
     setLoading(true);
-
     try {
       if (isSignUp) {
         await signUpWithUsername(username, password);
@@ -638,7 +801,6 @@ function AuthModal() {
               : "Enter your Aspirant ID and Password to access your studyspace."}
           </p>
         </div>
-
         <form
           onSubmit={handleSubmit}
           style={{ display: "flex", flexDirection: "column", gap: "16px" }}
@@ -676,7 +838,6 @@ function AuthModal() {
               />
             </div>
           </div>
-
           <div>
             <label
               style={{
@@ -710,7 +871,6 @@ function AuthModal() {
               />
             </div>
           </div>
-
           <button
             type="submit"
             className="btn"
@@ -735,7 +895,6 @@ function AuthModal() {
             )}
           </button>
         </form>
-
         <div
           style={{
             marginTop: "20px",
@@ -761,37 +920,15 @@ function AuthModal() {
             {isSignUp ? "Log In" : "Create Account"}
           </button>
         </div>
-
-        <div
-          style={{
-            marginTop: "20px",
-            padding: "12px",
-            background: "rgba(16, 185, 129, 0.05)",
-            borderRadius: "8px",
-            border: "1px solid rgba(16, 185, 129, 0.2)",
-            fontSize: "11px",
-            color: "var(--text-muted)",
-            lineHeight: "1.5",
-          }}
-        >
-          <strong>Privacy & Guidelines:</strong> Your scores, image notes, and
-          daily records are stored safely in your device's local storage. We
-          gather data related to Aspirant ID and Password solely to secure your
-          account, and we sync your Dictionary entries to the cloud. We do not
-          track or sell your personal data.
-        </div>
       </motion.div>
     </div>
   );
 }
 
-// --- GLOBAL SEARCH MODAL ---
 function GlobalSearchModal({ isOpen, onClose }) {
   const { vocab } = useAppStore();
   const [searchTerm, setSearchTerm] = useState("");
-
   if (!isOpen) return null;
-
   const results = [];
   if (searchTerm.length > 2) {
     const lower = searchTerm.toLowerCase();
@@ -808,7 +945,6 @@ function GlobalSearchModal({ isOpen, onClose }) {
       }
     });
   }
-
   return (
     <div
       className="modal-overlay"
@@ -896,7 +1032,6 @@ function GlobalSearchModal({ isOpen, onClose }) {
   );
 }
 
-// --- POMODORO TIMER ---
 function PomodoroTimer() {
   const { notify, setPremiumData } = useAppStore();
   const [isOpen, setIsOpen] = useState(false);
@@ -906,9 +1041,9 @@ function PomodoroTimer() {
 
   useEffect(() => {
     let interval = null;
-    if (isActive && timeLeft > 0) {
+    if (isActive && timeLeft > 0)
       interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (isActive && timeLeft === 0) {
+    else if (isActive && timeLeft === 0) {
       setIsActive(false);
       notify(`Time's up! You completed a ${mode} minute session.`, "success");
       setPremiumData((prev) => ({
@@ -1096,7 +1231,6 @@ function ToastContainer() {
 function ConfirmModal() {
   const { confirmDialog, closeConfirm } = useAppStore();
   if (!confirmDialog.isOpen) return null;
-
   return (
     <div
       className="modal-overlay"
@@ -1130,174 +1264,94 @@ function ConfirmModal() {
   );
 }
 
-function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
-  const { selectedDate, notify } = useAppStore();
-  const [word, setWord] = useState("");
-  const [type, setType] = useState("Vocabulary");
-  const [partOfSpeech, setPartOfSpeech] = useState("");
-  const [meaning, setMeaning] = useState("");
-  const [synonyms, setSynonyms] = useState("");
-  const [antonyms, setAntonyms] = useState("");
-  const [notes, setNotes] = useState("");
+function Header({ toggleSidebar, onOpenSearch }) {
+  const { theme, setTheme, selectedDate, setSelectedDate, user, logout } =
+    useAppStore();
+  const [time, setTime] = useState("");
 
   useEffect(() => {
-    if (initialData) {
-      setWord(initialData.word);
-      setType(initialData.type || "Vocabulary");
-      setPartOfSpeech(initialData.partOfSpeech || "");
-      setMeaning(initialData.meaning || "");
-      setSynonyms(initialData.synonyms || "");
-      setAntonyms(initialData.antonyms || "");
-      setNotes(initialData.notes || "");
-    } else {
-      setWord("");
-      setType("Vocabulary");
-      setPartOfSpeech("");
-      setMeaning("");
-      setSynonyms("");
-      setAntonyms("");
-      setNotes("");
-    }
-  }, [isOpen, initialData]);
-
-  if (!isOpen) return null;
-
-  const handleSave = () => {
-    if (!word.trim() || !meaning.trim())
-      return notify("Word and Meaning required.", "error");
-    onSave({
-      id: initialData ? initialData.id : Date.now().toString(),
-      word,
-      type,
-      partOfSpeech,
-      meaning,
-      synonyms,
-      antonyms,
-      notes,
-      dateAdded: initialData ? initialData.dateAdded : selectedDate,
-    });
-    onClose();
-  };
-
-  const labelStyle = {
-    display: "block",
-    fontSize: "13px",
-    fontWeight: "600",
-    marginBottom: "8px",
-    color: "var(--text-main)",
-  };
+    const updateTime = () =>
+      setTime(
+        new Date().toLocaleTimeString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        }),
+      );
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const todayStr = getFormattedDateStr();
+  const displayName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
-      <div
-        className="modal-card"
-        style={{ maxWidth: "550px", width: "90%", padding: "32px" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3
-          className="modal-title"
-          style={{ marginBottom: "28px", fontSize: "20px" }}
-        >
-          {initialData ? "Edit Study Note" : "Custom Study Note"}
-        </h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Word / Phrase</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={word}
-              onChange={(e) => setWord(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Category</label>
-            <select
-              className="custom-input"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-            >
-              <option value="Vocabulary">Vocabulary</option>
-              <option value="Phrasal Verb">Phrasal Verb</option>
-              <option value="Idiom">Idiom</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Part of Speech</label>
-            <input
-              type="text"
-              className="custom-input"
-              placeholder="noun, verb"
-              value={partOfSpeech}
-              onChange={(e) => setPartOfSpeech(e.target.value)}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "20px" }}>
-          <label style={labelStyle}>Meaning / Definition</label>
-          <textarea
-            className="custom-input"
-            value={meaning}
-            onChange={(e) => setMeaning(e.target.value)}
-            rows="4"
+    <header className="header">
+      <div className="header-left">
+        <button className="icon-btn mobile-menu-btn" onClick={toggleSidebar}>
+          <Menu size={18} />
+        </button>
+        <div className="date-picker-wrap">
+          <Calendar size={16} style={{ color: "var(--text-muted)" }} />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
           />
         </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Synonyms (comma separated)</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={synonyms}
-              onChange={(e) => setSynonyms(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Antonyms (comma separated)</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={antonyms}
-              onChange={(e) => setAntonyms(e.target.value)}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "32px" }}>
-          <label style={labelStyle}>Usage Context / Example Sentence</label>
-          <textarea
-            className="custom-input"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows="3"
-          />
-        </div>
-        <div
-          className="modal-actions"
-          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
-        >
-          <button className="btn btn-outline" onClick={onClose}>
-            Cancel
+        {selectedDate !== todayStr && (
+          <button
+            className="btn btn-outline hide-on-mobile"
+            style={{ padding: "8px 12px", fontSize: "13px" }}
+            onClick={() => setSelectedDate(todayStr)}
+          >
+            Today
           </button>
-          <button className="btn" onClick={handleSave}>
-            <Save size={16} /> Save Note
-          </button>
-        </div>
+        )}
       </div>
-    </div>
+      <div className="header-right">
+        <div
+          className="btn btn-outline hide-on-mobile"
+          style={{
+            padding: "6px 12px",
+            fontSize: "12px",
+            gap: "6px",
+            borderColor: "rgba(99, 102, 241, 0.3)",
+            pointerEvents: "none",
+          }}
+        >
+          <User size={14} color="var(--accent)" />
+          <span>{displayName}</span>
+        </div>
+        <button
+          className="btn btn-outline hide-on-mobile"
+          style={{
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            padding: "6px 12px",
+            fontSize: "12px",
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+          }}
+          onClick={onOpenSearch}
+        >
+          <Search size={14} /> Search (Ctrl+K)
+        </button>
+        <div className="clock hide-on-mobile">{time}</div>
+        <button
+          className="icon-btn"
+          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+        >
+          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
+        <button className="icon-btn" onClick={logout} title="Sign Out">
+          <LogOut size={18} color="var(--danger)" />
+        </button>
+      </div>
+    </header>
   );
 }
 
@@ -1314,7 +1368,6 @@ function UpcomingExamsWidget() {
         return { bg: "rgba(245, 158, 11, 0.1)", text: "#f59e0b" };
     }
   };
-
   return (
     <div
       className="card"
@@ -1343,7 +1396,6 @@ function UpcomingExamsWidget() {
           <CalendarDays size={20} color="var(--accent)" /> UPCOMING EXAMS 2026
         </h3>
       </div>
-
       <div
         style={{ maxHeight: "360px", overflowY: "auto", padding: "12px 20px" }}
       >
@@ -1418,7 +1470,6 @@ function UpcomingExamsWidget() {
             );
           })}
         </div>
-
         <div
           style={{
             borderTop: "1px dashed var(--border)",
@@ -1461,323 +1512,6 @@ function UpcomingExamsWidget() {
   );
 }
 
-// --- MAIN APP COMPONENT ---
-export default function App() {
-  const {
-    user,
-    authLoading,
-    initAuth,
-    fetchVocabFromCloud,
-    theme,
-    activeView,
-    setActiveView,
-    selectedDate,
-    setAppData,
-    history,
-  } = useAppStore();
-
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-  useEffect(() => {
-    initAuth();
-  }, []);
-
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    const contentArea = document.querySelector(".content-area");
-    if (contentArea) contentArea.scrollTo({ top: 0, behavior: "smooth" });
-  }, [activeView]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel("public:dictionary")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "dictionary" },
-        () => {
-          fetchVocabFromCloud();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, fetchVocabFromCloud]);
-
-  useEffect(() => {
-    document.body.setAttribute("data-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    setAppData((state) => {
-      const existing = state.history[selectedDate] || {};
-      if (
-        existing.quant &&
-        existing.reasoning &&
-        existing.timeline &&
-        existing.missedTasks &&
-        existing.imageNotes &&
-        existing.vocabStats
-      )
-        return state;
-      return {
-        ...state,
-        history: {
-          ...state.history,
-          [selectedDate]: {
-            timeline: (
-              existing.timeline ||
-              state.baseTimeline ||
-              defaultTimeline
-            ).map((t) => ({ ...t })),
-            notes: existing.notes || "",
-            quant: (
-              existing.quant ||
-              quantTopics.map((t) => ({ topic: t, checked: false, notes: "" }))
-            ).map((q) => ({ ...q })),
-            reasoning: (
-              existing.reasoning ||
-              reasoningTopics.map((t) => ({ ...t, checked: false, notes: "" }))
-            ).map((r) => ({ ...r })),
-            missedTasks: (existing.missedTasks || []).map((m) => ({ ...m })),
-            imageNotes: (existing.imageNotes || []).map((n) => ({ ...n })),
-            vocabStats: existing.vocabStats || {
-              score: 0,
-              correct: 0,
-              wrong: 0,
-              quizzesCompleted: 0,
-            },
-          },
-        },
-      };
-    });
-  }, [selectedDate, setAppData]);
-
-  if (authLoading) {
-    return (
-      <div
-        style={{
-          height: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--bg)",
-        }}
-      >
-        <Loader2
-          className="spinner"
-          size={40}
-          color="var(--accent)"
-          style={{ animation: "spin 1s linear infinite" }}
-        />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="app-container">
-        <AuthModal />
-        <ToastContainer />
-      </div>
-    );
-  }
-
-  const currentHistory = history[selectedDate] || {
-    timeline: defaultTimeline.map((t) => ({ ...t })),
-    notes: "",
-    quant: quantTopics.map((t) => ({ topic: t, checked: false, notes: "" })),
-    reasoning: reasoningTopics.map((t) => ({
-      ...t,
-      checked: false,
-      notes: "",
-    })),
-    missedTasks: [],
-    imageNotes: [],
-    vocabStats: { score: 0, correct: 0, wrong: 0, quizzesCompleted: 0 },
-  };
-
-  return (
-    <div className="app-container">
-      {isSidebarOpen && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
-      <PomodoroTimer />
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
-
-      <aside className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
-        <div className="logo">
-          <div className="icon-wrap">
-            <Target size={20} />
-          </div>{" "}
-          IBPS Planner{" "}
-          <span style={{ fontWeight: 400, color: "var(--accent)" }}>PRO</span>
-        </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          {[
-            {
-              id: "dashboard",
-              icon: LayoutDashboard,
-              label: "Dashboard & Quiz",
-            },
-            { id: "today", icon: CalendarCheck, label: "Daily Plan" },
-            { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
-            { id: "quant", icon: Calculator, label: "Quant Rotation" },
-            { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
-            { id: "mocks", icon: LineChart, label: "Mock Tracker" },
-            { id: "habits", icon: CheckCircle, label: "Habit Tracker" },
-            { id: "settings", icon: Settings, label: "Settings" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              className={`nav-item ${activeView === item.id ? "active" : ""}`}
-              onClick={() => {
-                setActiveView(item.id);
-                setIsSidebarOpen(false);
-              }}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="main-content">
-        <Header
-          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          onOpenSearch={() => setIsSearchOpen(true)}
-        />
-        <div className="content-area">
-          {activeView === "dashboard" && <Dashboard history={currentHistory} />}
-          {activeView === "today" && (
-            <DailyPlan timeline={currentHistory.timeline} />
-          )}
-          {activeView === "vocab" && <VocabTracker />}
-          {activeView === "quant" && (
-            <QuantRotation quant={currentHistory.quant} />
-          )}
-          {activeView === "reasoning" && (
-            <ReasoningRotation reasoning={currentHistory.reasoning} />
-          )}
-          {activeView === "mocks" && <MockTracker />}
-          {activeView === "habits" && <HabitTracker />}
-          {activeView === "settings" && <SettingsView />}
-        </div>
-      </main>
-
-      <ToastContainer />
-      <ConfirmModal />
-    </div>
-  );
-}
-
-// --- VIEW & SUB-COMPONENTS ---
-
-function Header({ toggleSidebar, onOpenSearch }) {
-  const { theme, setTheme, selectedDate, setSelectedDate, user, logout } =
-    useAppStore();
-  const [time, setTime] = useState("");
-
-  useEffect(() => {
-    const updateTime = () =>
-      setTime(
-        new Date().toLocaleTimeString("en-IN", {
-          timeZone: "Asia/Kolkata",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-        }),
-      );
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const todayStr = getFormattedDateStr();
-
-  const displayName = user?.user_metadata?.display_username || "Aspirant";
-
-  return (
-    <header className="header">
-      <div className="header-left">
-        <button className="icon-btn mobile-menu-btn" onClick={toggleSidebar}>
-          <Menu size={18} />
-        </button>
-        <div className="date-picker-wrap">
-          <Calendar size={16} style={{ color: "var(--text-muted)" }} />
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-        </div>
-        {selectedDate !== todayStr && (
-          <button
-            className="btn btn-outline hide-on-mobile"
-            style={{ padding: "8px 12px", fontSize: "13px" }}
-            onClick={() => setSelectedDate(todayStr)}
-          >
-            Today
-          </button>
-        )}
-      </div>
-
-      <div className="header-right">
-        <div
-          className="btn btn-outline hide-on-mobile"
-          style={{
-            padding: "6px 12px",
-            fontSize: "12px",
-            gap: "6px",
-            borderColor: "rgba(99, 102, 241, 0.3)",
-            pointerEvents: "none",
-          }}
-        >
-          <User size={14} color="var(--accent)" />
-          <span>{displayName}</span>
-        </div>
-
-        <button
-          className="btn btn-outline hide-on-mobile"
-          style={{
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-            padding: "6px 12px",
-            fontSize: "12px",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-          }}
-          onClick={onOpenSearch}
-        >
-          <Search size={14} /> Search (Ctrl+K)
-        </button>
-        <div className="clock hide-on-mobile">{time}</div>
-        <button
-          className="icon-btn"
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-        >
-          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-        </button>
-        <button className="icon-btn" onClick={logout} title="Sign Out">
-          <LogOut size={18} color="var(--danger)" />
-        </button>
-      </div>
-    </header>
-  );
-}
-
 function VocabQuiz() {
   const { vocab, selectedDate, notify, premiumData } = useAppStore();
   const [quizState, setQuizState] = useState("idle");
@@ -1792,9 +1526,8 @@ function VocabQuiz() {
     const modeToUse =
       typeof overrideMode === "string" ? overrideMode : quizMode;
     let pool = [];
-
     if (modeToUse === "bookmarks") {
-      pool = vocab.filter((v) => premiumData.bookmarks.includes(v.id));
+      pool = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
       pool = shuffleArray(pool);
     } else if (modeToUse === "weekly") {
       const sevenDaysAgo = new Date(selectedDate);
@@ -1809,9 +1542,7 @@ function VocabQuiz() {
     } else {
       pool = vocab.filter((v) => v.dateAdded && v.dateAdded <= selectedDate);
     }
-
     const selectedWords = pool.slice(0, modeToUse === "daily" ? 15 : 50);
-
     if (selectedWords.length < 4)
       return notify(`Need at least 4 saved words to generate a quiz!`, "error");
 
@@ -1822,7 +1553,6 @@ function VocabQuiz() {
       let distractors = shuffleArray(vocab.filter((v) => v.id !== target.id))
         .slice(0, 3)
         .map((v) => v.meaning);
-
       generatedQs.push({
         targetId: target.id,
         targetWord: target.word,
@@ -1844,8 +1574,8 @@ function VocabQuiz() {
     if (isAnswered) return;
     setSelectedOption(option);
     setIsAnswered(true);
-    const isCorrect = option === questions[currentIndex].correctOption;
-    if (isCorrect) setScoreThisRound((prev) => prev + 1);
+    if (option === questions[currentIndex].correctOption)
+      setScoreThisRound((prev) => prev + 1);
   };
 
   const handleNext = () => {
@@ -2092,14 +1822,12 @@ function Dashboard({ history }) {
       notify("Task added to backlog", "info");
     }
   };
-
   const toggleMissed = (index) => {
     const updated = (history.missedTasks || []).map((t, i) =>
       i === index ? { ...t, checked: !t.checked } : t,
     );
     updateHistory({ missedTasks: updated });
   };
-
   const userName = user?.user_metadata?.display_username || "Aspirant";
 
   return (
@@ -2117,9 +1845,7 @@ function Dashboard({ history }) {
           </p>
         </div>
       </div>
-
       <VocabQuiz />
-
       <div className="grid-3" style={{ marginBottom: "32px" }}>
         <div className="card stat-card">
           <div
@@ -2158,7 +1884,6 @@ function Dashboard({ history }) {
         </div>
       </div>
       <UpcomingExamsWidget />
-
       <div className="grid-2">
         <div
           className="card"
@@ -2205,7 +1930,6 @@ function Dashboard({ history }) {
             ))}
           </div>
         </div>
-
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <div
             className="card"
@@ -2262,7 +1986,6 @@ function Dashboard({ history }) {
               ))}
             </div>
           </div>
-
           <div
             className="card"
             style={{ display: "flex", flexDirection: "column", padding: "0" }}
@@ -2306,7 +2029,176 @@ function Dashboard({ history }) {
   );
 }
 
-// --- MODERNIZED IBPS DICTIONARY & VOCAB TRACKER ---
+function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
+  const { selectedDate, notify } = useAppStore();
+  const [word, setWord] = useState("");
+  const [type, setType] = useState("Vocabulary");
+  const [partOfSpeech, setPartOfSpeech] = useState("");
+  const [meaning, setMeaning] = useState("");
+  const [synonyms, setSynonyms] = useState("");
+  const [antonyms, setAntonyms] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (initialData) {
+      setWord(initialData.word);
+      setType(initialData.type || "Vocabulary");
+      setPartOfSpeech(initialData.partOfSpeech || "");
+      setMeaning(initialData.meaning || "");
+      setSynonyms(initialData.synonyms || "");
+      setAntonyms(initialData.antonyms || "");
+      setNotes(initialData.notes || "");
+    } else {
+      setWord("");
+      setType("Vocabulary");
+      setPartOfSpeech("");
+      setMeaning("");
+      setSynonyms("");
+      setAntonyms("");
+      setNotes("");
+    }
+  }, [isOpen, initialData]);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (!word.trim() || !meaning.trim())
+      return notify("Word and Meaning required.", "error");
+    onSave({
+      id: initialData ? initialData.id : Date.now().toString(),
+      word,
+      type,
+      partOfSpeech,
+      meaning,
+      synonyms,
+      antonyms,
+      notes,
+      dateAdded: initialData ? initialData.dateAdded : selectedDate,
+    });
+    onClose();
+  };
+  const labelStyle = {
+    display: "block",
+    fontSize: "13px",
+    fontWeight: "600",
+    marginBottom: "8px",
+    color: "var(--text-main)",
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
+      <div
+        className="modal-card"
+        style={{ maxWidth: "550px", width: "90%", padding: "32px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3
+          className="modal-title"
+          style={{ marginBottom: "28px", fontSize: "20px" }}
+        >
+          {initialData ? "Edit Study Note" : "Custom Study Note"}
+        </h3>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr 1fr",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Word / Phrase</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Category</label>
+            <select
+              className="custom-input"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
+              <option value="Vocabulary">Vocabulary</option>
+              <option value="Phrasal Verb">Phrasal Verb</option>
+              <option value="Idiom">Idiom</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Part of Speech</label>
+            <input
+              type="text"
+              className="custom-input"
+              placeholder="noun, verb"
+              value={partOfSpeech}
+              onChange={(e) => setPartOfSpeech(e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: "20px" }}>
+          <label style={labelStyle}>Meaning / Definition</label>
+          <textarea
+            className="custom-input"
+            value={meaning}
+            onChange={(e) => setMeaning(e.target.value)}
+            rows="4"
+          />
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Synonyms (comma separated)</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={synonyms}
+              onChange={(e) => setSynonyms(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Antonyms (comma separated)</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={antonyms}
+              onChange={(e) => setAntonyms(e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: "32px" }}>
+          <label style={labelStyle}>Usage Context / Example Sentence</label>
+          <textarea
+            className="custom-input"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows="3"
+          />
+        </div>
+        <div
+          className="modal-actions"
+          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
+        >
+          <button className="btn btn-outline" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn" onClick={handleSave}>
+            <Save size={16} /> Save Note
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VocabTracker() {
   const {
     vocab,
@@ -2318,7 +2210,6 @@ function VocabTracker() {
     premiumData,
     setPremiumData,
   } = useAppStore();
-
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -2355,7 +2246,6 @@ function VocabTracker() {
     setSearchError("");
     setSearchResult(null);
     setShowSuggestions(false);
-
     try {
       const res = await fetch(
         `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term.trim().toLowerCase())}`,
@@ -2368,54 +2258,37 @@ function VocabTracker() {
         let antonymsList = [];
         let examplesList = [];
         let partsOfSpeechSet = new Set();
-
         entry.meanings?.forEach((m) => {
           const pos = m.partOfSpeech || "";
           if (pos) partsOfSpeechSet.add(pos);
-
           if (m.synonyms) synonymsList.push(...m.synonyms);
           if (m.antonyms) antonymsList.push(...m.antonyms);
-
           const firstDef = m.definitions?.[0]?.definition;
-          if (firstDef) {
+          if (firstDef)
             meaningsList.push(`${pos ? `[${pos}] ` : ""}${firstDef}`);
-          }
-
           m.definitions?.forEach((def) => {
             if (def.example) examplesList.push(def.example);
             if (def.synonyms) synonymsList.push(...def.synonyms);
             if (def.antonyms) antonymsList.push(...def.antonyms);
           });
         });
-
         let detectedType = "Vocabulary";
         const wordCount = term.trim().split(" ").length;
-        if (wordCount > 2) {
-          detectedType = "Idiom";
-        } else if (wordCount === 2) {
-          detectedType = "Phrasal Verb";
-        }
-
-        const audioUrl = entry.phonetics?.find((p) => p.audio)?.audio || "";
-        const combinedMeaning =
-          meaningsList.join("\n") || "No definition found.";
-        const allPoS = Array.from(partsOfSpeechSet).join(", ") || "word";
-
+        if (wordCount > 2) detectedType = "Idiom";
+        else if (wordCount === 2) detectedType = "Phrasal Verb";
         setSearchResult({
           word: entry.word || term,
           type: detectedType,
-          partOfSpeech: allPoS,
-          meaning: combinedMeaning,
+          partOfSpeech: Array.from(partsOfSpeechSet).join(", ") || "word",
+          meaning: meaningsList.join("\n") || "No definition found.",
           synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
           antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
           notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-          audio: audioUrl,
         });
-      } else {
+      } else
         setSearchError(
           `No direct online entry for "${term}". You can add it manually!`,
         );
-      }
     } catch (err) {
       setSearchError("Unable to connect to dictionary API.");
     } finally {
@@ -2427,23 +2300,11 @@ function VocabTracker() {
     if (!searchResult) return;
     addVocabNote({
       id: Date.now().toString(),
-      word: searchResult.word,
-      type: searchResult.type,
-      partOfSpeech: searchResult.partOfSpeech,
-      meaning: searchResult.meaning,
-      synonyms: searchResult.synonyms,
-      antonyms: searchResult.antonyms,
-      notes: searchResult.notes,
+      ...searchResult,
       dateAdded: selectedDate,
     });
     setSearchResult(null);
     setQuery("");
-  };
-
-  const handleDelete = (id) => {
-    requestConfirm("Are you sure you want to delete this cloud entry?", () => {
-      deleteVocabNote(id);
-    });
   };
 
   const toggleBookmark = (id) => {
@@ -2458,41 +2319,34 @@ function VocabTracker() {
     });
   };
 
-  const playAudio = (url) => {
-    if (!url) return;
-    new Audio(url).play();
-  };
-
   let filteredVocab = vocab.filter((v) => v.dateAdded === selectedDate);
-  if (filterType === "Bookmarks") {
-    filteredVocab = vocab.filter((v) => premiumData.bookmarks?.includes(v.id));
-  } else if (filterType !== "All") {
+  if (filterType === "Bookmarks")
+    filteredVocab = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
+  else if (filterType !== "All")
     filteredVocab = filteredVocab.filter((v) => v.type === filterType);
-  }
-
   const renderPills = (textStr) => {
     if (!textStr) return null;
-    const words = textStr
+    return textStr
       .split(",")
       .map((w) => w.trim())
-      .filter((w) => w);
-    return words.map((w, i) => (
-      <span
-        key={i}
-        style={{
-          display: "inline-block",
-          padding: "4px 10px",
-          borderRadius: "8px",
-          fontSize: "12px",
-          fontWeight: 600,
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
-          color: "var(--text-main)",
-        }}
-      >
-        {w}
-      </span>
-    ));
+      .filter((w) => w)
+      .map((w, i) => (
+        <span
+          key={i}
+          style={{
+            display: "inline-block",
+            padding: "4px 10px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            fontWeight: 600,
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            color: "var(--text-main)",
+          }}
+        >
+          {w}
+        </span>
+      ));
   };
 
   return (
@@ -2514,7 +2368,6 @@ function VocabTracker() {
           <Plus size={16} /> Custom Entry
         </button>
       </div>
-
       <div
         style={{
           position: "relative",
@@ -2570,7 +2423,6 @@ function VocabTracker() {
             {isSearching ? <Loader2 size={16} className="spinner" /> : "Search"}
           </button>
         </div>
-
         <AnimatePresence>
           {showSuggestions && suggestions.length > 0 && (
             <motion.div
@@ -2615,7 +2467,6 @@ function VocabTracker() {
           )}
         </AnimatePresence>
       </div>
-
       {searchError && (
         <div
           className="card"
@@ -2649,8 +2500,6 @@ function VocabTracker() {
           </button>
         </div>
       )}
-
-      {/* MODERN PREVIEW CARD DESIGN */}
       {searchResult && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -2665,7 +2514,6 @@ function VocabTracker() {
             boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
           }}
         >
-          {/* Top Row: Word & Actions */}
           <div
             style={{
               display: "flex",
@@ -2689,7 +2537,7 @@ function VocabTracker() {
               {searchResult.audio && (
                 <button
                   className="icon-btn-minimal"
-                  onClick={() => playAudio(searchResult.audio)}
+                  onClick={() => new Audio(searchResult.audio).play()}
                   title="Listen Pronunciation"
                   style={{ color: "var(--accent)" }}
                 >
@@ -2709,8 +2557,6 @@ function VocabTracker() {
               </button>
             </div>
           </div>
-
-          {/* Badge Row */}
           <div style={{ marginBottom: "24px" }}>
             <span
               style={{
@@ -2730,11 +2576,9 @@ function VocabTracker() {
                 : ""}
             </span>
           </div>
-
           <div
             style={{ display: "flex", flexDirection: "column", gap: "20px" }}
           >
-            {/* Meaning Block */}
             <div>
               <span
                 style={{
@@ -2762,8 +2606,6 @@ function VocabTracker() {
                 {searchResult.meaning}
               </p>
             </div>
-
-            {/* Synonyms & Antonyms */}
             {(searchResult.synonyms || searchResult.antonyms) && (
               <div
                 style={{
@@ -2783,7 +2625,6 @@ function VocabTracker() {
                         fontWeight: 700,
                         color: "var(--text-muted)",
                         textTransform: "uppercase",
-                        letterSpacing: "0.5px",
                         display: "block",
                         marginBottom: "8px",
                       }}
@@ -2797,7 +2638,6 @@ function VocabTracker() {
                     </div>
                   </div>
                 )}
-
                 {searchResult.antonyms && (
                   <div style={{ flex: 1, minWidth: "150px" }}>
                     <span
@@ -2806,7 +2646,6 @@ function VocabTracker() {
                         fontWeight: 700,
                         color: "var(--text-muted)",
                         textTransform: "uppercase",
-                        letterSpacing: "0.5px",
                         display: "block",
                         marginBottom: "8px",
                       }}
@@ -2822,8 +2661,6 @@ function VocabTracker() {
                 )}
               </div>
             )}
-
-            {/* Notes Context */}
             {searchResult.notes && (
               <div
                 style={{
@@ -2862,7 +2699,6 @@ function VocabTracker() {
           </div>
         </motion.div>
       )}
-
       <div
         style={{
           display: "flex",
@@ -2892,7 +2728,6 @@ function VocabTracker() {
           ),
         )}
       </div>
-
       {filteredVocab.length === 0 ? (
         <div
           className="card"
@@ -2923,7 +2758,7 @@ function VocabTracker() {
           }}
         >
           {filteredVocab.map((item) => {
-            const isBookmarked = premiumData.bookmarks?.includes(item.id);
+            const isBookmarked = premiumData?.bookmarks?.includes(item.id);
             return (
               <motion.div
                 whileHover={{ y: -4 }}
@@ -2942,7 +2777,6 @@ function VocabTracker() {
                   overflow: "hidden",
                 }}
               >
-                {/* Top Glowing Accent Bar if bookmarked */}
                 {isBookmarked && (
                   <div
                     style={{
@@ -2955,8 +2789,6 @@ function VocabTracker() {
                     }}
                   ></div>
                 )}
-
-                {/* Card Header (Matches Design Image) */}
                 <div
                   style={{
                     display: "flex",
@@ -2976,7 +2808,6 @@ function VocabTracker() {
                   >
                     {item.word}
                   </h3>
-
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
                       className="icon-btn-minimal"
@@ -3004,15 +2835,17 @@ function VocabTracker() {
                     </button>
                     <button
                       className="icon-btn-minimal"
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() =>
+                        requestConfirm("Delete this cloud entry?", () =>
+                          deleteVocabNote(item.id),
+                        )
+                      }
                       style={{ color: "var(--danger)" }}
                     >
                       <Trash2 size={18} />
                     </button>
                   </div>
                 </div>
-
-                {/* Badge Row */}
                 <div style={{ marginBottom: "24px" }}>
                   <span
                     style={{
@@ -3030,8 +2863,6 @@ function VocabTracker() {
                     {item.partOfSpeech ? ` • ${item.partOfSpeech}` : ""}
                   </span>
                 </div>
-
-                {/* Card Body */}
                 <div
                   style={{
                     display: "flex",
@@ -3067,15 +2898,13 @@ function VocabTracker() {
                       {item.meaning}
                     </p>
                   </div>
-
-                  {/* Modern Tag Layout for Synonyms & Antonyms */}
                   {(item.synonyms || item.antonyms) && (
                     <div
                       style={{
                         display: "flex",
                         flexWrap: "wrap",
                         gap: "24px",
-                        marginTop: "auto", // pushes down to bottom
+                        marginTop: "auto",
                         paddingTop: "20px",
                         borderTop: "1px dashed var(--border)",
                       }}
@@ -3090,7 +2919,6 @@ function VocabTracker() {
                               textTransform: "uppercase",
                               display: "block",
                               marginBottom: "8px",
-                              letterSpacing: "0.5px",
                             }}
                           >
                             Synonyms
@@ -3106,7 +2934,6 @@ function VocabTracker() {
                           </div>
                         </div>
                       )}
-
                       {item.antonyms && (
                         <div style={{ flex: 1, minWidth: "120px" }}>
                           <span
@@ -3117,7 +2944,6 @@ function VocabTracker() {
                               textTransform: "uppercase",
                               display: "block",
                               marginBottom: "8px",
-                              letterSpacing: "0.5px",
                             }}
                           >
                             Antonyms
@@ -3135,7 +2961,6 @@ function VocabTracker() {
                       )}
                     </div>
                   )}
-
                   {item.notes && (
                     <div
                       style={{
@@ -3164,7 +2989,6 @@ function VocabTracker() {
           })}
         </div>
       )}
-
       <VocabModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -3177,22 +3001,18 @@ function VocabTracker() {
   );
 }
 
-// --- MODERN TIMELINE VIEW ---
 function DailyPlan({ timeline }) {
   const { updateHistory, notify } = useAppStore();
-
   const handleChange = (index, field, value) => {
     const updated = timeline.map((item, i) =>
       i === index ? { ...item, [field]: value } : item,
     );
     updateHistory({ timeline: updated });
   };
-
   const deleteTask = (index) => {
     updateHistory({ timeline: timeline.filter((_, i) => i !== index) });
     notify("Task removed", "info");
   };
-
   const addTask = () => {
     updateHistory({
       timeline: [
@@ -3223,7 +3043,6 @@ function DailyPlan({ timeline }) {
           </button>
         </div>
       </div>
-
       <div
         style={{
           position: "relative",
@@ -3363,7 +3182,7 @@ function DailyPlan({ timeline }) {
                         <BookOpen size={12} />
                       ) : (
                         <Coffee size={12} />
-                      )}
+                      )}{" "}
                       {item.isStudy ? "Study Session" : "Break"}
                     </button>
                     <button
@@ -3410,7 +3229,351 @@ function DailyPlan({ timeline }) {
   );
 }
 
-// --- MODERN HABIT HEATMAP TRACKER VIEW ---
+function QuantRotation({ quant = [] }) {
+  const { updateHistory } = useAppStore();
+  const handleChange = (index, field, value) =>
+    updateHistory({
+      quant: quant.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item,
+      ),
+    });
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Quant Rotation</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Track quantitative aptitude proficiency and formula revisions.
+          </p>
+        </div>
+      </div>
+      <div className="grid-4">
+        {quant.map((item, i) => (
+          <div
+            key={i}
+            className={`topic-card ${item.checked ? "checked" : ""}`}
+          >
+            <div className="topic-card-header">
+              <h4>{item.topic}</h4>
+              <input
+                type="checkbox"
+                className="custom-checkbox"
+                checked={item.checked}
+                onChange={(e) => handleChange(i, "checked", e.target.checked)}
+              />
+            </div>
+            <input
+              type="text"
+              className="custom-input"
+              placeholder="Formula / Errors..."
+              value={item.notes}
+              onChange={(e) => handleChange(i, "notes", e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReasoningRotation({ reasoning = [] }) {
+  const { updateHistory } = useAppStore();
+  const handleChange = (index, field, value) =>
+    updateHistory({
+      reasoning: reasoning.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item,
+      ),
+    });
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Reasoning Rotation</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Master high-priority reasoning concepts daily.
+          </p>
+        </div>
+      </div>
+      <div className="grid-4">
+        {reasoning.map((item, i) => (
+          <div
+            key={i}
+            className={`topic-card ${item.checked ? "checked" : ""}`}
+          >
+            <div className="topic-card-header">
+              <div>
+                <span className={`tier-badge tier-${item.tier?.slice(-1)}`}>
+                  {item.tier}
+                </span>
+                <h4>{item.topic}</h4>
+              </div>
+              <input
+                type="checkbox"
+                className="custom-checkbox"
+                checked={item.checked}
+                onChange={(e) => handleChange(i, "checked", e.target.checked)}
+              />
+            </div>
+            <input
+              type="text"
+              className="custom-input"
+              placeholder="Tricks / Notes..."
+              value={item.notes}
+              onChange={(e) => handleChange(i, "notes", e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MockTracker() {
+  const { mocks, setMocks, selectedDate, notify } = useAppStore();
+  const addMock = () => {
+    setMocks([
+      {
+        id: Date.now().toString(),
+        date: selectedDate,
+        name: "",
+        score: "",
+        remarks: "",
+      },
+      ...mocks,
+    ]);
+    notify("New Mock Test card added.", "info");
+  };
+  const updateMock = (id, field, value) =>
+    setMocks(mocks.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
+  const deleteMock = (id) => {
+    setMocks(mocks.filter((m) => m.id !== id));
+    notify("Mock Test deleted.", "info");
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Mock Test Analytics</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Log mock tests to analyze your performance growth.
+          </p>
+        </div>
+        <button className="btn" onClick={addMock}>
+          <Plus size={16} /> Log New Test
+        </button>
+      </div>
+      {mocks.length === 0 ? (
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "60px 20px",
+            color: "var(--text-muted)",
+          }}
+        >
+          <LineChart
+            size={48}
+            style={{
+              opacity: 0.2,
+              margin: "0 auto 16px auto",
+              display: "block",
+            }}
+          />
+          No mock tests logged yet. Click "Log New Test" to begin tracking.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {mocks.map((m) => (
+            <div
+              key={m.id}
+              className="card"
+              style={{
+                padding: 0,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  padding: "16px 24px",
+                  background: "rgba(0,0,0,0.02)",
+                  borderBottom: "1px solid var(--border)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    flex: 1,
+                    minWidth: "300px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      width: "140px",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Date Taken
+                    </label>
+                    <input
+                      type="date"
+                      className="custom-input"
+                      value={m.date}
+                      onChange={(e) => updateMock(m.id, "date", e.target.value)}
+                      style={{ padding: "8px", fontSize: "13px" }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      flex: 1,
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Test Name / Provider
+                    </label>
+                    <input
+                      type="text"
+                      className="custom-input"
+                      placeholder="e.g. IBPS PO Prelims Mock 1"
+                      value={m.name}
+                      onChange={(e) => updateMock(m.id, "name", e.target.value)}
+                      style={{
+                        padding: "8px",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        border: "none",
+                        background: "transparent",
+                      }}
+                    />
+                  </div>
+                </div>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={() => deleteMock(m.id)}
+                  style={{
+                    color: "var(--danger)",
+                    background: "rgba(239,68,68,0.1)",
+                    borderRadius: "8px",
+                    width: "36px",
+                    height: "36px",
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "24px",
+                  padding: "24px",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    width: "150px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Score / Marks
+                  </label>
+                  <input
+                    type="number"
+                    className="custom-input"
+                    placeholder="00.00"
+                    value={m.score}
+                    onChange={(e) => updateMock(m.id, "score", e.target.value)}
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: 800,
+                      padding: "12px",
+                      color: "var(--text-main)",
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minWidth: "250px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                      marginBottom: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <Edit3 size={14} /> Mistakes & Learnings
+                  </label>
+                  <textarea
+                    className="custom-input"
+                    placeholder="What went wrong? e.g. Silly mistake in Syllogism..."
+                    value={m.remarks}
+                    onChange={(e) =>
+                      updateMock(m.id, "remarks", e.target.value)
+                    }
+                    rows="2"
+                    style={{
+                      background: "rgba(99, 102, 241, 0.03)",
+                      border: "1px dashed var(--border)",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HabitTracker() {
   const {
     selectedDate,
@@ -3422,7 +3585,6 @@ function HabitTracker() {
   } = useAppStore();
   const scrollRef = useRef(null);
   const [isEditing, setIsEditing] = useState(false);
-
   const dateParts = (selectedDate || getFormattedDateStr()).split("-");
   const year = parseInt(dateParts[0], 10),
     month = parseInt(dateParts[1], 10) - 1;
@@ -3439,7 +3601,6 @@ function HabitTracker() {
       name: h,
       days: Array(daysInMonth).fill(""),
     }));
-
   const updateHabits = (newHabits) =>
     setAppData((state) => ({
       ...state,
@@ -3453,32 +3614,27 @@ function HabitTracker() {
       ? [...newHabits[hIndex].days]
       : Array(daysInMonth).fill("");
     while (existingDays.length < daysInMonth) existingDays.push("");
-
     const currentState = existingDays[dIndex];
     let nextState = "";
     if (currentState === "done" || currentState === true) nextState = "partial";
     else if (currentState === "partial") nextState = "missed";
     else if (currentState === "missed") nextState = "";
     else nextState = "done";
-
     existingDays[dIndex] = nextState;
     newHabits[hIndex] = { ...newHabits[hIndex], days: existingDays };
     updateHabits(newHabits);
   };
-
   const handleNameChange = (hIndex, val) => {
     const newHabits = [...currentHabits];
     newHabits[hIndex].name = val;
     updateHabits(newHabits);
   };
-
   const deleteHabit = (hIndex) => {
     requestConfirm("Remove this habit?", () => {
       updateHabits(currentHabits.filter((_, i) => i !== hIndex));
       notify("Habit deleted", "info");
     });
   };
-
   const addHabit = () => {
     updateHabits([
       ...currentHabits,
@@ -3487,12 +3643,10 @@ function HabitTracker() {
     setIsEditing(true);
     notify("New habit added", "success");
   };
-
   const handleScroll = (amount) => {
     if (scrollRef.current)
       scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
   };
-
   const leftColWidth = 200;
   const cellSize = 34;
   const cellGap = 8;
@@ -3512,7 +3666,7 @@ function HabitTracker() {
             className={`btn ${isEditing ? "" : "btn-outline"}`}
             onClick={() => setIsEditing(!isEditing)}
           >
-            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}
+            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}{" "}
             <span>{isEditing ? "Done Editing" : "Edit Habits"}</span>
           </button>
           <button className="btn" onClick={addHabit}>
@@ -3520,7 +3674,6 @@ function HabitTracker() {
           </button>
         </div>
       </div>
-
       <div
         className="card"
         style={{ padding: "24px", overflow: "hidden", position: "relative" }}
@@ -3548,7 +3701,6 @@ function HabitTracker() {
             <ChevronRight size={18} />
           </button>
         </div>
-
         <div style={{ display: "flex", width: "100%" }}>
           <div
             style={{
@@ -3615,7 +3767,6 @@ function HabitTracker() {
               </div>
             ))}
           </div>
-
           <div
             ref={scrollRef}
             style={{
@@ -3661,7 +3812,6 @@ function HabitTracker() {
                   );
                 })}
               </div>
-
               <div
                 style={{
                   display: "flex",
@@ -3676,30 +3826,24 @@ function HabitTracker() {
                   >
                     {Array.from({ length: daysInMonth }, (_, dIndex) => {
                       const state = h.days && h.days[dIndex];
-                      const isDone = state === "done" || state === true;
-                      const isPartial = state === "partial";
-                      const isMissed = state === "missed";
-
                       let cellBg = "var(--bg)";
                       let cellBorder = "1px solid var(--border)";
                       let content = null;
-
-                      if (isDone) {
+                      if (state === "done" || state === true) {
                         cellBg = "#10b981";
                         cellBorder = "1px solid #10b981";
                         content = <CheckCircle2 size={16} color="#fff" />;
-                      } else if (isPartial) {
+                      } else if (state === "partial") {
                         cellBg = "#f59e0b";
                         cellBorder = "1px solid #f59e0b";
                         content = (
                           <Minus size={16} color="#fff" strokeWidth={3} />
                         );
-                      } else if (isMissed) {
+                      } else if (state === "missed") {
                         cellBg = "#ef4444";
                         cellBorder = "1px solid #ef4444";
                         content = <X size={16} color="#fff" strokeWidth={3} />;
                       }
-
                       return (
                         <motion.div
                           whileHover={{ scale: 1.15 }}
@@ -3734,368 +3878,6 @@ function HabitTracker() {
   );
 }
 
-function QuantRotation({ quant = [] }) {
-  const { updateHistory } = useAppStore();
-  const handleChange = (index, field, value) => {
-    const updated = quant.map((item, i) =>
-      i === index ? { ...item, [field]: value } : item,
-    );
-    updateHistory({ quant: updated });
-  };
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Quant Rotation</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Track quantitative aptitude proficiency and formula revisions.
-          </p>
-        </div>
-      </div>
-      <div className="grid-4">
-        {quant.map((item, i) => (
-          <div
-            key={i}
-            className={`topic-card ${item.checked ? "checked" : ""}`}
-          >
-            <div className="topic-card-header">
-              <h4>{item.topic}</h4>
-              <input
-                type="checkbox"
-                className="custom-checkbox"
-                checked={item.checked}
-                onChange={(e) => handleChange(i, "checked", e.target.checked)}
-              />
-            </div>
-            <input
-              type="text"
-              className="custom-input"
-              placeholder="Formula / Errors..."
-              value={item.notes}
-              onChange={(e) => handleChange(i, "notes", e.target.value)}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ReasoningRotation({ reasoning = [] }) {
-  const { updateHistory } = useAppStore();
-  const handleChange = (index, field, value) => {
-    const updated = reasoning.map((item, i) =>
-      i === index ? { ...item, [field]: value } : item,
-    );
-    updateHistory({ reasoning: updated });
-  };
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Reasoning Rotation</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Master high-priority reasoning concepts daily.
-          </p>
-        </div>
-      </div>
-      <div className="grid-4">
-        {reasoning.map((item, i) => (
-          <div
-            key={i}
-            className={`topic-card ${item.checked ? "checked" : ""}`}
-          >
-            <div className="topic-card-header">
-              <div>
-                <span className={`tier-badge tier-${item.tier?.slice(-1)}`}>
-                  {item.tier}
-                </span>
-                <h4>{item.topic}</h4>
-              </div>
-              <input
-                type="checkbox"
-                className="custom-checkbox"
-                checked={item.checked}
-                onChange={(e) => handleChange(i, "checked", e.target.checked)}
-              />
-            </div>
-            <input
-              type="text"
-              className="custom-input"
-              placeholder="Tricks / Notes..."
-              value={item.notes}
-              onChange={(e) => handleChange(i, "notes", e.target.value)}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MockTracker() {
-  const { mocks, setMocks, selectedDate, notify } = useAppStore();
-
-  const addMock = () => {
-    setMocks([
-      {
-        id: Date.now().toString(),
-        date: selectedDate,
-        name: "",
-        score: "",
-        remarks: "",
-      },
-      ...mocks,
-    ]);
-    notify("New Mock Test card added.", "info");
-  };
-
-  const updateMock = (id, field, value) => {
-    setMocks(mocks.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
-  };
-
-  const deleteMock = (id) => {
-    setMocks(mocks.filter((m) => m.id !== id));
-    notify("Mock Test deleted.", "info");
-  };
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Mock Test Analytics</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Log mock tests to analyze your performance growth.
-          </p>
-        </div>
-        <button className="btn" onClick={addMock}>
-          <Plus size={16} /> Log New Test
-        </button>
-      </div>
-
-      {mocks.length === 0 ? (
-        <div
-          className="card"
-          style={{
-            textAlign: "center",
-            padding: "60px 20px",
-            color: "var(--text-muted)",
-          }}
-        >
-          <LineChart
-            size={48}
-            style={{
-              opacity: 0.2,
-              margin: "0 auto 16px auto",
-              display: "block",
-            }}
-          />
-          No mock tests logged yet. Click "Log New Test" to begin tracking.
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {mocks.map((m) => {
-            return (
-              <div
-                key={m.id}
-                className="card"
-                style={{
-                  padding: 0,
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "16px 24px",
-                    background: "rgba(0,0,0,0.02)",
-                    borderBottom: "1px solid var(--border)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: "16px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "16px",
-                      flex: 1,
-                      minWidth: "300px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        width: "140px",
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-muted)",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        Date Taken
-                      </label>
-                      <input
-                        type="date"
-                        className="custom-input"
-                        value={m.date}
-                        onChange={(e) =>
-                          updateMock(m.id, "date", e.target.value)
-                        }
-                        style={{ padding: "8px", fontSize: "13px" }}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        flex: 1,
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-muted)",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        Test Name / Provider
-                      </label>
-                      <input
-                        type="text"
-                        className="custom-input"
-                        placeholder="e.g. IBPS PO Prelims Mock 1"
-                        value={m.name}
-                        onChange={(e) =>
-                          updateMock(m.id, "name", e.target.value)
-                        }
-                        style={{
-                          padding: "8px",
-                          fontSize: "15px",
-                          fontWeight: 600,
-                          border: "none",
-                          background: "transparent",
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    className="icon-btn-minimal"
-                    onClick={() => deleteMock(m.id)}
-                    style={{
-                      color: "var(--danger)",
-                      background: "rgba(239,68,68,0.1)",
-                      borderRadius: "8px",
-                      width: "36px",
-                      height: "36px",
-                    }}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "24px",
-                    padding: "24px",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      width: "150px",
-                    }}
-                  >
-                    <label
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--text-muted)",
-                        fontWeight: 600,
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Score / Marks
-                    </label>
-                    <input
-                      type="number"
-                      className="custom-input"
-                      placeholder="00.00"
-                      value={m.score}
-                      onChange={(e) =>
-                        updateMock(m.id, "score", e.target.value)
-                      }
-                      style={{
-                        fontSize: "24px",
-                        fontWeight: 800,
-                        padding: "12px",
-                        color: "var(--text-main)",
-                      }}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      flex: 1,
-                      minWidth: "250px",
-                    }}
-                  >
-                    <label
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--text-muted)",
-                        fontWeight: 600,
-                        marginBottom: "8px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                      }}
-                    >
-                      <Edit3 size={14} /> Mistakes & Learnings
-                    </label>
-                    <textarea
-                      className="custom-input"
-                      placeholder="What went wrong? e.g. Silly mistake in Syllogism..."
-                      value={m.remarks}
-                      onChange={(e) =>
-                        updateMock(m.id, "remarks", e.target.value)
-                      }
-                      rows="2"
-                      style={{
-                        background: "rgba(99, 102, 241, 0.03)",
-                        border: "1px dashed var(--border)",
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SettingsView() {
   const {
     user,
@@ -4115,7 +3897,6 @@ function SettingsView() {
       <p style={{ color: "var(--text-muted)", marginBottom: 32 }}>
         Manage your profile credentials and local data preference.
       </p>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <div
           style={{ borderBottom: "1px solid var(--border)", paddingBottom: 24 }}
@@ -4177,7 +3958,6 @@ function SettingsView() {
             </div>
           </div>
         </div>
-
         <div
           style={{ borderBottom: "1px solid var(--border)", paddingBottom: 24 }}
         >
@@ -4194,13 +3974,11 @@ function SettingsView() {
             style={{ maxWidth: "300px" }}
           />
         </div>
-
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <button className="btn btn-outline" onClick={logout}>
             <LogOut size={16} /> Sign Out Account
           </button>
         </div>
-
         <div
           style={{
             marginTop: "24px",
@@ -4249,6 +4027,1677 @@ function SettingsView() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- REDESIGNED: SMART PDF / STUDY MATERIALS MODULE ---
+function StudyMaterialsModule() {
+  const { user, notify } = useAppStore();
+  const [documents, setDocuments] = useState([]);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [notes, setNotes] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadCategory, setUploadCategory] = useState("Grammar Rule");
+  const [newNote, setNewNote] = useState("");
+  const [pageNumber, setPageNumber] = useState(1);
+  const [showLibrary, setShowLibrary] = useState(true);
+  const [showNotes, setShowNotes] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeTab, setActiveTab] = useState("Grammar Rule");
+
+  const isAdmin =
+    user?.user_metadata?.display_username ===
+    import.meta.env.VITE_ADMIN_USERNAME;
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDoc) {
+      fetchNotes(selectedDoc.id);
+    }
+  }, [selectedDoc]);
+
+  const fetchDocuments = async () => {
+    const { data, error } = await supabase.from("documents").select("*");
+
+    if (error) {
+      notify("Failed to load PDFs.", "error");
+    } else {
+      setDocuments(data || []);
+      if (data && data.length > 0 && !selectedDoc) {
+        // Find first doc in default tab if exists, else first doc
+        const defaultDoc =
+          data.find((d) => (d.category || "Other") === activeTab) || data[0];
+        setSelectedDoc(defaultDoc);
+      }
+    }
+  };
+
+  const fetchNotes = async (docId) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("document_notes")
+      .select("*")
+      .eq("document_id", docId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    if (!error) setNotes(data || []);
+  };
+
+  const handleFileUpload = async (event) => {
+    if (!isAdmin) return notify("Only the admin can upload PDFs.", "error");
+    try {
+      setUploading(true);
+      const file = event.target.files[0];
+      if (!file || file.type !== "application/pdf")
+        return notify("Please select a valid PDF file.", "error");
+
+      const filePath = `${Date.now()}.${file.name.split(".").pop()}`;
+
+      // 1. Upload file
+      const { error: uploadError } = await supabase.storage
+        .from("pdf-files")
+        .upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("pdf-files")
+        .getPublicUrl(filePath);
+
+      // 2. Insert DB Record with Category
+      const { error: dbError } = await supabase.from("documents").insert([
+        {
+          title: file.name.replace(".pdf", ""),
+          file_path: filePath,
+          file_url: urlData.publicUrl,
+          category: uploadCategory, // Required DB Column
+        },
+      ]);
+      if (dbError) throw dbError;
+
+      notify("PDF uploaded successfully!", "success");
+      fetchDocuments();
+    } catch (error) {
+      notify("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(false);
+      // Reset input value to allow uploading same file again if needed
+      event.target.value = null;
+    }
+  };
+
+  const handleDeleteDoc = async (id, filePath) => {
+    if (!isAdmin) return;
+    try {
+      await supabase.storage.from("pdf-files").remove([filePath]);
+      await supabase.from("documents").delete().eq("id", id);
+      notify("Document removed.", "info");
+      if (selectedDoc?.id === id) setSelectedDoc(null);
+      fetchDocuments();
+    } catch (err) {
+      notify("Failed to delete document.", "error");
+    }
+  };
+
+  const handleAddNote = async (e) => {
+    e.preventDefault();
+    if (!newNote.trim() || !selectedDoc || !user) return;
+    const { error } = await supabase.from("document_notes").insert([
+      {
+        document_id: selectedDoc.id,
+        user_id: user.id,
+        content: newNote,
+        page_number: parseInt(pageNumber) || 1,
+      },
+    ]);
+    if (error) {
+      notify("Failed to save note.", "error");
+    } else {
+      setNewNote("");
+      fetchNotes(selectedDoc.id);
+      notify("Note saved!", "success");
+    }
+  };
+
+  const handleDeleteNote = async (id) => {
+    await supabase.from("document_notes").delete().eq("id", id);
+    fetchNotes(selectedDoc.id);
+  };
+
+  // Client-side Sort and Filter based on Tab
+  const filteredAndSortedDocs = useMemo(() => {
+    let filtered = documents.filter(
+      (doc) => (doc.category || "Other") === activeTab,
+    );
+
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+
+      // Grammar and English: Ascending (Oldest First)
+      if (activeTab === "Grammar Rule" || activeTab === "English") {
+        return dateA - dateB;
+      }
+      // Editorial and Others: Descending (Newest First)
+      else {
+        return dateB - dateA;
+      }
+    });
+    return filtered;
+  }, [documents, activeTab]);
+
+  return (
+    <div
+      style={
+        isFullscreen
+          ? {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99999,
+              display: "flex",
+              background: "var(--bg)",
+              animation: "fadeIn 0.2s",
+            }
+          : {
+              display: "flex",
+              height: "calc(100vh - 80px)",
+              background: "var(--bg)",
+              borderRadius: "16px",
+              overflow: "hidden",
+              border: "1px solid var(--border)",
+              animation: "fadeIn 0.5s ease",
+            }
+      }
+    >
+      {/* LIBRARY SIDEBAR */}
+      {showLibrary && (
+        <div
+          style={{
+            width: "320px",
+            borderRight: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            background: "rgba(0,0,0,0.02)",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: "20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "16px",
+                fontWeight: 700,
+                margin: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <BookOpen size={18} color="var(--accent)" /> Library
+            </h2>
+            <button
+              className="icon-btn-minimal"
+              onClick={() => setShowLibrary(false)}
+              title="Close Library"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* ADMIN UPLOAD PANEL */}
+          {isAdmin && (
+            <div
+              style={{
+                padding: "16px",
+                background: "rgba(99, 102, 241, 0.05)",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <h4
+                style={{
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  color: "var(--accent)",
+                  marginBottom: "10px",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <ShieldCheck size={14} /> Admin Tools
+              </h4>
+              <select
+                className="custom-input"
+                value={uploadCategory}
+                onChange={(e) => setUploadCategory(e.target.value)}
+                style={{
+                  width: "100%",
+                  marginBottom: "10px",
+                  fontSize: "13px",
+                  padding: "8px",
+                  fontWeight: 600,
+                }}
+              >
+                <option value="Grammar Rule">Category: Grammar Rule</option>
+                <option value="Editorial">Category: Editorial</option>
+                <option value="English">Category: English</option>
+                <option value="Other">Category: Other</option>
+              </select>
+              <label
+                className="btn"
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  padding: "10px",
+                  fontSize: "13px",
+                  cursor: uploading ? "not-allowed" : "pointer",
+                }}
+              >
+                {uploading ? (
+                  <Loader2 size={16} className="spinner" />
+                ) : (
+                  <UploadCloud size={16} />
+                )}
+                {uploading ? "Uploading..." : "Upload New PDF"}
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleFileUpload}
+                  style={{ display: "none" }}
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+          )}
+
+          {/* CATEGORY TABS */}
+          <div
+            className="scroll-area"
+            style={{
+              display: "flex",
+              overflowX: "auto",
+              borderBottom: "1px solid var(--border)",
+              padding: "0 8px",
+              background: "var(--bg)",
+            }}
+          >
+            {["Grammar Rule", "Editorial", "English", "Other"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  padding: "12px 14px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom:
+                    activeTab === tab
+                      ? "2px solid var(--accent)"
+                      : "2px solid transparent",
+                  color:
+                    activeTab === tab ? "var(--accent)" : "var(--text-muted)",
+                  fontWeight: activeTab === tab ? 700 : 500,
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  transition: "all 0.2s",
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          <div
+            style={{
+              padding: "12px 16px",
+              background: "var(--bg)",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "var(--text-muted)",
+                textTransform: "uppercase",
+              }}
+            >
+              {filteredAndSortedDocs.length} Documents
+            </span>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "var(--text-muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              {activeTab === "Grammar Rule" || activeTab === "English" ? (
+                <>
+                  <SortAsc size={12} /> Oldest First
+                </>
+              ) : (
+                <>
+                  <SortDesc size={12} /> Newest First
+                </>
+              )}
+            </span>
+          </div>
+
+          {/* DOCUMENT LIST */}
+          <div
+            className="scroll-area"
+            style={{
+              flex: 1,
+              padding: "12px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            {filteredAndSortedDocs.length === 0 && !uploading && (
+              <p
+                style={{
+                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "var(--text-muted)",
+                  marginTop: "20px",
+                }}
+              >
+                No documents found in {activeTab}.
+              </p>
+            )}
+
+            {filteredAndSortedDocs.map((doc) => (
+              <div
+                key={doc.id}
+                onClick={() => setSelectedDoc(doc)}
+                className="dash-list-item"
+                style={{
+                  cursor: "pointer",
+                  background:
+                    selectedDoc?.id === doc.id
+                      ? "rgba(99,102,241,0.1)"
+                      : "var(--bg)",
+                  border:
+                    selectedDoc?.id === doc.id
+                      ? "1px solid rgba(99,102,241,0.3)"
+                      : "1px solid var(--border)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  transition: "all 0.2s",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "8px",
+                      background:
+                        selectedDoc?.id === doc.id
+                          ? "var(--accent)"
+                          : "rgba(0,0,0,0.05)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <FileText
+                      size={16}
+                      color={
+                        selectedDoc?.id === doc.id
+                          ? "white"
+                          : "var(--text-muted)"
+                      }
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        color: "var(--text-main)",
+                      }}
+                    >
+                      {doc.title}
+                    </span>
+                    {/* <span
+                      style={{ fontSize: "11px", color: "var(--text-muted)" }}
+                    >
+                      {new Date(doc.created_at).toLocaleDateString()}
+                    </span> */}
+                  </div>
+                </div>
+                {isAdmin && (
+                  <button
+                    className="icon-btn-minimal"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteDoc(doc.id, doc.file_path);
+                    }}
+                    style={{ color: "var(--danger)", padding: "4px" }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* PDF VIEWER SECTION */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+        }}
+      >
+        {selectedDoc ? (
+          <>
+            <div
+              style={{
+                padding: "12px 24px",
+                borderBottom: "1px solid var(--border)",
+                background: "var(--bg)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                {!showLibrary && (
+                  <button
+                    className="icon-btn-minimal"
+                    onClick={() => setShowLibrary(true)}
+                    title="Show Library"
+                    style={{ border: "1px solid var(--border)" }}
+                  >
+                    <BookOpen size={16} />
+                  </button>
+                )}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      fontSize: "15px",
+                      color: "var(--text-main)",
+                    }}
+                  >
+                    {selectedDoc.title}
+                  </span>
+                  <span
+                    style={{ fontSize: "11px", color: "var(--text-muted)" }}
+                  >
+                    Category: {selectedDoc.category || "Other"}
+                  </span>
+                </div>
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    padding: "4px 10px",
+                    background: "rgba(245,158,11,0.1)",
+                    color: "var(--warning)",
+                    borderRadius: "12px",
+                    fontWeight: 700,
+                  }}
+                >
+                  READ ONLY
+                </span>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Viewer"}
+                  style={{ border: "1px solid var(--border)" }}
+                >
+                  {isFullscreen ? (
+                    <Minimize size={16} />
+                  ) : (
+                    <Maximize size={16} />
+                  )}
+                </button>
+                {!showNotes && (
+                  <button
+                    className="icon-btn-minimal"
+                    onClick={() => setShowNotes(true)}
+                    title="Show Notes"
+                    style={{ border: "1px solid var(--border)" }}
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div
+              style={{
+                flex: 1,
+                padding: isFullscreen ? "0" : "16px",
+                background: "rgba(0,0,0,0.05)",
+              }}
+            >
+              <object
+                data={`${selectedDoc.file_url}#toolbar=0&navpanes=0`}
+                type="application/pdf"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: isFullscreen ? "0" : "12px",
+                  border: isFullscreen ? "none" : "1px solid var(--border)",
+                  boxShadow: isFullscreen
+                    ? "none"
+                    : "0 10px 30px rgba(0,0,0,0.1)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  <p>Unable to render PDF preview directly.</p>
+                  <a
+                    href={selectedDoc.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      color: "var(--accent)",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Open PDF in new tab
+                  </a>
+                </div>
+              </object>
+            </div>
+          </>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              color: "var(--text-muted)",
+            }}
+          >
+            <Layers size={48} style={{ opacity: 0.2, marginBottom: "16px" }} />
+            <p>Select a document from the library to start reading.</p>
+            {!showLibrary && (
+              <button
+                className="btn btn-outline"
+                style={{ marginTop: "16px" }}
+                onClick={() => setShowLibrary(true)}
+              >
+                <BookOpen size={16} /> Open Library
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* NOTES SIDEBAR */}
+      {showNotes && (
+        <div
+          style={{
+            width: "320px",
+            borderLeft: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            background: "var(--bg)",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              padding: "20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Edit3 size={18} color="var(--accent)" />
+              <h3 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>
+                My Notes
+              </h3>
+            </div>
+            <button
+              className="icon-btn-minimal"
+              onClick={() => setShowNotes(false)}
+              title="Close Notes"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <form
+            onSubmit={handleAddNote}
+            style={{
+              padding: "16px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              background: "rgba(0,0,0,0.01)",
+            }}
+          >
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--text-muted)",
+                }}
+              >
+                Page
+              </span>
+              <input
+                type="number"
+                min="1"
+                value={pageNumber}
+                onChange={(e) => setPageNumber(e.target.value)}
+                className="custom-input"
+                style={{
+                  width: "70px",
+                  padding: "8px",
+                  textAlign: "center",
+                  fontWeight: 700,
+                }}
+              />
+            </div>
+            <textarea
+              rows="4"
+              placeholder="Write personal takeaways here..."
+              className="custom-input"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              style={{ resize: "none", fontSize: "13px" }}
+            />
+            <button
+              type="submit"
+              className="btn"
+              disabled={!selectedDoc || !newNote.trim()}
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                padding: "10px",
+              }}
+            >
+              <Plus size={16} /> Save Note
+            </button>
+          </form>
+          <div
+            className="scroll-area"
+            style={{
+              flex: 1,
+              padding: "16px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            {notes.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: "var(--text-muted)",
+                  marginTop: "20px",
+                  padding: "20px",
+                }}
+              >
+                <MessageSquare
+                  size={32}
+                  style={{ opacity: 0.2, margin: "0 auto 12px auto" }}
+                />
+                <p style={{ fontSize: "13px" }}>
+                  No notes saved for this document.
+                </p>
+              </div>
+            ) : (
+              notes.map((note) => (
+                <div
+                  key={note.id}
+                  className="card"
+                  style={{
+                    padding: "16px",
+                    background: "rgba(0,0,0,0.02)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 800,
+                        color: "var(--accent)",
+                        background: "rgba(99,102,241,0.1)",
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                      }}
+                    >
+                      PAGE {note.page_number}
+                    </span>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => handleDeleteNote(note.id)}
+                      style={{ color: "var(--text-muted)", padding: 0 }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      margin: 0,
+                      lineHeight: 1.5,
+                      color: "var(--text-main)",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {note.content}
+                  </p>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      color: "var(--text-muted)",
+                      marginTop: "4px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {new Date(note.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- REDESIGNED: SMART DIGITAL NOTES BOARD MODULE ---
+function DigitalNotesBoard() {
+  const {
+    digitalNotes,
+    addDigitalNote,
+    updateDigitalNote,
+    deleteDigitalNote,
+    clearDigitalNotes,
+    notify,
+    requestConfirm,
+  } = useAppStore();
+
+  const [topicFilter, setTopicFilter] = useState("All");
+  const [subtopicFilter, setSubtopicFilter] = useState("All");
+
+  const [draftNote, setDraftNote] = useState(null);
+  const boardRef = useRef(null);
+  const datalistId = "subtopics-datalist";
+
+  useEffect(() => {
+    setSubtopicFilter("All");
+  }, [topicFilter]);
+
+  const currentSubtopics = [
+    "All",
+    ...new Set(
+      digitalNotes
+        .filter((n) => topicFilter === "All" || n.topic === topicFilter)
+        .map((n) => n.subtopic)
+        .filter((st) => st && st.trim() !== ""),
+    ),
+  ];
+
+  const filteredNotes = digitalNotes.filter((n) => {
+    if (topicFilter !== "All" && n.topic !== topicFilter) return false;
+    if (subtopicFilter !== "All" && n.subtopic !== subtopicFilter) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    const handlePaste = (e) => {
+      if (
+        document.activeElement.tagName === "INPUT" ||
+        document.activeElement.tagName === "TEXTAREA"
+      ) {
+        const hasImage = Array.from(e.clipboardData?.items || []).some(
+          (item) => item.type.indexOf("image") !== -1,
+        );
+        if (!hasImage) return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          e.preventDefault();
+          const blob = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const scrollContainer = boardRef.current;
+            const x = scrollContainer ? scrollContainer.scrollLeft + 150 : 150;
+            const y = scrollContainer ? scrollContainer.scrollTop + 150 : 150;
+            const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
+            const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
+
+            setDraftNote({
+              id: Date.now().toString(),
+              x,
+              y,
+              imageBase64: event.target.result,
+              text: "",
+              topic: defaultTopic,
+              subtopic: defaultSub,
+              type: "image",
+              width: 320,
+              height: "auto",
+            });
+            notify("Image pasted! Fill in tags and save.", "success");
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [topicFilter, subtopicFilter, notify]);
+
+  const handleBoardClick = (e) => {
+    if (draftNote) return;
+    if (
+      e.target.closest(".saved-note-card") ||
+      e.target.closest(".board-toolbar")
+    )
+      return;
+    const rect = boardRef.current.getBoundingClientRect();
+    const scrollLeft = boardRef.current.scrollLeft;
+    const scrollTop = boardRef.current.scrollTop;
+    const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
+    const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
+
+    setDraftNote({
+      id: Date.now().toString(),
+      x: e.clientX - rect.left + scrollLeft,
+      y: e.clientY - rect.top + scrollTop,
+      imageBase64: null,
+      text: "",
+      topic: defaultTopic,
+      subtopic: defaultSub,
+      type: "text",
+      width: 280,
+      height: "auto",
+    });
+  };
+
+  const handleSaveDraft = () => {
+    if (!draftNote.text.trim() && draftNote.type !== "image")
+      return notify("Enter some text or paste an image.", "error");
+    addDigitalNote({ ...draftNote, date: new Date().toISOString() });
+    setDraftNote(null);
+    notify("Note saved to cloud!", "success");
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "calc(100vh - 80px)",
+        background: "var(--bg)",
+        borderRadius: "16px",
+        border: "1px solid var(--border)",
+        overflow: "hidden",
+        boxShadow: "0 10px 40px rgba(0,0,0,0.03)",
+      }}
+    >
+      <datalist id={datalistId}>
+        {currentSubtopics
+          .filter((s) => s !== "All")
+          .map((s) => (
+            <option key={s} value={s} />
+          ))}
+      </datalist>
+      <div
+        className="board-toolbar"
+        style={{
+          padding: "16px 24px",
+          borderBottom: "1px solid var(--border)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: "var(--bg)",
+          zIndex: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              padding: "10px",
+              background: "rgba(99, 102, 241, 0.1)",
+              borderRadius: "12px",
+              color: "var(--accent)",
+            }}
+          >
+            <LayoutGrid size={22} />
+          </div>
+          <div>
+            <h2
+              style={{
+                fontSize: "18px",
+                margin: "0 0 4px 0",
+                fontWeight: 800,
+                color: "var(--text-main)",
+              }}
+            >
+              Smart Notes Canvas
+            </h2>
+            <span
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: 500,
+              }}
+            >
+              Click to type • <strong>Ctrl+V</strong> to paste images
+            </span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "rgba(0,0,0,0.03)",
+              padding: "6px 16px",
+              borderRadius: "24px",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Filter size={14} color="var(--text-muted)" />
+            <select
+              className="custom-input"
+              style={{
+                border: "none",
+                background: "transparent",
+                padding: "0",
+                fontSize: "13px",
+                outline: "none",
+                fontWeight: 600,
+                color: "var(--text-main)",
+                cursor: "pointer",
+              }}
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+            >
+              <option value="All">All Main Topics</option>
+              {NOTE_TOPICS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          {digitalNotes.length > 0 && (
+            <button
+              className="icon-btn-minimal"
+              title="Clear Entire Canvas"
+              style={{
+                color: "var(--danger)",
+                background: "rgba(239, 68, 68, 0.1)",
+                padding: "8px",
+                borderRadius: "8px",
+              }}
+              onClick={() =>
+                requestConfirm(
+                  "Clear the entire canvas from cloud? This deletes all notes.",
+                  clearDigitalNotes,
+                )
+              }
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {currentSubtopics.length > 1 && (
+        <div
+          className="board-toolbar scroll-area"
+          style={{
+            padding: "12px 24px",
+            borderBottom: "1px solid var(--border)",
+            background: "rgba(0,0,0,0.015)",
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            zIndex: 9,
+          }}
+        >
+          {currentSubtopics.map((sub) => (
+            <button
+              key={sub}
+              onClick={() => setSubtopicFilter(sub)}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "20px",
+                fontSize: "12px",
+                fontWeight: subtopicFilter === sub ? 700 : 500,
+                border:
+                  subtopicFilter === sub
+                    ? "1px solid var(--accent)"
+                    : "1px solid var(--border)",
+                background:
+                  subtopicFilter === sub ? "var(--accent)" : "var(--bg)",
+                color: subtopicFilter === sub ? "#fff" : "var(--text-main)",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {sub === "All" ? "All Sub-boards" : sub}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div
+        ref={boardRef}
+        onClick={handleBoardClick}
+        style={{
+          flex: 1,
+          overflow: "auto",
+          position: "relative",
+          cursor: draftNote ? "default" : "crosshair",
+          backgroundImage:
+            "radial-gradient(rgba(99, 102, 241, 0.15) 1.5px, transparent 1.5px)",
+          backgroundSize: "24px 24px",
+          backgroundColor: "var(--bg)",
+        }}
+      >
+        <div
+          style={{
+            width: "3000px",
+            height: "3000px",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            pointerEvents: "none",
+          }}
+        ></div>
+        {filteredNotes.map((note) => (
+          <DraggableItem
+            key={note.id}
+            initialX={note.x}
+            initialY={note.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(x, y) => updateDigitalNote(note.id, { x, y })}
+          >
+            <div
+              className="saved-note-card"
+              style={{
+                background: "rgba(255, 255, 255, 0.85)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                border: "1px solid rgba(0,0,0,0.08)",
+                borderRadius: "16px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
+                display: "flex",
+                flexDirection: "column",
+                width: note.width || 320,
+                minWidth: "180px",
+                height: note.height || "auto",
+                minHeight: "100px",
+                resize: "both",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                className="drag-handle"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 14px",
+                  background: "rgba(99, 102, 241, 0.04)",
+                  borderBottom: "1px solid rgba(0,0,0,0.05)",
+                  cursor: "grab",
+                }}
+              >
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <GripHorizontal
+                    size={14}
+                    color="var(--text-muted)"
+                    style={{ opacity: 0.7 }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "var(--accent)",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {note.topic}
+                  </span>
+                </div>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteDigitalNote(note.id);
+                  }}
+                  style={{
+                    padding: "4px",
+                    color: "var(--danger)",
+                    opacity: 0.6,
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div
+                style={{
+                  padding: "14px",
+                  flex: 1,
+                  overflowY: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {note.type === "image" && note.imageBase64 && (
+                  <img
+                    src={note.imageBase64}
+                    alt="Pasted"
+                    style={{
+                      width: "100%",
+                      height: "auto",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(0,0,0,0.05)",
+                      objectFit: "contain",
+                    }}
+                    draggable="false"
+                  />
+                )}
+                {note.text && (
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      margin: 0,
+                      color: "#1f2937",
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.6,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {note.text}
+                  </p>
+                )}
+                {note.subtopic && (
+                  <div
+                    style={{
+                      marginTop: "auto",
+                      paddingTop: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        background: "rgba(99, 102, 241, 0.1)",
+                        color: "var(--accent)",
+                        padding: "4px 10px",
+                        borderRadius: "12px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <Tag size={12} /> {note.subtopic}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </DraggableItem>
+        ))}
+        {draftNote && (
+          <DraggableItem
+            initialX={draftNote.x}
+            initialY={draftNote.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(x, y) => setDraftNote({ ...draftNote, x, y })}
+          >
+            <div
+              className="saved-note-card"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "320px",
+                padding: "0",
+                borderRadius: "16px",
+                background: "var(--bg)",
+                border: "2px solid var(--accent)",
+                boxShadow: "0 24px 48px rgba(99, 102, 241, 0.2)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                className="drag-handle"
+                style={{
+                  background: "var(--accent)",
+                  padding: "10px 14px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "grab",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <Edit3 size={14} />{" "}
+                  {draftNote.type === "image"
+                    ? "Save Image Board"
+                    : "Save Text Board"}
+                </span>
+                <button
+                  className="icon-btn-minimal"
+                  style={{ color: "#fff" }}
+                  onClick={() => setDraftNote(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div
+                style={{
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <select
+                    className="custom-input"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                    value={draftNote.topic}
+                    onChange={(e) =>
+                      setDraftNote({ ...draftNote, topic: e.target.value })
+                    }
+                  >
+                    {NOTE_TOPICS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  list={datalistId}
+                  type="text"
+                  className="custom-input"
+                  placeholder="Sub-topic (e.g. Syllogism Rule 2)..."
+                  style={{
+                    padding: "10px 12px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    background: "rgba(0,0,0,0.02)",
+                  }}
+                  value={draftNote.subtopic}
+                  onChange={(e) =>
+                    setDraftNote({ ...draftNote, subtopic: e.target.value })
+                  }
+                />
+                {draftNote.type === "image" && draftNote.imageBase64 && (
+                  <div
+                    style={{
+                      border: "1px dashed var(--border)",
+                      padding: "4px",
+                      borderRadius: "8px",
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                  >
+                    <img
+                      src={draftNote.imageBase64}
+                      alt="Draft Preview"
+                      style={{ width: "100%", borderRadius: "4px" }}
+                    />
+                  </div>
+                )}
+                <textarea
+                  className="custom-input"
+                  placeholder={
+                    draftNote.type === "image"
+                      ? "Optional description or formula..."
+                      : "Start typing your notes here..."
+                  }
+                  rows="3"
+                  style={{
+                    padding: "12px",
+                    fontSize: "14px",
+                    resize: "none",
+                    lineHeight: 1.5,
+                    background: "rgba(0,0,0,0.02)",
+                  }}
+                  value={draftNote.text}
+                  autoFocus={draftNote.type === "text"}
+                  onChange={(e) =>
+                    setDraftNote({ ...draftNote, text: e.target.value })
+                  }
+                />
+                <button
+                  className="btn"
+                  onClick={handleSaveDraft}
+                  style={{
+                    width: "100%",
+                    justifyContent: "center",
+                    padding: "12px",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                  }}
+                >
+                  <Save size={16} /> Pin to Board
+                </button>
+              </div>
+            </div>
+          </DraggableItem>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- MAIN EXPORTED APP COMPONENT ---
+export default function App() {
+  const {
+    user,
+    authLoading,
+    initAuth,
+    theme,
+    activeView,
+    setActiveView,
+    selectedDate,
+    setAppData,
+    history,
+  } = useAppStore();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const isAdmin =
+    user?.user_metadata?.display_username ===
+    import.meta.env.VITE_ADMIN_USERNAME;
+
+  useEffect(() => {
+    initAuth();
+  }, []);
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const contentArea = document.querySelector(".content-area");
+    if (contentArea) contentArea.scrollTo({ top: 0, behavior: "smooth" });
+  }, [activeView]);
+
+  useEffect(() => {
+    document.body.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    setAppData((state) => {
+      const existing = state.history[selectedDate] || {};
+      if (
+        existing.quant &&
+        existing.reasoning &&
+        existing.timeline &&
+        existing.missedTasks &&
+        existing.imageNotes &&
+        existing.vocabStats
+      )
+        return state;
+      return {
+        ...state,
+        history: {
+          ...state.history,
+          [selectedDate]: {
+            timeline: (
+              existing.timeline ||
+              state.baseTimeline ||
+              defaultTimeline
+            ).map((t) => ({ ...t })),
+            notes: existing.notes || "",
+            quant: (
+              existing.quant ||
+              quantTopics.map((t) => ({ topic: t, checked: false, notes: "" }))
+            ).map((q) => ({ ...q })),
+            reasoning: (
+              existing.reasoning ||
+              reasoningTopics.map((t) => ({ ...t, checked: false, notes: "" }))
+            ).map((r) => ({ ...r })),
+            missedTasks: (existing.missedTasks || []).map((m) => ({ ...m })),
+            imageNotes: (existing.imageNotes || []).map((n) => ({ ...n })),
+            vocabStats: existing.vocabStats || {
+              score: 0,
+              correct: 0,
+              wrong: 0,
+              quizzesCompleted: 0,
+            },
+          },
+        },
+      };
+    });
+  }, [selectedDate, setAppData]);
+
+  if (authLoading)
+    return (
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--bg)",
+        }}
+      >
+        <Loader2
+          className="spinner"
+          size={40}
+          color="var(--accent)"
+          style={{ animation: "spin 1s linear infinite" }}
+        />
+      </div>
+    );
+  if (!user)
+    return (
+      <div className="app-container">
+        <AuthModal />
+        <ToastContainer />
+      </div>
+    );
+
+  const currentHistory = history[selectedDate] || {
+    timeline: defaultTimeline.map((t) => ({ ...t })),
+    notes: "",
+    quant: quantTopics.map((t) => ({ topic: t, checked: false, notes: "" })),
+    reasoning: reasoningTopics.map((t) => ({
+      ...t,
+      checked: false,
+      notes: "",
+    })),
+    missedTasks: [],
+    imageNotes: [],
+    vocabStats: { score: 0, correct: 0, wrong: 0, quizzesCompleted: 0 },
+  };
+
+  return (
+    <div className="app-container">
+      {isSidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setIsSidebarOpen(false)}
+        ></div>
+      )}
+      <PomodoroTimer />
+      <GlobalSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
+
+      <aside className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
+        <div className="logo">
+          <div className="icon-wrap">
+            <Target size={20} />
+          </div>{" "}
+          IBPS Planner{" "}
+          <span style={{ fontWeight: 400, color: "var(--accent)" }}>PRO</span>
+        </div>
+        <nav style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {[
+            {
+              id: "dashboard",
+              icon: LayoutDashboard,
+              label: "Dashboard & Quiz",
+            },
+            { id: "today", icon: CalendarCheck, label: "Daily Plan" },
+            { id: "digital_notes", icon: PenTool, label: "Smart Notes Canvas" },
+            {
+              id: "materials",
+              icon: BookOpen,
+              label: "Study Materials / PDFs",
+            },
+            { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
+            { id: "quant", icon: Calculator, label: "Quant Rotation" },
+            { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
+            { id: "mocks", icon: LineChart, label: "Mock Tracker" },
+            { id: "habits", icon: CheckCircle, label: "Habit Tracker" },
+            { id: "settings", icon: Settings, label: "Settings" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              className={`nav-item ${activeView === item.id ? "active" : ""}`}
+              onClick={() => {
+                setActiveView(item.id);
+                setIsSidebarOpen(false);
+              }}
+            >
+              <item.icon size={18} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <main className="main-content">
+        <Header
+          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onOpenSearch={() => setIsSearchOpen(true)}
+        />
+        <div className="content-area">
+          {activeView === "dashboard" && <Dashboard history={currentHistory} />}
+          {activeView === "today" && (
+            <DailyPlan timeline={currentHistory.timeline} />
+          )}
+          {activeView === "digital_notes" && <DigitalNotesBoard />}
+          {activeView === "materials" && <StudyMaterialsModule />}
+          {activeView === "vocab" && <VocabTracker />}
+          {activeView === "quant" && (
+            <QuantRotation quant={currentHistory.quant} />
+          )}
+          {activeView === "reasoning" && (
+            <ReasoningRotation reasoning={currentHistory.reasoning} />
+          )}
+          {activeView === "mocks" && <MockTracker />}
+          {activeView === "habits" && <HabitTracker />}
+          {activeView === "settings" && <SettingsView />}
+        </div>
+      </main>
+
+      <ToastContainer />
+      <ConfirmModal />
     </div>
   );
 }

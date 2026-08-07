@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -16,18 +16,14 @@ import {
   Calendar,
   Clock,
   CheckSquare,
-  Crosshair,
   CheckCircle2,
   Circle,
   X,
   Plus,
-  Trash,
-  Download,
   Trash2,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   Brain,
   User,
   Lightbulb,
@@ -38,7 +34,6 @@ import {
   Menu,
   Minus,
   FileText,
-  Image as ImageIcon,
   UploadCloud,
   BookText,
   Search,
@@ -66,17 +61,76 @@ import {
   Maximize,
   Minimize,
   PenTool,
-  MousePointer2,
   Tag,
   Layers,
   Filter,
-  Move,
   GripHorizontal,
   LayoutGrid,
+  SortAsc,
+  SortDesc,
+  Bell,
+  VolumeX,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
 import { supabase } from "./supabase";
+
+// --- AUDIO NOTIFICATION ENGINE ---
+const playBeep = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(880, ctx.currentTime);
+    gain1.gain.setValueAtTime(0.1, ctx.currentTime);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start();
+    osc1.stop(ctx.currentTime + 0.15);
+
+    setTimeout(() => {
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1046.5, ctx.currentTime);
+      gain2.gain.setValueAtTime(0.1, ctx.currentTime);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start();
+      osc2.stop(ctx.currentTime + 0.2);
+    }, 200);
+  } catch (e) {
+    console.log(
+      "Audio play failed. Browser may require user interaction first.",
+      e,
+    );
+  }
+};
+
+export const triggerSystemNotification = (
+  title,
+  body,
+  settings,
+  forceSilent = false,
+) => {
+  if (settings?.audio && !forceSilent) {
+    playBeep();
+  }
+  if (
+    settings?.notifications &&
+    "Notification" in window &&
+    Notification.permission === "granted"
+  ) {
+    new Notification(title, {
+      body,
+      icon: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
+      silent: true,
+    });
+  }
+};
 
 // --- DEFAULT CONFIG DATA ---
 const defaultTimeline = [
@@ -270,9 +324,8 @@ const NOTE_TOPICS = [
   "General",
 ];
 
-const getFormattedDateStr = (d = new Date()) => {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+const getFormattedDateStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 const calculateStudyMinutes = (timeline) => {
   if (!timeline || timeline.length === 0)
@@ -289,7 +342,6 @@ const calculateStudyMinutes = (timeline) => {
 
   let completedMins = 0;
   let targetMins = 0;
-
   for (let i = 0; i < sortedTimeline.length; i++) {
     const current = sortedTimeline[i];
     const isStudyTask =
@@ -298,7 +350,6 @@ const calculateStudyMinutes = (timeline) => {
         : !/(wake|break|lunch|sleep|walk|hydrate|breakfast|dinner)/i.test(
             current.activity,
           );
-
     if (isStudyTask) {
       let durationMins = 60;
       if (i < sortedTimeline.length - 1) {
@@ -325,23 +376,19 @@ const shuffleArray = (array) => {
   return newArr;
 };
 
-// --- ZUSTAND STORE FOR COMPLETE STATE & REALTIME SUPABASE ---
+// --- ZUSTAND STORE ---
 export const useAppStore = create(
   persist(
     (set, get) => ({
-      // Auth State
       user: null,
       session: null,
       authLoading: true,
-
-      // UI State
       theme: "light",
       activeView: "dashboard",
       selectedDate: getFormattedDateStr(),
       toasts: [],
       confirmDialog: { isOpen: false, message: "", onConfirm: null },
-
-      // App Data
+      settings: { notifications: true, audio: false },
       baseTimeline: defaultTimeline,
       baseHabits: defaultHabitList,
       history: {},
@@ -350,7 +397,6 @@ export const useAppStore = create(
       vocab: [],
       digitalNotes: [],
       isSyncing: false,
-
       premiumData: {
         currentStreak: 0,
         longestStreak: 0,
@@ -368,35 +414,35 @@ export const useAppStore = create(
       },
       setActiveView: (view) => set({ activeView: view }),
       setSelectedDate: (date) => set({ selectedDate: date }),
+      updateSettings: (newSettings) =>
+        set((state) => ({ settings: { ...state.settings, ...newSettings } })),
 
       notify: (message, type = "success") => {
         const id = Date.now() + Math.random();
         set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
-        setTimeout(() => {
-          set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
-        }, 3000);
+        setTimeout(
+          () =>
+            set((state) => ({
+              toasts: state.toasts.filter((t) => t.id !== id),
+            })),
+          3000,
+        );
       },
+      requestConfirm: (message, onConfirm) =>
+        set({ confirmDialog: { isOpen: true, message, onConfirm } }),
+      closeConfirm: () =>
+        set({ confirmDialog: { isOpen: false, message: "", onConfirm: null } }),
 
-      requestConfirm: (message, onConfirm) => {
-        set({ confirmDialog: { isOpen: true, message, onConfirm } });
-      },
-      closeConfirm: () => {
-        set({ confirmDialog: { isOpen: false, message: "", onConfirm: null } });
-      },
-
-      // --- SUPABASE AUTHENTICATION ACTIONS ---
       initAuth: async () => {
         set({ authLoading: true });
         const {
           data: { session },
         } = await supabase.auth.getSession();
         set({ session, user: session?.user || null, authLoading: false });
-
         if (session?.user) {
           get().fetchVocabFromCloud();
           get().fetchDigitalNotesFromCloud();
         }
-
         supabase.auth.onAuthStateChange((_event, session) => {
           const currentUser = get().user;
           set({ session, user: session?.user || null, authLoading: false });
@@ -408,18 +454,14 @@ export const useAppStore = create(
           }
         });
       },
-
-      generateInternalEmail: (username) => {
-        return `${username
+      generateInternalEmail: (username) =>
+        `${username
           .trim()
           .toLowerCase()
-          .replace(/[^a-z0-9]/g, "")}@ibpsplanner.internal`;
-      },
-
+          .replace(/[^a-z0-9]/g, "")}@ibpsplanner.internal`,
       loginWithUsername: async (username, password) => {
-        const internalEmail = get().generateInternalEmail(username);
         const { data, error } = await supabase.auth.signInWithPassword({
-          email: internalEmail,
+          email: get().generateInternalEmail(username),
           password,
         });
         if (error) throw error;
@@ -428,24 +470,20 @@ export const useAppStore = create(
         get().fetchDigitalNotesFromCloud();
         return data;
       },
-
       signUpWithUsername: async (username, password) => {
-        const internalEmail = get().generateInternalEmail(username);
         const { data, error } = await supabase.auth.signUp({
-          email: internalEmail,
+          email: get().generateInternalEmail(username),
           password,
           options: { data: { display_username: username.trim() } },
         });
         if (error) throw error;
         return data;
       },
-
       logout: async () => {
         await supabase.auth.signOut();
         set({ user: null, session: null, vocab: [], digitalNotes: [] });
         get().notify("Logged out successfully.", "info");
       },
-
       deleteAccount: async () => {
         const user = get().user;
         if (user) {
@@ -495,7 +533,6 @@ export const useAppStore = create(
           set({ isSyncing: false });
         }
       },
-
       addVocabNote: async (newNote) => {
         const user = get().user;
         if (!user) return;
@@ -516,7 +553,6 @@ export const useAppStore = create(
           get().notify("Failed to save entry.", "error");
         }
       },
-
       updateVocabNote: async (noteObj) => {
         const user = get().user;
         if (!user) return;
@@ -536,7 +572,6 @@ export const useAppStore = create(
           get().notify("Failed to sync update to cloud.", "error");
         }
       },
-
       deleteVocabNote: async (id) => {
         const user = get().user;
         if (!user) return;
@@ -553,7 +588,6 @@ export const useAppStore = create(
         }
       },
 
-      // --- DIGITAL NOTES BOARD CLOUD ACTIONS ---
       fetchDigitalNotesFromCloud: async () => {
         const user = get().user;
         if (!user) return;
@@ -564,22 +598,15 @@ export const useAppStore = create(
             .eq("user_id", user.id);
           if (error) throw error;
           if (data) set({ digitalNotes: data });
-        } catch (err) {
-          console.error("Failed to fetch digital notes:", err);
-        }
+        } catch (err) {}
       },
-
       addDigitalNote: async (note) => {
         const user = get().user;
         if (!user) return;
-
         const noteWithUser = { ...note, user_id: user.id };
-
-        // Optimistic UI Update
         set((state) => ({
           digitalNotes: [...(state.digitalNotes || []), noteWithUser],
         }));
-
         try {
           const { error } = await supabase
             .from("digital_notes")
@@ -589,18 +616,14 @@ export const useAppStore = create(
           get().notify("Failed to save canvas note to cloud.", "error");
         }
       },
-
       updateDigitalNote: async (id, updates) => {
         const user = get().user;
         if (!user) return;
-
-        // Optimistic UI Update
         set((state) => ({
           digitalNotes: state.digitalNotes.map((n) =>
             n.id === id ? { ...n, ...updates } : n,
           ),
         }));
-
         try {
           const updatedNote = get().digitalNotes.find((n) => n.id === id);
           if (updatedNote) {
@@ -613,15 +636,12 @@ export const useAppStore = create(
           get().notify("Failed to sync canvas update.", "error");
         }
       },
-
       deleteDigitalNote: async (id) => {
         const user = get().user;
         if (!user) return;
-
         set((state) => ({
           digitalNotes: state.digitalNotes.filter((n) => n.id !== id),
         }));
-
         try {
           const { error } = await supabase
             .from("digital_notes")
@@ -632,14 +652,11 @@ export const useAppStore = create(
           get().notify("Failed to delete canvas note from cloud.", "error");
         }
       },
-
       clearDigitalNotes: async () => {
         const user = get().user;
         if (!user) return;
-
         set({ digitalNotes: [] });
         get().notify("Canvas cleared.", "info");
-
         try {
           const { error } = await supabase
             .from("digital_notes")
@@ -674,17 +691,16 @@ export const useAppStore = create(
         mocks: state.mocks,
         habits: state.habits,
         baseTimeline: state.baseTimeline,
-        digitalNotes: state.digitalNotes, // Keeps local cache for instant load
+        digitalNotes: state.digitalNotes,
         baseHabits: state.baseHabits,
         premiumData: state.premiumData,
+        settings: state.settings || { notifications: true, audio: false },
       }),
     },
   ),
 );
 
-// --- COMPONENTS ---
-
-// Helper Draggable Component
+// --- HELPER DRAGGABLE COMPONENT ---
 function DraggableItem({
   initialX,
   initialY,
@@ -713,21 +729,18 @@ function DraggableItem({
     e.target.setPointerCapture(e.pointerId);
     e.stopPropagation();
   };
-
   const onPointerMove = (e) => {
     if (!dragRef.current.isDragging) return;
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
     setPos({ x: dragRef.current.initX + dx, y: dragRef.current.initY + dy });
   };
-
   const onPointerUp = (e) => {
     if (!dragRef.current.isDragging) return;
     dragRef.current.isDragging = false;
     e.target.releasePointerCapture(e.pointerId);
     if (onDragEnd) onDragEnd(pos.x, pos.y);
   };
-
   return (
     <div
       style={{
@@ -746,6 +759,120 @@ function DraggableItem({
   );
 }
 
+// --- BACKGROUND NOTIFICATION ENGINE ---
+function TimelineNotificationEngine() {
+  const { history, settings } = useAppStore();
+  const [notified, setNotified] = useState(new Set());
+
+  useEffect(() => {
+    if (!settings?.notifications && !settings?.audio) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const todayStr = getFormattedDateStr(now);
+      const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+      const todaysHistory = history[todayStr];
+      if (!todaysHistory || !todaysHistory.timeline) return;
+
+      todaysHistory.timeline.forEach((task) => {
+        if (task.time === currentHHMM) {
+          const taskId = `${todayStr}-${task.time}-${task.activity}`;
+          if (!notified.has(taskId)) {
+            triggerSystemNotification(
+              "Study Block Started",
+              `${task.time} - ${task.activity}`,
+              settings,
+            );
+            setNotified((prev) => new Set(prev).add(taskId));
+          }
+        }
+      });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [history, settings, notified]);
+
+  return null;
+}
+
+// --- READING TIMER ENDED POPUP MODAL ---
+function ReadingTimerModal({ isOpen, onClose }) {
+  if (!isOpen) return null;
+  return (
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{ zIndex: 100000, backdropFilter: "blur(6px)" }}
+    >
+      <motion.div
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.85, opacity: 0 }}
+        className="modal-card"
+        style={{
+          textAlign: "center",
+          padding: "36px 28px",
+          maxWidth: "420px",
+          width: "90%",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            width: "60px",
+            height: "60px",
+            borderRadius: "50%",
+            background: "rgba(99, 102, 241, 0.12)",
+            color: "var(--accent)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 20px auto",
+          }}
+        >
+          <BellRing size={30} />
+        </div>
+        <h3
+          style={{
+            fontSize: "22px",
+            fontWeight: 800,
+            margin: "0 0 10px 0",
+            color: "var(--text-main)",
+          }}
+        >
+          Reading Time's Up!
+        </h3>
+        <p
+          style={{
+            fontSize: "14px",
+            color: "var(--text-muted)",
+            margin: "0 0 28px 0",
+            lineHeight: 1.5,
+          }}
+        >
+          Your fast-reading session is complete. Take a quick break or proceed
+          to note down your takeaways!
+        </p>
+        <button
+          className="btn"
+          style={{
+            width: "100%",
+            justifyContent: "center",
+            padding: "12px",
+            fontSize: "14px",
+            fontWeight: 700,
+          }}
+          onClick={onClose}
+        >
+          Continue Reading
+        </button>
+      </motion.div>
+    </div>
+  );
+}
+
 function AuthModal() {
   const { loginWithUsername, signUpWithUsername, notify, setActiveView } =
     useAppStore();
@@ -756,12 +883,11 @@ function AuthModal() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (username.trim().length < 3 || password.length < 6) {
+    if (username.trim().length < 3 || password.length < 6)
       return notify(
         "Username (> 3 chars) and Password (> 6 chars) required.",
         "error",
       );
-    }
     setLoading(true);
     try {
       if (isSignUp) {
@@ -1051,7 +1177,7 @@ function GlobalSearchModal({ isOpen, onClose }) {
 }
 
 function PomodoroTimer() {
-  const { notify, setPremiumData } = useAppStore();
+  const { setPremiumData, settings } = useAppStore();
   const [isOpen, setIsOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -1063,14 +1189,18 @@ function PomodoroTimer() {
       interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
     else if (isActive && timeLeft === 0) {
       setIsActive(false);
-      notify(`Time's up! You completed a ${mode} minute session.`, "success");
+      triggerSystemNotification(
+        "Focus Timer Finished!",
+        `You completed a ${mode} minute session. Time for a quick break!`,
+        settings,
+      );
       setPremiumData((prev) => ({
         ...prev,
         totalStudyMinutes: prev.totalStudyMinutes + mode,
       }));
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, mode, settings]);
 
   const toggleTimer = () => setIsActive(!isActive);
   const resetTimer = () => {
@@ -1560,6 +1690,7 @@ function VocabQuiz() {
     } else {
       pool = vocab.filter((v) => v.dateAdded && v.dateAdded <= selectedDate);
     }
+
     const selectedWords = pool.slice(0, modeToUse === "daily" ? 15 : 50);
     if (selectedWords.length < 4)
       return notify(`Need at least 4 saved words to generate a quiz!`, "error");
@@ -2078,7 +2209,6 @@ function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
   }, [isOpen, initialData]);
 
   if (!isOpen) return null;
-
   const handleSave = () => {
     if (!word.trim() || !meaning.trim())
       return notify("Word and Meaning required.", "error");
@@ -2302,7 +2432,6 @@ function VocabTracker() {
           synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
           antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
           notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-          // audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
         });
       } else
         setSearchError(
@@ -2325,7 +2454,6 @@ function VocabTracker() {
     setSearchResult(null);
     setQuery("");
   };
-
   const toggleBookmark = (id) => {
     setPremiumData((prev) => {
       const isBookmarked = prev.bookmarks?.includes(id);
@@ -2486,7 +2614,6 @@ function VocabTracker() {
           )}
         </AnimatePresence>
       </div>
-
       {searchError && (
         <div
           className="card"
@@ -2520,7 +2647,6 @@ function VocabTracker() {
           </button>
         </div>
       )}
-
       {searchResult && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -2720,7 +2846,6 @@ function VocabTracker() {
           </div>
         </motion.div>
       )}
-
       <div
         style={{
           display: "flex",
@@ -2750,7 +2875,6 @@ function VocabTracker() {
           ),
         )}
       </div>
-
       {filteredVocab.length === 0 ? (
         <div
           className="card"
@@ -3254,13 +3378,12 @@ function DailyPlan({ timeline }) {
 
 function QuantRotation({ quant = [] }) {
   const { updateHistory } = useAppStore();
-  const handleChange = (index, field, value) => {
+  const handleChange = (index, field, value) =>
     updateHistory({
       quant: quant.map((item, i) =>
         i === index ? { ...item, [field]: value } : item,
       ),
     });
-  };
   return (
     <div>
       <div className="page-header">
@@ -3302,13 +3425,12 @@ function QuantRotation({ quant = [] }) {
 
 function ReasoningRotation({ reasoning = [] }) {
   const { updateHistory } = useAppStore();
-  const handleChange = (index, field, value) => {
+  const handleChange = (index, field, value) =>
     updateHistory({
       reasoning: reasoning.map((item, i) =>
         i === index ? { ...item, [field]: value } : item,
       ),
     });
-  };
   return (
     <div>
       <div className="page-header">
@@ -3368,9 +3490,8 @@ function MockTracker() {
     ]);
     notify("New Mock Test card added.", "info");
   };
-  const updateMock = (id, field, value) => {
+  const updateMock = (id, field, value) =>
     setMocks(mocks.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
-  };
   const deleteMock = (id) => {
     setMocks(mocks.filter((m) => m.id !== id));
     notify("Mock Test deleted.", "info");
@@ -3692,7 +3813,7 @@ function HabitTracker() {
             className={`btn ${isEditing ? "" : "btn-outline"}`}
             onClick={() => setIsEditing(!isEditing)}
           >
-            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}
+            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}{" "}
             <span>{isEditing ? "Done Editing" : "Edit Habits"}</span>
           </button>
           <button className="btn" onClick={addHabit}>
@@ -3912,102 +4033,346 @@ function SettingsView() {
     setPremiumData,
     requestConfirm,
     deleteAccount,
+    settings,
+    updateSettings,
+    notify,
   } = useAppStore();
   const displayName = user?.user_metadata?.display_username || "Aspirant";
 
+  const requestNotificationPermission = async () => {
+    if (!("Notification" in window)) {
+      notify("This browser does not support desktop notifications.", "error");
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") {
+      updateSettings({ notifications: true });
+      notify("Desktop notifications enabled successfully!", "success");
+    } else {
+      updateSettings({ notifications: false });
+      notify(
+        "Permission denied. You can enable them later in browser settings.",
+        "info",
+      );
+    }
+  };
+
+  const handleTestAlarm = () => {
+    triggerSystemNotification(
+      "Test Alarm!",
+      "This is what your reminders will look like.",
+      settings,
+    );
+  };
+
   return (
-    <div className="card" style={{ maxWidth: 600 }}>
-      <h1 style={{ fontSize: "24px", marginBottom: "8px" }}>
-        Account & Application Settings
-      </h1>
-      <p style={{ color: "var(--text-muted)", marginBottom: 32 }}>
-        Manage your profile credentials and local data preference.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <div
-          style={{ borderBottom: "1px solid var(--border)", paddingBottom: 24 }}
-        >
-          <label
-            style={{
-              fontWeight: 700,
-              display: "block",
-              marginBottom: 12,
-              fontSize: "15px",
-              color: "var(--text-main)",
-            }}
-          >
-            Active Aspirant Account
-          </label>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div
-              style={{
-                width: "56px",
-                height: "56px",
-                background: "rgba(99, 102, 241, 0.1)",
-                borderRadius: "8px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--accent)",
-              }}
-            >
-              <ShieldCheck size={28} />
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                gap: "6px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "22px",
-                  color: "var(--text-main)",
-                  fontWeight: 800,
-                  lineHeight: 1,
-                }}
-              >
-                {displayName}
-              </div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#10b981",
-                  fontWeight: 700,
-                  lineHeight: 1,
-                }}
-              >
-                Cloud Real-Time Sync Active
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          style={{ borderBottom: "1px solid var(--border)", paddingBottom: 24 }}
-        >
-          <label style={{ fontWeight: 600, display: "block", marginBottom: 8 }}>
-            Target Exam Date
-          </label>
-          <input
-            type="date"
-            className="custom-input"
-            value={premiumData?.examDate || ""}
-            onChange={(e) =>
-              setPremiumData((p) => ({ ...p, examDate: e.target.value }))
-            }
-            style={{ maxWidth: "300px" }}
-          />
-        </div>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <button className="btn btn-outline" onClick={logout}>
-            <LogOut size={16} /> Sign Out Account
-          </button>
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div className="card" style={{ maxWidth: 800 }}>
+        <h1 style={{ fontSize: "24px", marginBottom: "8px" }}>
+          Account & System Settings
+        </h1>
+        <p style={{ color: "var(--text-muted)", marginBottom: 32 }}>
+          Manage your profile credentials, notifications, and local data
+          preference.
+        </p>
+
         <div
           style={{
-            marginTop: "24px",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gap: "24px",
+          }}
+        >
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "24px" }}
+          >
+            <div
+              style={{
+                borderBottom: "1px solid var(--border)",
+                paddingBottom: 24,
+              }}
+            >
+              <label
+                style={{
+                  fontWeight: 700,
+                  display: "block",
+                  marginBottom: 12,
+                  fontSize: "15px",
+                  color: "var(--text-main)",
+                }}
+              >
+                Active Aspirant Account
+              </label>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "16px" }}
+              >
+                <div
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    background: "rgba(99, 102, 241, 0.1)",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--accent)",
+                  }}
+                >
+                  <ShieldCheck size={28} />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "22px",
+                      color: "var(--text-main)",
+                      fontWeight: 800,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {displayName}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "#10b981",
+                      fontWeight: 700,
+                      lineHeight: 1,
+                    }}
+                  >
+                    Cloud Real-Time Sync Active
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderBottom: "1px solid var(--border)",
+                paddingBottom: 24,
+              }}
+            >
+              <label
+                style={{ fontWeight: 600, display: "block", marginBottom: 8 }}
+              >
+                Target Exam Date
+              </label>
+              <input
+                type="date"
+                className="custom-input"
+                value={premiumData?.examDate || ""}
+                onChange={(e) =>
+                  setPremiumData((p) => ({ ...p, examDate: e.target.value }))
+                }
+                style={{ maxWidth: "300px" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <button className="btn btn-outline" onClick={logout}>
+                <LogOut size={16} /> Sign Out Account
+              </button>
+            </div>
+          </div>
+
+          {/* <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+              padding: "24px",
+              background: "rgba(0,0,0,0.02)",
+              borderRadius: "16px",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                margin: 0,
+              }}
+            >
+              <BellRing size={18} color="var(--accent)" /> Alarms &
+              Notifications
+            </h3>
+            <p
+              style={{
+                fontSize: "13px",
+                color: "var(--text-muted)",
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              Get alerts when your Pomodoro break is over or your fast-reading
+              timer finishes. Sounds are muted by default.
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginTop: "12px",
+                padding: "12px",
+                background: "var(--bg)",
+                borderRadius: "12px",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                <div
+                  style={{
+                    background: settings?.audio
+                      ? "rgba(16, 185, 129, 0.1)"
+                      : "rgba(239, 68, 68, 0.1)",
+                    color: settings?.audio ? "#10b981" : "var(--danger)",
+                    padding: "8px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  {settings?.audio ? (
+                    <Volume2 size={16} />
+                  ) : (
+                    <VolumeX size={16} />
+                  )}
+                </div>
+                <div>
+                  <span
+                    style={{
+                      display: "block",
+                      fontWeight: 700,
+                      fontSize: "14px",
+                    }}
+                  >
+                    Audio Alarms
+                  </span>
+                  <span
+                    style={{ fontSize: "11px", color: "var(--text-muted)" }}
+                  >
+                    Play a double-beep sound
+                  </span>
+                </div>
+              </div>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={settings?.audio}
+                  onChange={(e) => updateSettings({ audio: e.target.checked })}
+                />
+                <span className="slider round"></span>
+              </label>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px",
+                background: "var(--bg)",
+                borderRadius: "12px",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                <div
+                  style={{
+                    background: settings?.notifications
+                      ? "rgba(16, 185, 129, 0.1)"
+                      : "rgba(239, 68, 68, 0.1)",
+                    color: settings?.notifications
+                      ? "#10b981"
+                      : "var(--danger)",
+                    padding: "8px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  {settings?.notifications ? (
+                    <Bell size={16} />
+                  ) : (
+                    <BellRing size={16} />
+                  )}
+                </div>
+                <div>
+                  <span
+                    style={{
+                      display: "block",
+                      fontWeight: 700,
+                      fontSize: "14px",
+                    }}
+                  >
+                    Push Notifications
+                  </span>
+                  <span
+                    style={{ fontSize: "11px", color: "var(--text-muted)" }}
+                  >
+                    Show desktop banner alerts
+                  </span>
+                </div>
+              </div>
+              {!("Notification" in window) ||
+              Notification.permission === "denied" ? (
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--danger)",
+                    fontWeight: 700,
+                  }}
+                >
+                  Blocked in Browser
+                </span>
+              ) : Notification.permission !== "granted" ? (
+                <button
+                  className="btn btn-outline"
+                  style={{ padding: "4px 10px", fontSize: "12px" }}
+                  onClick={requestNotificationPermission}
+                >
+                  Allow
+                </button>
+              ) : (
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={settings?.notifications}
+                    onChange={(e) =>
+                      updateSettings({ notifications: e.target.checked })
+                    }
+                  />
+                  <span className="slider round"></span>
+                </label>
+              )}
+            </div>
+
+            <button
+              className="btn btn-outline"
+              onClick={handleTestAlarm}
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                marginTop: "8px",
+              }}
+            >
+              <Play size={14} /> Test Alarm System
+            </button>
+          </div> */}
+        </div>
+
+        <div
+          style={{
+            marginTop: "32px",
             paddingTop: "24px",
             borderTop: "1px solid var(--border)",
           }}
@@ -4057,25 +4422,137 @@ function SettingsView() {
   );
 }
 
-// --- STANDARD PDF VIEWER ---
+// --- FAST READING TIMER COMPONENT WITH MODAL TRIGGER ---
+function FastReadingTimer({ onTimerEnded }) {
+  const [timeLeft, setTimeLeft] = useState(5 * 60);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    let interval = null;
+    if (isActive && timeLeft > 0) {
+      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+    } else if (isActive && timeLeft === 0) {
+      setIsActive(false);
+      triggerSystemNotification(
+        "Reading Time's Up!",
+        "Your fast reading session is complete.",
+        {},
+        true,
+      );
+      if (onTimerEnded) onTimerEnded();
+    }
+    return () => clearInterval(interval);
+  }, [isActive, timeLeft, onTimerEnded]);
+
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const adjustTime = (mins) => {
+    if (!isActive) setTimeLeft(Math.max(60, timeLeft + mins * 60));
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+        background: "rgba(99,102,241,0.08)",
+        padding: "4px 8px",
+        borderRadius: "12px",
+        border: "1px solid rgba(99,102,241,0.2)",
+      }}
+    >
+      <button
+        className="icon-btn-minimal"
+        onClick={() => adjustTime(-1)}
+        disabled={isActive}
+        style={{ padding: "4px", color: "var(--accent)" }}
+      >
+        <Minus size={12} />
+      </button>
+      <span
+        style={{
+          fontWeight: 800,
+          color: "var(--accent)",
+          fontFamily: "monospace",
+          fontSize: "14px",
+          minWidth: "48px",
+          textAlign: "center",
+          letterSpacing: "1px",
+        }}
+      >
+        {formatTime(timeLeft)}
+      </span>
+      <button
+        className="icon-btn-minimal"
+        onClick={() => adjustTime(1)}
+        disabled={isActive}
+        style={{ padding: "4px", color: "var(--accent)" }}
+      >
+        <Plus size={12} />
+      </button>
+
+      <div
+        style={{
+          width: "1px",
+          height: "14px",
+          background: "rgba(99,102,241,0.3)",
+          margin: "0 4px",
+        }}
+      ></div>
+
+      <button
+        className="icon-btn-minimal"
+        onClick={() => setIsActive(!isActive)}
+        style={{
+          padding: "4px",
+          color: isActive ? "var(--warning)" : "var(--accent)",
+        }}
+      >
+        {isActive ? <Pause size={14} /> : <Play size={14} />}
+      </button>
+      <button
+        className="icon-btn-minimal"
+        onClick={() => {
+          setIsActive(false);
+          setTimeLeft(5 * 60);
+        }}
+        style={{ padding: "4px", color: "var(--text-muted)" }}
+      >
+        <RotateCcw size={14} />
+      </button>
+    </div>
+  );
+}
+
+// --- REDESIGNED ALIGNED STUDY MATERIALS / PDF LIBRARY MODULE ---
 function StudyMaterialsModule() {
   const { user, notify } = useAppStore();
   const [documents, setDocuments] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [notes, setNotes] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadCategory, setUploadCategory] = useState("Grammar Rule");
   const [newNote, setNewNote] = useState("");
   const [pageNumber, setPageNumber] = useState(1);
   const [showLibrary, setShowLibrary] = useState(true);
   const [showNotes, setShowNotes] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeTab, setActiveTab] = useState("Grammar Rule");
+  const [isTimerEndedModalOpen, setIsTimerEndedModalOpen] = useState(false);
 
   const isAdmin =
     user?.user_metadata?.display_username ===
     import.meta.env.VITE_ADMIN_USERNAME;
+
   useEffect(() => {
     fetchDocuments();
   }, []);
+
   useEffect(() => {
     if (selectedDoc) {
       fetchNotes(selectedDoc.id);
@@ -4083,16 +4560,15 @@ function StudyMaterialsModule() {
   }, [selectedDoc]);
 
   const fetchDocuments = async () => {
-    const { data, error } = await supabase
-      .from("documents")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("documents").select("*");
     if (error) {
       notify("Failed to load PDFs.", "error");
     } else {
       setDocuments(data || []);
       if (data && data.length > 0 && !selectedDoc) {
-        setSelectedDoc(data[0]);
+        const defaultDoc =
+          data.find((d) => (d.category || "Other") === activeTab) || data[0];
+        setSelectedDoc(defaultDoc);
       }
     }
   };
@@ -4128,6 +4604,7 @@ function StudyMaterialsModule() {
           title: file.name.replace(".pdf", ""),
           file_path: filePath,
           file_url: urlData.publicUrl,
+          category: uploadCategory,
         },
       ]);
       if (dbError) throw dbError;
@@ -4137,6 +4614,7 @@ function StudyMaterialsModule() {
       notify("Upload failed: " + error.message, "error");
     } finally {
       setUploading(false);
+      event.target.value = null;
     }
   };
 
@@ -4178,6 +4656,22 @@ function StudyMaterialsModule() {
     fetchNotes(selectedDoc.id);
   };
 
+  const filteredAndSortedDocs = useMemo(() => {
+    let filtered = documents.filter(
+      (doc) => (doc.category || "Other") === activeTab,
+    );
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      if (activeTab === "Grammar Rule" || activeTab === "English") {
+        return dateA - dateB;
+      } else {
+        return dateB - dateA;
+      }
+    });
+    return filtered;
+  }, [documents, activeTab]);
+
   return (
     <div
       style={
@@ -4195,29 +4689,40 @@ function StudyMaterialsModule() {
             }
           : {
               display: "flex",
-              height: "calc(100vh - 80px)",
+              height: "calc(150vh - 0px)",
               background: "var(--bg)",
               borderRadius: "16px",
               overflow: "hidden",
               border: "1px solid var(--border)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
               animation: "fadeIn 0.5s ease",
             }
       }
     >
+      <ReadingTimerModal
+        isOpen={isTimerEndedModalOpen}
+        onClose={() => setIsTimerEndedModalOpen(false)}
+      />
+
+      {/* LEFT PANEL: LIBRARY SIDEBAR */}
       {showLibrary && (
         <div
           style={{
-            width: "280px",
+            width: "300px",
+            minWidth: "280px",
+            maxWidth: "320px",
             borderRight: "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
-            background: "rgba(0,0,0,0.02)",
+            background: "var(--bg)",
             flexShrink: 0,
+            zIndex: 2,
           }}
         >
+          {/* HEADER */}
           <div
             style={{
-              padding: "20px",
+              padding: "16px 20px",
               borderBottom: "1px solid var(--border)",
               display: "flex",
               justifyContent: "space-between",
@@ -4227,46 +4732,180 @@ function StudyMaterialsModule() {
             <h2
               style={{
                 fontSize: "16px",
-                fontWeight: 700,
+                fontWeight: 800,
                 margin: 0,
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
+                color: "var(--text-main)",
               }}
             >
-              <BookOpen size={18} color="var(--accent)" /> Library
+              <BookOpen size={18} color="var(--accent)" /> Study Library
             </h2>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {isAdmin && (
-                <label
-                  className="btn"
-                  style={{
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    height: "30px",
-                    margin: 0,
-                  }}
-                >
-                  <UploadCloud size={14} />
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={handleFileUpload}
-                    style={{ display: "none" }}
-                    disabled={uploading}
-                  />
-                </label>
-              )}
-              <button
-                className="icon-btn-minimal"
-                onClick={() => setShowLibrary(false)}
-                title="Close Library"
-              >
-                <X size={16} />
-              </button>
-            </div>
+            <button
+              className="icon-btn-minimal"
+              onClick={() => setShowLibrary(false)}
+              title="Close Library"
+            >
+              <X size={16} />
+            </button>
           </div>
+
+          {/* ADMIN UPLOAD PANEL */}
+          {isAdmin && (
+            <div
+              style={{
+                padding: "14px 16px",
+                background: "rgba(99, 102, 241, 0.04)",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <h4
+                style={{
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  color: "var(--accent)",
+                  marginBottom: "8px",
+                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                <ShieldCheck size={14} /> Admin Tools
+              </h4>
+              <select
+                className="custom-input"
+                value={uploadCategory}
+                onChange={(e) => setUploadCategory(e.target.value)}
+                style={{
+                  width: "100%",
+                  marginBottom: "8px",
+                  fontSize: "12px",
+                  padding: "6px 8px",
+                  fontWeight: 600,
+                }}
+              >
+                <option value="Grammar Rule">120 Rules of Grammar</option>
+                <option value="Editorial">Editorial</option>
+                <option value="English"> English</option>
+                <option value="Other"> Other</option>
+              </select>
+              <label
+                className="btn"
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  padding: "8px",
+                  fontSize: "12px",
+                  cursor: uploading ? "not-allowed" : "pointer",
+                }}
+              >
+                {uploading ? (
+                  <Loader2 size={14} className="spinner" />
+                ) : (
+                  <UploadCloud size={14} />
+                )}
+                {uploading ? "Uploading..." : "Upload PDF"}
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleFileUpload}
+                  style={{ display: "none" }}
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+          )}
+
+          {/* CATEGORY TABS */}
+          <div
+            className="scroll-area"
+            style={{
+              display: "flex",
+              overflowX: "auto",
+              padding: "12px 14px",
+              flexWrap: "wrap",
+              gap: "6px",
+              borderBottom: "1px solid var(--border)",
+              background: "rgba(0,0,0,0.01)",
+            }}
+          >
+            {["Grammar Rule", "Editorial", "English", "Other"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "20px",
+                  background: activeTab === tab ? "var(--accent)" : "var(--bg)",
+                  border:
+                    activeTab === tab
+                      ? "1px solid var(--accent)"
+                      : "1px solid var(--border)",
+                  color: activeTab === tab ? "#fff" : "var(--text-muted)",
+                  fontWeight: activeTab === tab ? 700 : 500,
+                  fontSize: "11px",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  transition: "all 0.2s ease",
+                  boxShadow:
+                    activeTab === tab
+                      ? "0 4px 10px rgba(99, 102, 241, 0.2)"
+                      : "none",
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* SUBHEADER META */}
+          <div
+            style={{
+              padding: "10px 16px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              background: "rgba(0,0,0,0.015)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              {filteredAndSortedDocs.length} Documents
+            </span>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "var(--text-muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              {activeTab === "Grammar Rule" || activeTab === "English" ? (
+                <>
+                  <SortAsc size={12} /> Oldest First
+                </>
+              ) : (
+                <>
+                  <SortDesc size={12} /> Newest First
+                </>
+              )}
+            </span>
+          </div>
+
+          {/* DOCUMENT CARDS LIST */}
           <div
             className="scroll-area"
             style={{
@@ -4278,79 +4917,104 @@ function StudyMaterialsModule() {
               gap: "8px",
             }}
           >
-            {uploading && (
-              <div
-                style={{
-                  padding: "12px",
-                  textAlign: "center",
-                  fontSize: "12px",
-                  color: "var(--accent)",
-                  background: "rgba(99,102,241,0.1)",
-                  borderRadius: "8px",
-                }}
-              >
-                Uploading PDF...
-              </div>
-            )}
-            {documents.length === 0 && !uploading && (
+            {filteredAndSortedDocs.length === 0 && !uploading && (
               <p
                 style={{
                   textAlign: "center",
                   fontSize: "13px",
                   color: "var(--text-muted)",
-                  marginTop: "20px",
+                  marginTop: "24px",
                 }}
               >
-                No documents available.
+                No documents found in {activeTab}.
               </p>
             )}
-            {documents.map((doc) => (
+            {filteredAndSortedDocs.map((doc) => (
               <div
                 key={doc.id}
                 onClick={() => setSelectedDoc(doc)}
-                className="dash-list-item"
                 style={{
                   cursor: "pointer",
                   background:
                     selectedDoc?.id === doc.id
-                      ? "rgba(99,102,241,0.1)"
-                      : "transparent",
+                      ? "rgba(99,102,241,0.08)"
+                      : "var(--bg)",
                   border:
                     selectedDoc?.id === doc.id
-                      ? "1px solid rgba(99,102,241,0.3)"
-                      : "1px solid transparent",
+                      ? "1px solid var(--accent)"
+                      : "1px solid var(--border)",
+                  borderRadius: "10px",
+                  padding: "10px 12px",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
+                  gap: "8px",
+                  transition: "all 0.15s ease",
                 }}
               >
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "8px",
+                    gap: "10px",
                     overflow: "hidden",
                   }}
                 >
-                  <FileText
-                    size={16}
-                    color={
-                      selectedDoc?.id === doc.id
-                        ? "var(--accent)"
-                        : "var(--text-muted)"
-                    }
-                  />
-                  <span
+                  <div
                     style={{
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "8px",
+                      background:
+                        selectedDoc?.id === doc.id
+                          ? "var(--accent)"
+                          : "rgba(0,0,0,0.04)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
                     }}
                   >
-                    {doc.title}
-                  </span>
+                    <FileText
+                      size={16}
+                      color={
+                        selectedDoc?.id === doc.id
+                          ? "white"
+                          : "var(--text-muted)"
+                      }
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: selectedDoc?.id === doc.id ? 700 : 600,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        color:
+                          selectedDoc?.id === doc.id
+                            ? "var(--accent)"
+                            : "var(--text-main)",
+                      }}
+                    >
+                      {doc.title}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {/* {new Date(doc.created_at).toLocaleDateString()} */}
+                    </span>
+                  </div>
                 </div>
                 {isAdmin && (
                   <button
@@ -4369,6 +5033,8 @@ function StudyMaterialsModule() {
           </div>
         </div>
       )}
+
+      {/* CENTER PANEL: PDF VIEWER CONTAINER */}
       <div
         style={{
           flex: 1,
@@ -4376,65 +5042,119 @@ function StudyMaterialsModule() {
           display: "flex",
           flexDirection: "column",
           position: "relative",
+          height: "100%",
+          background: "var(--bg)",
         }}
       >
         {selectedDoc ? (
           <>
+            {/* ALIGNED TOOLBAR TOP BAR */}
             <div
               style={{
-                padding: "12px 24px",
+                padding: "10px 16px",
                 borderBottom: "1px solid var(--border)",
                 background: "var(--bg)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                gap: "12px",
+                flexWrap: "wrap",
+                minHeight: "56px",
               }}
             >
+              {/* LEFT: TOGGLE & TITLE */}
               <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  flex: 1,
+                  minWidth: "180px",
+                  overflow: "hidden",
+                }}
               >
                 {!showLibrary && (
                   <button
                     className="icon-btn-minimal"
                     onClick={() => setShowLibrary(true)}
-                    title="Show Library"
-                    style={{ border: "1px solid var(--border)" }}
+                    title="Open Library"
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
+                      padding: "6px",
+                      flexShrink: 0,
+                    }}
                   >
                     <BookOpen size={16} />
                   </button>
                 )}
-                <span
+                <div
                   style={{
-                    fontWeight: 600,
-                    fontSize: "14px",
+                    display: "flex",
+                    flexDirection: "column",
                     overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
                   }}
                 >
-                  {selectedDoc.title}
-                </span>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      fontSize: "14px",
+                      color: "var(--text-main)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {selectedDoc.title}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--text-muted)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {selectedDoc.category || "Other"}
+                  </span>
+                </div>
               </div>
+
+              {/* RIGHT: TIMER & CONTROLS */}
               <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexShrink: 0,
+                }}
               >
+                <FastReadingTimer
+                  onTimerEnded={() => setIsTimerEndedModalOpen(true)}
+                />
+
                 <span
                   style={{
                     fontSize: "11px",
-                    padding: "4px 10px",
+                    padding: "4px 8px",
                     background: "rgba(245,158,11,0.1)",
                     color: "var(--warning)",
-                    borderRadius: "12px",
-                    fontWeight: 700,
+                    borderRadius: "8px",
+                    fontWeight: 800,
+                    letterSpacing: "0.5px",
                   }}
                 >
                   READ ONLY
                 </span>
+
                 <button
                   className="icon-btn-minimal"
                   onClick={() => setIsFullscreen(!isFullscreen)}
                   title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Viewer"}
-                  style={{ border: "1px solid var(--border)" }}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    padding: "6px",
+                  }}
                 >
                   {isFullscreen ? (
                     <Minimize size={16} />
@@ -4442,23 +5162,31 @@ function StudyMaterialsModule() {
                     <Maximize size={16} />
                   )}
                 </button>
+
                 {!showNotes && (
                   <button
                     className="icon-btn-minimal"
                     onClick={() => setShowNotes(true)}
                     title="Show Notes"
-                    style={{ border: "1px solid var(--border)" }}
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
+                      padding: "6px",
+                    }}
                   >
                     <Edit3 size={16} />
                   </button>
                 )}
               </div>
             </div>
+
+            {/* PDF OBJECT FRAME */}
             <div
               style={{
                 flex: 1,
-                padding: isFullscreen ? "0" : "16px",
-                background: "rgba(0,0,0,0.05)",
+                padding: isFullscreen ? "0" : "12px",
+                background: "rgba(0,0,0,0.04)",
+                overflow: "hidden",
               }}
             >
               <object
@@ -4467,11 +5195,11 @@ function StudyMaterialsModule() {
                 style={{
                   width: "100%",
                   height: "100%",
-                  borderRadius: isFullscreen ? "0" : "12px",
+                  borderRadius: isFullscreen ? "0" : "10px",
                   border: isFullscreen ? "none" : "1px solid var(--border)",
                   boxShadow: isFullscreen
                     ? "none"
-                    : "0 10px 30px rgba(0,0,0,0.1)",
+                    : "0 8px 24px rgba(0,0,0,0.06)",
                 }}
               >
                 <div
@@ -4482,6 +5210,7 @@ function StudyMaterialsModule() {
                     justifyContent: "center",
                     height: "100%",
                     color: "var(--text-muted)",
+                    padding: "20px",
                   }}
                 >
                   <p>Unable to render PDF preview directly.</p>
@@ -4492,6 +5221,7 @@ function StudyMaterialsModule() {
                     style={{
                       color: "var(--accent)",
                       textDecoration: "underline",
+                      fontWeight: 600,
                     }}
                   >
                     Open PDF in new tab
@@ -4511,11 +5241,10 @@ function StudyMaterialsModule() {
               color: "var(--text-muted)",
             }}
           >
-            <FileText
-              size={48}
-              style={{ opacity: 0.2, marginBottom: "16px" }}
-            />
-            <p>Select a document from the library to start reading.</p>
+            <Layers size={48} style={{ opacity: 0.2, marginBottom: "16px" }} />
+            <p style={{ fontSize: "14px", fontWeight: 500 }}>
+              Select a document from the library to start reading.
+            </p>
             {!showLibrary && (
               <button
                 className="btn btn-outline"
@@ -4528,20 +5257,26 @@ function StudyMaterialsModule() {
           </div>
         )}
       </div>
+
+      {/* RIGHT PANEL: NOTES SIDEBAR */}
       {showNotes && (
         <div
           style={{
-            width: "320px",
+            width: "300px",
+            minWidth: "280px",
+            maxWidth: "320px",
             borderLeft: "1px solid var(--border)",
             display: "flex",
             flexDirection: "column",
             background: "var(--bg)",
             flexShrink: 0,
+            zIndex: 2,
           }}
         >
+          {/* HEADER */}
           <div
             style={{
-              padding: "20px",
+              padding: "16px 20px",
               borderBottom: "1px solid var(--border)",
               display: "flex",
               justifyContent: "space-between",
@@ -4550,7 +5285,7 @@ function StudyMaterialsModule() {
           >
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <Edit3 size={18} color="var(--accent)" />
-              <h3 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>
+              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0 }}>
                 My Notes
               </h3>
             </div>
@@ -4562,14 +5297,17 @@ function StudyMaterialsModule() {
               <X size={16} />
             </button>
           </div>
+
+          {/* ADD NOTE FORM */}
           <form
             onSubmit={handleAddNote}
             style={{
-              padding: "16px",
+              padding: "14px",
               borderBottom: "1px solid var(--border)",
               display: "flex",
               flexDirection: "column",
-              gap: "12px",
+              gap: "10px",
+              background: "rgba(0,0,0,0.01)",
             }}
           >
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -4588,7 +5326,12 @@ function StudyMaterialsModule() {
                 value={pageNumber}
                 onChange={(e) => setPageNumber(e.target.value)}
                 className="custom-input"
-                style={{ width: "60px", padding: "6px", textAlign: "center" }}
+                style={{
+                  width: "60px",
+                  padding: "6px",
+                  textAlign: "center",
+                  fontWeight: 700,
+                }}
               />
             </div>
             <textarea
@@ -4597,26 +5340,33 @@ function StudyMaterialsModule() {
               className="custom-input"
               value={newNote}
               onChange={(e) => setNewNote(e.target.value)}
-              style={{ resize: "none" }}
+              style={{ resize: "none", fontSize: "13px" }}
             />
             <button
               type="submit"
               className="btn"
               disabled={!selectedDoc || !newNote.trim()}
-              style={{ width: "100%", justifyContent: "center" }}
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                padding: "8px",
+                fontSize: "13px",
+              }}
             >
-              <Plus size={16} /> Save Note
+              <Plus size={14} /> Save Note
             </button>
           </form>
+
+          {/* SAVED NOTES LIST */}
           <div
             className="scroll-area"
             style={{
               flex: 1,
-              padding: "16px",
+              padding: "14px",
               overflowY: "auto",
               display: "flex",
               flexDirection: "column",
-              gap: "12px",
+              gap: "10px",
             }}
           >
             {notes.length === 0 ? (
@@ -4625,14 +5375,14 @@ function StudyMaterialsModule() {
                   textAlign: "center",
                   color: "var(--text-muted)",
                   marginTop: "20px",
-                  padding: "20px",
+                  padding: "10px",
                 }}
               >
                 <MessageSquare
                   size={32}
-                  style={{ opacity: 0.2, margin: "0 auto 12px auto" }}
+                  style={{ opacity: 0.2, margin: "0 auto 8px auto" }}
                 />
-                <p style={{ fontSize: "13px" }}>
+                <p style={{ fontSize: "12px" }}>
                   No notes saved for this document.
                 </p>
               </div>
@@ -4642,28 +5392,30 @@ function StudyMaterialsModule() {
                   key={note.id}
                   className="card"
                   style={{
-                    padding: "16px",
-                    background: "rgba(0,0,0,0.02)",
+                    padding: "12px",
+                    background: "rgba(0,0,0,0.015)",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "8px",
+                    gap: "6px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
                   }}
                 >
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      alignItems: "flex-start",
+                      alignItems: "center",
                     }}
                   >
                     <span
                       style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
+                        fontSize: "10px",
+                        fontWeight: 800,
                         color: "var(--accent)",
                         background: "rgba(99,102,241,0.1)",
-                        padding: "4px 8px",
-                        borderRadius: "8px",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
                       }}
                     >
                       PAGE {note.page_number}
@@ -4673,12 +5425,12 @@ function StudyMaterialsModule() {
                       onClick={() => handleDeleteNote(note.id)}
                       style={{ color: "var(--text-muted)", padding: 0 }}
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </button>
                   </div>
                   <p
                     style={{
-                      fontSize: "13px",
+                      fontSize: "12px",
                       margin: 0,
                       lineHeight: 1.5,
                       color: "var(--text-main)",
@@ -4691,7 +5443,7 @@ function StudyMaterialsModule() {
                     style={{
                       fontSize: "10px",
                       color: "var(--text-muted)",
-                      marginTop: "4px",
+                      marginTop: "2px",
                     }}
                   >
                     {new Date(note.created_at).toLocaleDateString()}
@@ -4706,7 +5458,7 @@ function StudyMaterialsModule() {
   );
 }
 
-// --- REDESIGNED: SMART DIGITAL NOTES BOARD MODULE ---
+// --- DIGITAL NOTES BOARD MODULE ---
 function DigitalNotesBoard() {
   const {
     digitalNotes,
@@ -4717,21 +5469,16 @@ function DigitalNotesBoard() {
     notify,
     requestConfirm,
   } = useAppStore();
-
-  // Dual-Layer Filtering
   const [topicFilter, setTopicFilter] = useState("All");
   const [subtopicFilter, setSubtopicFilter] = useState("All");
-
   const [draftNote, setDraftNote] = useState(null);
   const boardRef = useRef(null);
   const datalistId = "subtopics-datalist";
 
-  // When Topic changes, always reset Sub-topic to "All"
   useEffect(() => {
     setSubtopicFilter("All");
   }, [topicFilter]);
 
-  // Extract unique subtopics based on currently selected topic
   const currentSubtopics = [
     "All",
     ...new Set(
@@ -4741,18 +5488,14 @@ function DigitalNotesBoard() {
         .filter((st) => st && st.trim() !== ""),
     ),
   ];
-
-  // The actual notes to display
   const filteredNotes = digitalNotes.filter((n) => {
     if (topicFilter !== "All" && n.topic !== topicFilter) return false;
     if (subtopicFilter !== "All" && n.subtopic !== subtopicFilter) return false;
     return true;
   });
 
-  // Global Paste Interceptor
   useEffect(() => {
     const handlePaste = (e) => {
-      // Don't intercept if user is typing in an input inside a draft
       if (
         document.activeElement.tagName === "INPUT" ||
         document.activeElement.tagName === "TEXTAREA"
@@ -4760,12 +5503,10 @@ function DigitalNotesBoard() {
         const hasImage = Array.from(e.clipboardData?.items || []).some(
           (item) => item.type.indexOf("image") !== -1,
         );
-        if (!hasImage) return; // Let text paste naturally
+        if (!hasImage) return;
       }
-
       const items = e.clipboardData?.items;
       if (!items) return;
-
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.indexOf("image") !== -1) {
           e.preventDefault();
@@ -4775,11 +5516,8 @@ function DigitalNotesBoard() {
             const scrollContainer = boardRef.current;
             const x = scrollContainer ? scrollContainer.scrollLeft + 150 : 150;
             const y = scrollContainer ? scrollContainer.scrollTop + 150 : 150;
-
-            // Auto-inherit active filters for smooth workflow
             const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
             const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
-
             setDraftNote({
               id: Date.now().toString(),
               x,
@@ -4810,15 +5548,11 @@ function DigitalNotesBoard() {
       e.target.closest(".board-toolbar")
     )
       return;
-
     const rect = boardRef.current.getBoundingClientRect();
     const scrollLeft = boardRef.current.scrollLeft;
     const scrollTop = boardRef.current.scrollTop;
-
-    // Auto-inherit
     const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
     const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
-
     setDraftNote({
       id: Date.now().toString(),
       x: e.clientX - rect.left + scrollLeft,
@@ -4834,9 +5568,8 @@ function DigitalNotesBoard() {
   };
 
   const handleSaveDraft = () => {
-    if (!draftNote.text.trim() && draftNote.type !== "image") {
+    if (!draftNote.text.trim() && draftNote.type !== "image")
       return notify("Enter some text or paste an image.", "error");
-    }
     addDigitalNote({ ...draftNote, date: new Date().toISOString() });
     setDraftNote(null);
     notify("Note saved to cloud!", "success");
@@ -4855,7 +5588,6 @@ function DigitalNotesBoard() {
         boxShadow: "0 10px 40px rgba(0,0,0,0.03)",
       }}
     >
-      {/* Hidden Datalist for Subtopic Autocomplete */}
       <datalist id={datalistId}>
         {currentSubtopics
           .filter((s) => s !== "All")
@@ -4863,8 +5595,6 @@ function DigitalNotesBoard() {
             <option key={s} value={s} />
           ))}
       </datalist>
-
-      {/* Upper Toolbar: Topics */}
       <div
         className="board-toolbar"
         style={{
@@ -4911,7 +5641,6 @@ function DigitalNotesBoard() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          {/* Primary Topic Filter */}
           <div
             style={{
               display: "flex",
@@ -4970,7 +5699,6 @@ function DigitalNotesBoard() {
         </div>
       </div>
 
-      {/* Sub-Toolbar: Sub-Topic Boards */}
       {currentSubtopics.length > 1 && (
         <div
           className="board-toolbar scroll-area"
@@ -5011,7 +5739,6 @@ function DigitalNotesBoard() {
         </div>
       )}
 
-      {/* Infinite Canvas Area */}
       <div
         ref={boardRef}
         onClick={handleBoardClick}
@@ -5020,7 +5747,6 @@ function DigitalNotesBoard() {
           overflow: "auto",
           position: "relative",
           cursor: draftNote ? "default" : "crosshair",
-          // Modern Dot Matrix Background
           backgroundImage:
             "radial-gradient(rgba(99, 102, 241, 0.15) 1.5px, transparent 1.5px)",
           backgroundSize: "24px 24px",
@@ -5037,8 +5763,6 @@ function DigitalNotesBoard() {
             pointerEvents: "none",
           }}
         ></div>
-
-        {/* Render Filtered Saved Notes */}
         {filteredNotes.map((note) => (
           <DraggableItem
             key={note.id}
@@ -5066,7 +5790,6 @@ function DigitalNotesBoard() {
                 overflow: "hidden",
               }}
             >
-              {/* Grip Header */}
               <div
                 className="drag-handle"
                 style={{
@@ -5113,8 +5836,6 @@ function DigitalNotesBoard() {
                   <X size={14} />
                 </button>
               </div>
-
-              {/* Body */}
               <div
                 style={{
                   padding: "14px",
@@ -5153,8 +5874,6 @@ function DigitalNotesBoard() {
                     {note.text}
                   </p>
                 )}
-
-                {/* EXPLICIT SUB-TOPIC BADGE AT THE BOTTOM */}
                 {note.subtopic && (
                   <div
                     style={{
@@ -5186,8 +5905,6 @@ function DigitalNotesBoard() {
             </div>
           </DraggableItem>
         ))}
-
-        {/* Draft Note Window */}
         {draftNote && (
           <DraggableItem
             initialX={draftNote.x}
@@ -5244,7 +5961,6 @@ function DigitalNotesBoard() {
                   <X size={16} />
                 </button>
               </div>
-
               <div
                 style={{
                   padding: "16px",
@@ -5291,7 +6007,6 @@ function DigitalNotesBoard() {
                     setDraftNote({ ...draftNote, subtopic: e.target.value })
                   }
                 />
-
                 {draftNote.type === "image" && draftNote.imageBase64 && (
                   <div
                     style={{
@@ -5308,7 +6023,6 @@ function DigitalNotesBoard() {
                     />
                   </div>
                 )}
-
                 <textarea
                   className="custom-input"
                   placeholder={
@@ -5352,7 +6066,7 @@ function DigitalNotesBoard() {
   );
 }
 
-// --- MAIN EXPORTED APP COMPONENT ---
+// --- MAIN APP COMPONENT ---
 export default function App() {
   const {
     user,
@@ -5367,13 +6081,11 @@ export default function App() {
   } = useAppStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const isAdmin =
-    user?.user_metadata?.display_username ===
-    import.meta.env.VITE_ADMIN_USERNAME;
 
   useEffect(() => {
     initAuth();
   }, []);
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     const contentArea = document.querySelector(".content-area");
@@ -5429,7 +6141,7 @@ export default function App() {
     });
   }, [selectedDate, setAppData]);
 
-  if (authLoading) {
+  if (authLoading)
     return (
       <div
         style={{
@@ -5448,7 +6160,6 @@ export default function App() {
         />
       </div>
     );
-  }
 
   if (!user)
     return (
@@ -5480,7 +6191,9 @@ export default function App() {
           onClick={() => setIsSidebarOpen(false)}
         ></div>
       )}
-      <PomodoroTimer />
+
+      <TimelineNotificationEngine />
+      {/* <PomodoroTimer /> */}
       <GlobalSearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
@@ -5505,8 +6218,8 @@ export default function App() {
             { id: "digital_notes", icon: PenTool, label: "Smart Notes Canvas" },
             {
               id: "materials",
-              icon: UploadCloud,
-              label: isAdmin ? "Admin: PDFs" : "Study Materials",
+              icon: BookOpen,
+              label: "Study Materials / PDFs",
             },
             { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
             { id: "quant", icon: Calculator, label: "Quant Rotation" },
