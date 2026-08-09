@@ -350,6 +350,7 @@ const CA_TOPICS_LIST = [
   "Awards",
   "Defense",
   "Science & Tech",
+  "Important Days",
   "Miscellaneous",
 ];
 
@@ -3459,17 +3460,15 @@ function StudyMaterialsModule() {
         0,
       );
 
-      const { error: dbError } = await supabase
-        .from("documents")
-        .insert([
-          {
-            title: finalTitle,
-            file_path: filePath,
-            file_url: urlData.publicUrl,
-            category: finalCategory,
-            order_index: maxOrder + 1,
-          },
-        ]);
+      const { error: dbError } = await supabase.from("documents").insert([
+        {
+          title: finalTitle,
+          file_path: filePath,
+          file_url: urlData.publicUrl,
+          category: finalCategory,
+          order_index: maxOrder + 1,
+        },
+      ]);
       if (dbError) throw dbError;
 
       notify("PDF uploaded successfully!", "success");
@@ -3499,16 +3498,14 @@ function StudyMaterialsModule() {
   const handleAddNote = async (e) => {
     e.preventDefault();
     if (!newNote.trim() || !selectedDoc || !user) return;
-    const { error } = await supabase
-      .from("document_notes")
-      .insert([
-        {
-          document_id: selectedDoc.id,
-          user_id: user.id,
-          content: newNote,
-          page_number: parseInt(pageNumber) || 1,
-        },
-      ]);
+    const { error } = await supabase.from("document_notes").insert([
+      {
+        document_id: selectedDoc.id,
+        user_id: user.id,
+        content: newNote,
+        page_number: parseInt(pageNumber) || 1,
+      },
+    ]);
     if (error) notify("Failed to save note.", "error");
     else {
       setNewNote("");
