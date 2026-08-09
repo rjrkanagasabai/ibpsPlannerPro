@@ -65,11 +65,13 @@ import {
   Layers,
   Filter,
   GripHorizontal,
+  GripVertical,
   LayoutGrid,
   SortAsc,
   SortDesc,
   Bell,
   VolumeX,
+  Folder,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
@@ -324,6 +326,33 @@ const NOTE_TOPICS = [
   "General",
 ];
 
+const MONTHS_LIST = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const CA_TOPICS_LIST = [
+  "Sports",
+  "National",
+  "International",
+  "Banking & Economy",
+  "Appointments",
+  "Awards",
+  "Defense",
+  "Science & Tech",
+  "Miscellaneous",
+];
+
 const getFormattedDateStr = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -416,7 +445,6 @@ export const useAppStore = create(
       setSelectedDate: (date) => set({ selectedDate: date }),
       updateSettings: (newSettings) =>
         set((state) => ({ settings: { ...state.settings, ...newSettings } })),
-
       notify: (message, type = "success") => {
         const id = Date.now() + Math.random();
         set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
@@ -766,12 +794,10 @@ function TimelineNotificationEngine() {
 
   useEffect(() => {
     if (!settings?.notifications && !settings?.audio) return;
-
     const interval = setInterval(() => {
       const now = new Date();
       const todayStr = getFormattedDateStr(now);
       const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
       const todaysHistory = history[todayStr];
       if (!todaysHistory || !todaysHistory.timeline) return;
 
@@ -789,10 +815,8 @@ function TimelineNotificationEngine() {
         }
       });
     }, 10000);
-
     return () => clearInterval(interval);
   }, [history, settings, notified]);
-
   return null;
 }
 
@@ -2178,976 +2202,6 @@ function Dashboard({ history }) {
   );
 }
 
-function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
-  const { selectedDate, notify } = useAppStore();
-  const [word, setWord] = useState("");
-  const [type, setType] = useState("Vocabulary");
-  const [partOfSpeech, setPartOfSpeech] = useState("");
-  const [meaning, setMeaning] = useState("");
-  const [synonyms, setSynonyms] = useState("");
-  const [antonyms, setAntonyms] = useState("");
-  const [notes, setNotes] = useState("");
-
-  useEffect(() => {
-    if (initialData) {
-      setWord(initialData.word);
-      setType(initialData.type || "Vocabulary");
-      setPartOfSpeech(initialData.partOfSpeech || "");
-      setMeaning(initialData.meaning || "");
-      setSynonyms(initialData.synonyms || "");
-      setAntonyms(initialData.antonyms || "");
-      setNotes(initialData.notes || "");
-    } else {
-      setWord("");
-      setType("Vocabulary");
-      setPartOfSpeech("");
-      setMeaning("");
-      setSynonyms("");
-      setAntonyms("");
-      setNotes("");
-    }
-  }, [isOpen, initialData]);
-
-  if (!isOpen) return null;
-  const handleSave = () => {
-    if (!word.trim() || !meaning.trim())
-      return notify("Word and Meaning required.", "error");
-    onSave({
-      id: initialData ? initialData.id : Date.now().toString(),
-      word,
-      type,
-      partOfSpeech,
-      meaning,
-      synonyms,
-      antonyms,
-      notes,
-      dateAdded: initialData ? initialData.dateAdded : selectedDate,
-    });
-    onClose();
-  };
-  const labelStyle = {
-    display: "block",
-    fontSize: "13px",
-    fontWeight: "600",
-    marginBottom: "8px",
-    color: "var(--text-main)",
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
-      <div
-        className="modal-card"
-        style={{ maxWidth: "550px", width: "90%", padding: "32px" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3
-          className="modal-title"
-          style={{ marginBottom: "28px", fontSize: "20px" }}
-        >
-          {initialData ? "Edit Study Note" : "Custom Study Note"}
-        </h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Word / Phrase</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={word}
-              onChange={(e) => setWord(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Category</label>
-            <select
-              className="custom-input"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-            >
-              <option value="Vocabulary">Vocabulary</option>
-              <option value="Phrasal Verb">Phrasal Verb</option>
-              <option value="Idiom">Idiom</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Part of Speech</label>
-            <input
-              type="text"
-              className="custom-input"
-              placeholder="noun, verb"
-              value={partOfSpeech}
-              onChange={(e) => setPartOfSpeech(e.target.value)}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "20px" }}>
-          <label style={labelStyle}>Meaning / Definition</label>
-          <textarea
-            className="custom-input"
-            value={meaning}
-            onChange={(e) => setMeaning(e.target.value)}
-            rows="4"
-          />
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Synonyms (comma separated)</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={synonyms}
-              onChange={(e) => setSynonyms(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Antonyms (comma separated)</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={antonyms}
-              onChange={(e) => setAntonyms(e.target.value)}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "32px" }}>
-          <label style={labelStyle}>Usage Context / Example Sentence</label>
-          <textarea
-            className="custom-input"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows="3"
-          />
-        </div>
-        <div
-          className="modal-actions"
-          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
-        >
-          <button className="btn btn-outline" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn" onClick={handleSave}>
-            <Save size={16} /> Save Note
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VocabTracker() {
-  const {
-    vocab,
-    selectedDate,
-    requestConfirm,
-    addVocabNote,
-    updateVocabNote,
-    deleteVocabNote,
-    premiumData,
-    setPremiumData,
-  } = useAppStore();
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState(null);
-  const [searchError, setSearchError] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState(null);
-  const [filterType, setFilterType] = useState("All");
-
-  useEffect(() => {
-    if (query.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `https://api.datamuse.com/sug?s=${encodeURIComponent(query)}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data.slice(0, 5));
-        }
-      } catch (e) {}
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  const handleSearch = async (termToSearch) => {
-    const term = termToSearch || query;
-    if (!term.trim()) return;
-    setIsSearching(true);
-    setSearchError("");
-    setSearchResult(null);
-    setShowSuggestions(false);
-    try {
-      const res = await fetch(
-        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term.trim().toLowerCase())}`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const entry = data[0];
-        let meaningsList = [];
-        let synonymsList = [];
-        let antonymsList = [];
-        let examplesList = [];
-        let partsOfSpeechSet = new Set();
-        entry.meanings?.forEach((m) => {
-          const pos = m.partOfSpeech || "";
-          if (pos) partsOfSpeechSet.add(pos);
-          if (m.synonyms) synonymsList.push(...m.synonyms);
-          if (m.antonyms) antonymsList.push(...m.antonyms);
-          const firstDef = m.definitions?.[0]?.definition;
-          if (firstDef)
-            meaningsList.push(`${pos ? `[${pos}] ` : ""}${firstDef}`);
-          m.definitions?.forEach((def) => {
-            if (def.example) examplesList.push(def.example);
-            if (def.synonyms) synonymsList.push(...def.synonyms);
-            if (def.antonyms) antonymsList.push(...def.antonyms);
-          });
-        });
-        let detectedType = "Vocabulary";
-        const wordCount = term.trim().split(" ").length;
-        if (wordCount > 2) detectedType = "Idiom";
-        else if (wordCount === 2) detectedType = "Phrasal Verb";
-        setSearchResult({
-          word: entry.word || term,
-          type: detectedType,
-          partOfSpeech: Array.from(partsOfSpeechSet).join(", ") || "word",
-          meaning: meaningsList.join("\n") || "No definition found.",
-          synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
-          antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
-          notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-        });
-      } else
-        setSearchError(
-          `No direct online entry for "${term}". You can add it manually!`,
-        );
-    } catch (err) {
-      setSearchError("Unable to connect to dictionary API.");
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleSaveSearchResult = () => {
-    if (!searchResult) return;
-    addVocabNote({
-      id: Date.now().toString(),
-      ...searchResult,
-      dateAdded: selectedDate,
-    });
-    setSearchResult(null);
-    setQuery("");
-  };
-  const toggleBookmark = (id) => {
-    setPremiumData((prev) => {
-      const isBookmarked = prev.bookmarks?.includes(id);
-      return {
-        ...prev,
-        bookmarks: isBookmarked
-          ? prev.bookmarks.filter((bId) => bId !== id)
-          : [...(prev.bookmarks || []), id],
-      };
-    });
-  };
-
-  let filteredVocab = vocab.filter((v) => v.dateAdded === selectedDate);
-  if (filterType === "Bookmarks")
-    filteredVocab = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
-  else if (filterType !== "All")
-    filteredVocab = filteredVocab.filter((v) => v.type === filterType);
-  const renderPills = (textStr) => {
-    if (!textStr) return null;
-    return textStr
-      .split(",")
-      .map((w) => w.trim())
-      .filter((w) => w)
-      .map((w, i) => (
-        <span
-          key={i}
-          style={{
-            display: "inline-block",
-            padding: "4px 10px",
-            borderRadius: "8px",
-            fontSize: "12px",
-            fontWeight: 600,
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            color: "var(--text-main)",
-          }}
-        >
-          {w}
-        </span>
-      ));
-  };
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Word Power</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Master vocabulary, idioms, and phrasal verbs with modern cards.
-          </p>
-        </div>
-        <button
-          className="btn"
-          onClick={() => {
-            setEditingNote(null);
-            setIsModalOpen(true);
-          }}
-        >
-          <Plus size={16} /> Custom Entry
-        </button>
-      </div>
-      <div
-        style={{
-          position: "relative",
-          marginBottom: "32px",
-          maxWidth: "700px",
-        }}
-      >
-        <div
-          className="card"
-          style={{
-            padding: "8px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            boxShadow: "var(--shadow-md)",
-          }}
-        >
-          <Search size={20} style={{ color: "var(--accent)" }} />
-          <input
-            type="text"
-            className="custom-input"
-            style={{
-              border: "none",
-              background: "transparent",
-              fontSize: "16px",
-              padding: "8px 0",
-            }}
-            placeholder="Type any word, phrasal verb, or idiom..."
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setShowSuggestions(true);
-            }}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          />
-          {query && (
-            <button
-              className="icon-btn-minimal"
-              onClick={() => {
-                setQuery("");
-                setSearchResult(null);
-                setSearchError("");
-              }}
-            >
-              <X size={18} />
-            </button>
-          )}
-          <button
-            className="btn"
-            onClick={() => handleSearch()}
-            disabled={isSearching}
-          >
-            {isSearching ? <Loader2 size={16} className="spinner" /> : "Search"}
-          </button>
-        </div>
-        <AnimatePresence>
-          {showSuggestions && suggestions.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="card"
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 100,
-                marginTop: "8px",
-                padding: "8px 0",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-              }}
-            >
-              {suggestions.map((s, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    padding: "10px 20px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}
-                  className="dash-list-item"
-                  onClick={() => {
-                    setQuery(s.word);
-                    handleSearch(s.word);
-                  }}
-                >
-                  <Search size={14} color="var(--text-muted)" />
-                  <span style={{ color: "var(--text-main)" }}>{s.word}</span>
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-      {searchError && (
-        <div
-          className="card"
-          style={{
-            marginBottom: "32px",
-            borderLeft: "4px solid var(--danger)",
-            padding: "20px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span
-            style={{
-              color: "var(--text-main)",
-              fontSize: "14px",
-              fontWeight: 500,
-            }}
-          >
-            {searchError}
-          </span>
-          <button
-            className="btn btn-outline"
-            style={{ padding: "6px 12px", fontSize: "13px" }}
-            onClick={() => {
-              setEditingNote({ word: query, meaning: "", notes: "" });
-              setIsModalOpen(true);
-            }}
-          >
-            <Plus size={14} /> Add Custom Entry
-          </button>
-        </div>
-      )}
-      {searchResult && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="card"
-          style={{
-            marginBottom: "32px",
-            borderRadius: "20px",
-            border: "1px solid var(--border)",
-            padding: "28px",
-            background: "var(--bg)",
-            boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "12px",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "30px",
-                margin: 0,
-                fontWeight: 800,
-                color: "var(--text-main)",
-                letterSpacing: "-0.5px",
-              }}
-            >
-              {searchResult.word}
-            </h2>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {searchResult.audio && (
-                <button
-                  className="icon-btn-minimal"
-                  onClick={() => new Audio(searchResult.audio).play()}
-                  title="Listen Pronunciation"
-                  style={{ color: "var(--accent)" }}
-                >
-                  <Volume2 size={18} />
-                </button>
-              )}
-              <button
-                className="btn"
-                style={{
-                  borderRadius: "12px",
-                  padding: "8px 16px",
-                  marginLeft: "12px",
-                }}
-                onClick={handleSaveSearchResult}
-              >
-                <Plus size={16} /> Save to Cloud
-              </button>
-            </div>
-          </div>
-          <div style={{ marginBottom: "24px" }}>
-            <span
-              style={{
-                background: "rgba(99, 102, 241, 0.1)",
-                color: "var(--accent)",
-                fontSize: "11px",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                padding: "4px 12px",
-                borderRadius: "16px",
-                letterSpacing: "0.5px",
-              }}
-            >
-              {searchResult.type}
-              {searchResult.partOfSpeech
-                ? ` • ${searchResult.partOfSpeech}`
-                : ""}
-            </span>
-          </div>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
-          >
-            <div>
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "var(--text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.8px",
-                  display: "block",
-                  marginBottom: "8px",
-                }}
-              >
-                Meaning
-              </span>
-              <p
-                style={{
-                  fontFamily: "serif",
-                  fontSize: "17px",
-                  lineHeight: "1.6",
-                  color: "var(--text-main)",
-                  margin: 0,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {searchResult.meaning}
-              </p>
-            </div>
-            {(searchResult.synonyms || searchResult.antonyms) && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "24px",
-                  marginTop: "12px",
-                  paddingTop: "20px",
-                  borderTop: "1px dashed var(--border)",
-                }}
-              >
-                {searchResult.synonyms && (
-                  <div style={{ flex: 1, minWidth: "150px" }}>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        color: "var(--text-muted)",
-                        textTransform: "uppercase",
-                        display: "block",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Synonyms
-                    </span>
-                    <div
-                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
-                    >
-                      {renderPills(searchResult.synonyms)}
-                    </div>
-                  </div>
-                )}
-                {searchResult.antonyms && (
-                  <div style={{ flex: 1, minWidth: "150px" }}>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        color: "var(--text-muted)",
-                        textTransform: "uppercase",
-                        display: "block",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Antonyms
-                    </span>
-                    <div
-                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
-                    >
-                      {renderPills(searchResult.antonyms)}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            {searchResult.notes && (
-              <div
-                style={{
-                  background: "rgba(99, 102, 241, 0.04)",
-                  padding: "16px",
-                  borderRadius: "12px",
-                  borderLeft: "4px solid var(--accent)",
-                  marginTop: "8px",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "11px",
-                    color: "var(--accent)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.8px",
-                    fontWeight: 700,
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Usage Context
-                </span>
-                <span
-                  style={{
-                    fontStyle: "italic",
-                    fontSize: "15px",
-                    color: "var(--text-main)",
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {searchResult.notes}
-                </span>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      )}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          marginBottom: "24px",
-          flexWrap: "wrap",
-        }}
-      >
-        {["All", "Vocabulary", "Phrasal Verb", "Idiom", "Bookmarks"].map(
-          (type) => (
-            <button
-              key={type}
-              className={`btn ${filterType === type ? "" : "btn-outline"}`}
-              style={{
-                padding: "8px 18px",
-                fontSize: "13px",
-                borderRadius: "20px",
-                fontWeight: filterType === type ? 700 : 500,
-              }}
-              onClick={() => setFilterType(type)}
-            >
-              {type === "Bookmarks" && (
-                <Bookmark size={14} style={{ marginRight: 6 }} />
-              )}{" "}
-              {type}
-            </button>
-          ),
-        )}
-      </div>
-      {filteredVocab.length === 0 ? (
-        <div
-          className="card"
-          style={{
-            textAlign: "center",
-            padding: "60px 20px",
-            color: "var(--text-muted)",
-          }}
-        >
-          <BookMarked
-            size={48}
-            style={{
-              opacity: 0.2,
-              margin: "0 auto 16px auto",
-              display: "block",
-            }}
-          />
-          <p style={{ fontSize: "15px" }}>
-            No saved study notes found in this category.
-          </p>
-        </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-            gap: "24px",
-          }}
-        >
-          {filteredVocab.map((item) => {
-            const isBookmarked = premiumData?.bookmarks?.includes(item.id);
-            return (
-              <motion.div
-                whileHover={{ y: -4 }}
-                transition={{ duration: 0.2 }}
-                key={item.id}
-                className="card"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  padding: "28px",
-                  borderRadius: "20px",
-                  border: "1px solid var(--border)",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.04)",
-                  background: "var(--bg)",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                {isBookmarked && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: "4px",
-                      background: "var(--warning)",
-                    }}
-                  ></div>
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontSize: "28px",
-                      margin: 0,
-                      fontWeight: 800,
-                      color: "var(--text-main)",
-                      letterSpacing: "-0.5px",
-                    }}
-                  >
-                    {item.word}
-                  </h3>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => toggleBookmark(item.id)}
-                      title="Bookmark"
-                      style={{
-                        color: isBookmarked
-                          ? "var(--warning)"
-                          : "var(--text-muted)",
-                      }}
-                    >
-                      <Bookmark
-                        size={18}
-                        fill={isBookmarked ? "var(--warning)" : "none"}
-                      />
-                    </button>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => {
-                        setEditingNote(item);
-                        setIsModalOpen(true);
-                      }}
-                    >
-                      <Edit3 size={18} />
-                    </button>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() =>
-                        requestConfirm("Delete this cloud entry?", () =>
-                          deleteVocabNote(item.id),
-                        )
-                      }
-                      style={{ color: "var(--danger)" }}
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-                <div style={{ marginBottom: "24px" }}>
-                  <span
-                    style={{
-                      background: "rgba(99, 102, 241, 0.1)",
-                      color: "var(--accent)",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      padding: "4px 12px",
-                      borderRadius: "16px",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    {item.type}
-                    {item.partOfSpeech ? ` • ${item.partOfSpeech}` : ""}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "20px",
-                    flex: 1,
-                  }}
-                >
-                  <div>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        color: "var(--text-muted)",
-                        fontSize: "11px",
-                        display: "block",
-                        marginBottom: "8px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.8px",
-                      }}
-                    >
-                      Meaning
-                    </span>
-                    <p
-                      style={{
-                        color: "var(--text-main)",
-                        fontFamily: "serif",
-                        fontSize: "16px",
-                        lineHeight: "1.6",
-                        margin: 0,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {item.meaning}
-                    </p>
-                  </div>
-                  {(item.synonyms || item.antonyms) && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "24px",
-                        marginTop: "auto",
-                        paddingTop: "20px",
-                        borderTop: "1px dashed var(--border)",
-                      }}
-                    >
-                      {item.synonyms && (
-                        <div style={{ flex: 1, minWidth: "120px" }}>
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              color: "var(--text-muted)",
-                              textTransform: "uppercase",
-                              display: "block",
-                              marginBottom: "8px",
-                            }}
-                          >
-                            Synonyms
-                          </span>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "6px",
-                            }}
-                          >
-                            {renderPills(item.synonyms)}
-                          </div>
-                        </div>
-                      )}
-                      {item.antonyms && (
-                        <div style={{ flex: 1, minWidth: "120px" }}>
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              color: "var(--text-muted)",
-                              textTransform: "uppercase",
-                              display: "block",
-                              marginBottom: "8px",
-                            }}
-                          >
-                            Antonyms
-                          </span>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "6px",
-                            }}
-                          >
-                            {renderPills(item.antonyms)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {item.notes && (
-                    <div
-                      style={{
-                        marginTop: "8px",
-                        background: "rgba(99, 102, 241, 0.04)",
-                        padding: "12px 16px",
-                        borderRadius: "10px",
-                        borderLeft: "3px solid var(--accent)",
-                        fontSize: "14px",
-                        lineHeight: "1.5",
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: "var(--text-main)",
-                          fontStyle: "italic",
-                        }}
-                      >
-                        "{item.notes}"
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-      <VocabModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={(note) =>
-          editingNote ? updateVocabNote(note) : addVocabNote(note)
-        }
-        initialData={editingNote}
-      />
-    </div>
-  );
-}
-
 function DailyPlan({ timeline }) {
   const { updateHistory, notify } = useAppStore();
   const handleChange = (index, field, value) => {
@@ -3372,6 +2426,110 @@ function DailyPlan({ timeline }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function FastReadingTimer({ onTimerEnded }) {
+  const [timeLeft, setTimeLeft] = useState(5 * 60);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    let interval = null;
+    if (isActive && timeLeft > 0) {
+      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+    } else if (isActive && timeLeft === 0) {
+      setIsActive(false);
+      triggerSystemNotification(
+        "Reading Time's Up!",
+        "Your fast reading session is complete.",
+        {},
+        true,
+      );
+      if (onTimerEnded) onTimerEnded();
+    }
+    return () => clearInterval(interval);
+  }, [isActive, timeLeft, onTimerEnded]);
+
+  const formatTime = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const adjustTime = (mins) => {
+    if (!isActive) setTimeLeft(Math.max(60, timeLeft + mins * 60));
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+        background: "rgba(99,102,241,0.08)",
+        padding: "4px 8px",
+        borderRadius: "12px",
+        border: "1px solid rgba(99,102,241,0.2)",
+      }}
+    >
+      <button
+        className="icon-btn-minimal"
+        onClick={() => adjustTime(-1)}
+        disabled={isActive}
+        style={{ padding: "4px", color: "var(--accent)" }}
+      >
+        <Minus size={12} />
+      </button>
+      <span
+        style={{
+          fontWeight: 800,
+          color: "var(--accent)",
+          fontFamily: "monospace",
+          fontSize: "14px",
+          minWidth: "48px",
+          textAlign: "center",
+          letterSpacing: "1px",
+        }}
+      >
+        {formatTime(timeLeft)}
+      </span>
+      <button
+        className="icon-btn-minimal"
+        onClick={() => adjustTime(1)}
+        disabled={isActive}
+        style={{ padding: "4px", color: "var(--accent)" }}
+      >
+        <Plus size={12} />
+      </button>
+      <div
+        style={{
+          width: "1px",
+          height: "14px",
+          background: "rgba(99,102,241,0.3)",
+          margin: "0 4px",
+        }}
+      ></div>
+      <button
+        className="icon-btn-minimal"
+        onClick={() => setIsActive(!isActive)}
+        style={{
+          padding: "4px",
+          color: isActive ? "var(--warning)" : "var(--accent)",
+        }}
+      >
+        {isActive ? <Pause size={14} /> : <Play size={14} />}
+      </button>
+      <button
+        className="icon-btn-minimal"
+        onClick={() => {
+          setIsActive(false);
+          setTimeLeft(5 * 60);
+        }}
+        style={{ padding: "4px", color: "var(--text-muted)" }}
+      >
+        <RotateCcw size={14} />
+      </button>
     </div>
   );
 }
@@ -4033,37 +3191,8 @@ function SettingsView() {
     setPremiumData,
     requestConfirm,
     deleteAccount,
-    settings,
-    updateSettings,
-    notify,
   } = useAppStore();
   const displayName = user?.user_metadata?.display_username || "Aspirant";
-
-  const requestNotificationPermission = async () => {
-    if (!("Notification" in window)) {
-      notify("This browser does not support desktop notifications.", "error");
-      return;
-    }
-    const perm = await Notification.requestPermission();
-    if (perm === "granted") {
-      updateSettings({ notifications: true });
-      notify("Desktop notifications enabled successfully!", "success");
-    } else {
-      updateSettings({ notifications: false });
-      notify(
-        "Permission denied. You can enable them later in browser settings.",
-        "info",
-      );
-    }
-  };
-
-  const handleTestAlarm = () => {
-    triggerSystemNotification(
-      "Test Alarm!",
-      "This is what your reminders will look like.",
-      settings,
-    );
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -4151,7 +3280,6 @@ function SettingsView() {
                 </div>
               </div>
             </div>
-
             <div
               style={{
                 borderBottom: "1px solid var(--border)",
@@ -4173,201 +3301,12 @@ function SettingsView() {
                 style={{ maxWidth: "300px" }}
               />
             </div>
-
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <button className="btn btn-outline" onClick={logout}>
                 <LogOut size={16} /> Sign Out Account
               </button>
             </div>
           </div>
-
-          {/* <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-              padding: "24px",
-              background: "rgba(0,0,0,0.02)",
-              borderRadius: "16px",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "16px",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                margin: 0,
-              }}
-            >
-              <BellRing size={18} color="var(--accent)" /> Alarms &
-              Notifications
-            </h3>
-            <p
-              style={{
-                fontSize: "13px",
-                color: "var(--text-muted)",
-                margin: 0,
-                lineHeight: 1.5,
-              }}
-            >
-              Get alerts when your Pomodoro break is over or your fast-reading
-              timer finishes. Sounds are muted by default.
-            </p>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginTop: "12px",
-                padding: "12px",
-                background: "var(--bg)",
-                borderRadius: "12px",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
-              >
-                <div
-                  style={{
-                    background: settings?.audio
-                      ? "rgba(16, 185, 129, 0.1)"
-                      : "rgba(239, 68, 68, 0.1)",
-                    color: settings?.audio ? "#10b981" : "var(--danger)",
-                    padding: "8px",
-                    borderRadius: "8px",
-                  }}
-                >
-                  {settings?.audio ? (
-                    <Volume2 size={16} />
-                  ) : (
-                    <VolumeX size={16} />
-                  )}
-                </div>
-                <div>
-                  <span
-                    style={{
-                      display: "block",
-                      fontWeight: 700,
-                      fontSize: "14px",
-                    }}
-                  >
-                    Audio Alarms
-                  </span>
-                  <span
-                    style={{ fontSize: "11px", color: "var(--text-muted)" }}
-                  >
-                    Play a double-beep sound
-                  </span>
-                </div>
-              </div>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={settings?.audio}
-                  onChange={(e) => updateSettings({ audio: e.target.checked })}
-                />
-                <span className="slider round"></span>
-              </label>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px",
-                background: "var(--bg)",
-                borderRadius: "12px",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
-              >
-                <div
-                  style={{
-                    background: settings?.notifications
-                      ? "rgba(16, 185, 129, 0.1)"
-                      : "rgba(239, 68, 68, 0.1)",
-                    color: settings?.notifications
-                      ? "#10b981"
-                      : "var(--danger)",
-                    padding: "8px",
-                    borderRadius: "8px",
-                  }}
-                >
-                  {settings?.notifications ? (
-                    <Bell size={16} />
-                  ) : (
-                    <BellRing size={16} />
-                  )}
-                </div>
-                <div>
-                  <span
-                    style={{
-                      display: "block",
-                      fontWeight: 700,
-                      fontSize: "14px",
-                    }}
-                  >
-                    Push Notifications
-                  </span>
-                  <span
-                    style={{ fontSize: "11px", color: "var(--text-muted)" }}
-                  >
-                    Show desktop banner alerts
-                  </span>
-                </div>
-              </div>
-              {!("Notification" in window) ||
-              Notification.permission === "denied" ? (
-                <span
-                  style={{
-                    fontSize: "11px",
-                    color: "var(--danger)",
-                    fontWeight: 700,
-                  }}
-                >
-                  Blocked in Browser
-                </span>
-              ) : Notification.permission !== "granted" ? (
-                <button
-                  className="btn btn-outline"
-                  style={{ padding: "4px 10px", fontSize: "12px" }}
-                  onClick={requestNotificationPermission}
-                >
-                  Allow
-                </button>
-              ) : (
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={settings?.notifications}
-                    onChange={(e) =>
-                      updateSettings({ notifications: e.target.checked })
-                    }
-                  />
-                  <span className="slider round"></span>
-                </label>
-              )}
-            </div>
-
-            <button
-              className="btn btn-outline"
-              onClick={handleTestAlarm}
-              style={{
-                width: "100%",
-                justifyContent: "center",
-                marginTop: "8px",
-              }}
-            >
-              <Play size={14} /> Test Alarm System
-            </button>
-          </div> */}
         </div>
 
         <div
@@ -4422,128 +3361,33 @@ function SettingsView() {
   );
 }
 
-// --- FAST READING TIMER COMPONENT WITH MODAL TRIGGER ---
-function FastReadingTimer({ onTimerEnded }) {
-  const [timeLeft, setTimeLeft] = useState(5 * 60);
-  const [isActive, setIsActive] = useState(false);
-
-  useEffect(() => {
-    let interval = null;
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (isActive && timeLeft === 0) {
-      setIsActive(false);
-      triggerSystemNotification(
-        "Reading Time's Up!",
-        "Your fast reading session is complete.",
-        {},
-        true,
-      );
-      if (onTimerEnded) onTimerEnded();
-    }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft, onTimerEnded]);
-
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
-
-  const adjustTime = (mins) => {
-    if (!isActive) setTimeLeft(Math.max(60, timeLeft + mins * 60));
-  };
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "4px",
-        background: "rgba(99,102,241,0.08)",
-        padding: "4px 8px",
-        borderRadius: "12px",
-        border: "1px solid rgba(99,102,241,0.2)",
-      }}
-    >
-      <button
-        className="icon-btn-minimal"
-        onClick={() => adjustTime(-1)}
-        disabled={isActive}
-        style={{ padding: "4px", color: "var(--accent)" }}
-      >
-        <Minus size={12} />
-      </button>
-      <span
-        style={{
-          fontWeight: 800,
-          color: "var(--accent)",
-          fontFamily: "monospace",
-          fontSize: "14px",
-          minWidth: "48px",
-          textAlign: "center",
-          letterSpacing: "1px",
-        }}
-      >
-        {formatTime(timeLeft)}
-      </span>
-      <button
-        className="icon-btn-minimal"
-        onClick={() => adjustTime(1)}
-        disabled={isActive}
-        style={{ padding: "4px", color: "var(--accent)" }}
-      >
-        <Plus size={12} />
-      </button>
-
-      <div
-        style={{
-          width: "1px",
-          height: "14px",
-          background: "rgba(99,102,241,0.3)",
-          margin: "0 4px",
-        }}
-      ></div>
-
-      <button
-        className="icon-btn-minimal"
-        onClick={() => setIsActive(!isActive)}
-        style={{
-          padding: "4px",
-          color: isActive ? "var(--warning)" : "var(--accent)",
-        }}
-      >
-        {isActive ? <Pause size={14} /> : <Play size={14} />}
-      </button>
-      <button
-        className="icon-btn-minimal"
-        onClick={() => {
-          setIsActive(false);
-          setTimeLeft(5 * 60);
-        }}
-        style={{ padding: "4px", color: "var(--text-muted)" }}
-      >
-        <RotateCcw size={14} />
-      </button>
-    </div>
-  );
-}
-
 // --- REDESIGNED ALIGNED STUDY MATERIALS / PDF LIBRARY MODULE ---
 function StudyMaterialsModule() {
   const { user, notify } = useAppStore();
   const [documents, setDocuments] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [notes, setNotes] = useState([]);
+
+  // Admin Upload State
   const [uploading, setUploading] = useState(false);
-  const [uploadCategory, setUploadCategory] = useState("Grammar Rule");
+  const [uploadCategory, setUploadCategory] = useState("Current Affairs");
+  const [uploadMonth, setUploadMonth] = useState("July");
+  const [uploadSubCategory, setUploadSubCategory] = useState("Sports");
+  const [uploadTitleOverride, setUploadTitleOverride] = useState("");
+
+  // UI State
   const [newNote, setNewNote] = useState("");
   const [pageNumber, setPageNumber] = useState(1);
   const [showLibrary, setShowLibrary] = useState(true);
   const [showNotes, setShowNotes] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeTab, setActiveTab] = useState("Grammar Rule");
+  const [activeTab, setActiveTab] = useState("Current Affairs");
+  const [navPath, setNavPath] = useState([]); // Subfolder tracking (e.g., ["July", "Sports"])
   const [isTimerEndedModalOpen, setIsTimerEndedModalOpen] = useState(false);
+
+  // Drag and drop state
+  const [draggedDocId, setDraggedDocId] = useState(null);
+  const [dragOverDocId, setDragOverDocId] = useState(null);
 
   const isAdmin =
     user?.user_metadata?.display_username ===
@@ -4552,12 +3396,12 @@ function StudyMaterialsModule() {
   useEffect(() => {
     fetchDocuments();
   }, []);
-
   useEffect(() => {
-    if (selectedDoc) {
-      fetchNotes(selectedDoc.id);
-    }
+    if (selectedDoc) fetchNotes(selectedDoc.id);
   }, [selectedDoc]);
+  useEffect(() => {
+    setNavPath([]);
+  }, [activeTab]);
 
   const fetchDocuments = async () => {
     const { data, error } = await supabase.from("documents").select("*");
@@ -4567,8 +3411,10 @@ function StudyMaterialsModule() {
       setDocuments(data || []);
       if (data && data.length > 0 && !selectedDoc) {
         const defaultDoc =
-          data.find((d) => (d.category || "Other") === activeTab) || data[0];
-        setSelectedDoc(defaultDoc);
+          data.find(
+            (d) => (d.category?.split("::")[0] || "Other") === activeTab,
+          ) || data[0];
+        if (activeTab !== "Current Affairs") setSelectedDoc(defaultDoc);
       }
     }
   };
@@ -4591,24 +3437,43 @@ function StudyMaterialsModule() {
       const file = event.target.files[0];
       if (!file || file.type !== "application/pdf")
         return notify("Please select a valid PDF file.", "error");
+
       const filePath = `${Date.now()}.${file.name.split(".").pop()}`;
       const { error: uploadError } = await supabase.storage
         .from("pdf-files")
         .upload(filePath, file);
       if (uploadError) throw uploadError;
+
       const { data: urlData } = supabase.storage
         .from("pdf-files")
         .getPublicUrl(filePath);
-      const { error: dbError } = await supabase.from("documents").insert([
-        {
-          title: file.name.replace(".pdf", ""),
-          file_path: filePath,
-          file_url: urlData.publicUrl,
-          category: uploadCategory,
-        },
-      ]);
+
+      const finalCategory =
+        uploadCategory === "Current Affairs"
+          ? `Current Affairs::${uploadMonth}::${uploadSubCategory}`
+          : uploadCategory;
+      const finalTitle =
+        uploadTitleOverride.trim() || file.name.replace(".pdf", "");
+      const maxOrder = documents.reduce(
+        (max, d) => Math.max(max, d.order_index || 0),
+        0,
+      );
+
+      const { error: dbError } = await supabase
+        .from("documents")
+        .insert([
+          {
+            title: finalTitle,
+            file_path: filePath,
+            file_url: urlData.publicUrl,
+            category: finalCategory,
+            order_index: maxOrder + 1,
+          },
+        ]);
       if (dbError) throw dbError;
+
       notify("PDF uploaded successfully!", "success");
+      setUploadTitleOverride("");
       fetchDocuments();
     } catch (error) {
       notify("Upload failed: " + error.message, "error");
@@ -4634,17 +3499,18 @@ function StudyMaterialsModule() {
   const handleAddNote = async (e) => {
     e.preventDefault();
     if (!newNote.trim() || !selectedDoc || !user) return;
-    const { error } = await supabase.from("document_notes").insert([
-      {
-        document_id: selectedDoc.id,
-        user_id: user.id,
-        content: newNote,
-        page_number: parseInt(pageNumber) || 1,
-      },
-    ]);
-    if (error) {
-      notify("Failed to save note.", "error");
-    } else {
+    const { error } = await supabase
+      .from("document_notes")
+      .insert([
+        {
+          document_id: selectedDoc.id,
+          user_id: user.id,
+          content: newNote,
+          page_number: parseInt(pageNumber) || 1,
+        },
+      ]);
+    if (error) notify("Failed to save note.", "error");
+    else {
       setNewNote("");
       fetchNotes(selectedDoc.id);
       notify("Note saved!", "success");
@@ -4656,21 +3522,147 @@ function StudyMaterialsModule() {
     fetchNotes(selectedDoc.id);
   };
 
-  const filteredAndSortedDocs = useMemo(() => {
+  const handleDragStart = (e, doc) => {
+    if (!isAdmin) return;
+    e.stopPropagation();
+    setDraggedDocId(doc.id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e, doc) => {
+    if (!isAdmin) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverDocId !== doc.id) setDragOverDocId(doc.id);
+  };
+
+  const handleDragLeave = (e, doc) => {
+    if (!isAdmin) return;
+    e.stopPropagation();
+    if (dragOverDocId === doc.id) setDragOverDocId(null);
+  };
+
+  const handleDrop = async (e, targetDoc) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAdmin || !draggedDocId || draggedDocId === targetDoc.id) {
+      setDragOverDocId(null);
+      setDraggedDocId(null);
+      return;
+    }
+
+    const currentList = [...displayItems];
+    const draggedIndex = currentList.findIndex((d) => d.id === draggedDocId);
+    const targetIndex = currentList.findIndex((d) => d.id === targetDoc.id);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDragOverDocId(null);
+      setDraggedDocId(null);
+      return;
+    }
+
+    const newList = [...currentList];
+    const [removed] = newList.splice(draggedIndex, 1);
+    newList.splice(targetIndex, 0, removed);
+
+    const updates = newList.map((doc, index) => ({
+      ...doc,
+      order_index: index + 1,
+    }));
+
+    setDocuments((prev) => {
+      const docMap = new Map(prev.map((d) => [d.id, d]));
+      updates.forEach((u) => docMap.set(u.id, u));
+      return Array.from(docMap.values());
+    });
+
+    setDragOverDocId(null);
+    setDraggedDocId(null);
+
+    try {
+      for (const u of updates) {
+        await supabase
+          .from("documents")
+          .update({ order_index: u.order_index })
+          .eq("id", u.id);
+      }
+    } catch (err) {
+      notify("Failed to save new order to database.", "error");
+      fetchDocuments();
+    }
+  };
+
+  const dynamicTabs = Array.from(
+    new Set([
+      "Grammar Rule",
+      "Editorial",
+      "English",
+      "Current Affairs",
+      "Other",
+      ...documents.map((d) => (d.category || "Other").split("::")[0]),
+    ]),
+  );
+
+  const mainCategoryDocs = useMemo(() => {
     let filtered = documents.filter(
-      (doc) => (doc.category || "Other") === activeTab,
+      (doc) => (doc.category || "Other").split("::")[0] === activeTab,
     );
     filtered.sort((a, b) => {
+      const orderA = a.order_index ?? 0;
+      const orderB = b.order_index ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
       const dateA = new Date(a.created_at || 0).getTime();
       const dateB = new Date(b.created_at || 0).getTime();
-      if (activeTab === "Grammar Rule" || activeTab === "English") {
+      if (
+        activeTab === "Grammar Rule" ||
+        activeTab === "English" ||
+        activeTab === "Current Affairs"
+      )
         return dateA - dateB;
-      } else {
-        return dateB - dateA;
-      }
+      else return dateB - dateA;
     });
     return filtered;
   }, [documents, activeTab]);
+
+  let displayItems = [];
+  let viewMode = "docs";
+
+  if (activeTab === "Current Affairs") {
+    if (navPath.length === 0) {
+      viewMode = "folders";
+      displayItems = [
+        ...new Set(
+          mainCategoryDocs
+            .map((d) => d.category.split("::")[1] || "Uncategorized")
+            .filter(Boolean),
+        ),
+      ];
+    } else if (navPath.length === 1) {
+      viewMode = "folders";
+      const m = navPath[0];
+      displayItems = [
+        ...new Set(
+          mainCategoryDocs
+            .filter((d) => (d.category.split("::")[1] || "Uncategorized") === m)
+            .map((d) => d.category.split("::")[2] || "General")
+            .filter(Boolean),
+        ),
+      ];
+    } else if (navPath.length === 2) {
+      viewMode = "docs";
+      const m = navPath[0];
+      const sc = navPath[1];
+      displayItems = mainCategoryDocs.filter(
+        (d) =>
+          (d.category.split("::")[1] || "Uncategorized") === m &&
+          (d.category.split("::")[2] || "General") === sc,
+      );
+    }
+  } else {
+    viewMode = "docs";
+    displayItems = mainCategoryDocs;
+  }
 
   return (
     <div
@@ -4703,8 +3695,6 @@ function StudyMaterialsModule() {
         isOpen={isTimerEndedModalOpen}
         onClose={() => setIsTimerEndedModalOpen(false)}
       />
-
-      {/* LEFT PANEL: LIBRARY SIDEBAR */}
       {showLibrary && (
         <div
           style={{
@@ -4719,7 +3709,6 @@ function StudyMaterialsModule() {
             zIndex: 2,
           }}
         >
-          {/* HEADER */}
           <div
             style={{
               padding: "16px 20px",
@@ -4750,8 +3739,6 @@ function StudyMaterialsModule() {
               <X size={16} />
             </button>
           </div>
-
-          {/* ADMIN UPLOAD PANEL */}
           {isAdmin && (
             <div
               style={{
@@ -4765,7 +3752,7 @@ function StudyMaterialsModule() {
                   fontSize: "11px",
                   textTransform: "uppercase",
                   color: "var(--accent)",
-                  marginBottom: "8px",
+                  marginBottom: "10px",
                   fontWeight: 800,
                   display: "flex",
                   alignItems: "center",
@@ -4787,11 +3774,66 @@ function StudyMaterialsModule() {
                   fontWeight: 600,
                 }}
               >
+                <option value="Current Affairs">Current Affairs</option>
                 <option value="Grammar Rule">120 Rules of Grammar</option>
                 <option value="Editorial">Editorial</option>
-                <option value="English"> English</option>
-                <option value="Other"> Other</option>
+                <option value="English">English</option>
+                <option value="Other">Other</option>
               </select>
+              {uploadCategory === "Current Affairs" && (
+                <div
+                  style={{ display: "flex", gap: "6px", marginBottom: "8px" }}
+                >
+                  <select
+                    className="custom-input"
+                    value={uploadMonth}
+                    onChange={(e) => setUploadMonth(e.target.value)}
+                    style={{
+                      width: "50%",
+                      fontSize: "12px",
+                      padding: "6px 8px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {MONTHS_LIST.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="custom-input"
+                    value={uploadSubCategory}
+                    onChange={(e) => setUploadSubCategory(e.target.value)}
+                    style={{
+                      width: "50%",
+                      fontSize: "12px",
+                      padding: "6px 8px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {CA_TOPICS_LIST.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="PDF Title Override (Optional)"
+                value={uploadTitleOverride}
+                onChange={(e) => setUploadTitleOverride(e.target.value)}
+                style={{
+                  width: "100%",
+                  marginBottom: "10px",
+                  fontSize: "12px",
+                  padding: "6px 8px",
+                  fontWeight: 600,
+                }}
+              />
               <label
                 className="btn"
                 style={{
@@ -4818,8 +3860,6 @@ function StudyMaterialsModule() {
               </label>
             </div>
           )}
-
-          {/* CATEGORY TABS */}
           <div
             className="scroll-area"
             style={{
@@ -4832,7 +3872,7 @@ function StudyMaterialsModule() {
               background: "rgba(0,0,0,0.01)",
             }}
           >
-            {["Grammar Rule", "Editorial", "English", "Other"].map((tab) => (
+            {dynamicTabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -4860,8 +3900,6 @@ function StudyMaterialsModule() {
               </button>
             ))}
           </div>
-
-          {/* SUBHEADER META */}
           <div
             style={{
               padding: "10px 16px",
@@ -4881,31 +3919,10 @@ function StudyMaterialsModule() {
                 letterSpacing: "0.5px",
               }}
             >
-              {filteredAndSortedDocs.length} Documents
-            </span>
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "var(--text-muted)",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
-            >
-              {activeTab === "Grammar Rule" || activeTab === "English" ? (
-                <>
-                  <SortAsc size={12} /> Oldest First
-                </>
-              ) : (
-                <>
-                  <SortDesc size={12} /> Newest First
-                </>
-              )}
+              {displayItems.length}{" "}
+              {viewMode === "folders" ? "Folders" : "Documents"}
             </span>
           </div>
-
-          {/* DOCUMENT CARDS LIST */}
           <div
             className="scroll-area"
             style={{
@@ -4917,7 +3934,22 @@ function StudyMaterialsModule() {
               gap: "8px",
             }}
           >
-            {filteredAndSortedDocs.length === 0 && !uploading && (
+            {activeTab === "Current Affairs" && navPath.length > 0 && (
+              <button
+                onClick={() => setNavPath(navPath.slice(0, -1))}
+                className="btn btn-outline"
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  marginBottom: "8px",
+                  alignSelf: "flex-start",
+                  gap: "4px",
+                }}
+              >
+                <ChevronLeft size={14} /> Back
+              </button>
+            )}
+            {displayItems.length === 0 && !uploading && (
               <p
                 style={{
                   textAlign: "center",
@@ -4926,115 +3958,172 @@ function StudyMaterialsModule() {
                   marginTop: "24px",
                 }}
               >
-                No documents found in {activeTab}.
+                No items found here.
               </p>
             )}
-            {filteredAndSortedDocs.map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => setSelectedDoc(doc)}
-                style={{
-                  cursor: "pointer",
-                  background:
-                    selectedDoc?.id === doc.id
-                      ? "rgba(99,102,241,0.08)"
-                      : "var(--bg)",
-                  border:
-                    selectedDoc?.id === doc.id
-                      ? "1px solid var(--accent)"
-                      : "1px solid var(--border)",
-                  borderRadius: "10px",
-                  padding: "10px 12px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "8px",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    overflow: "hidden",
-                  }}
-                >
+            {viewMode === "folders"
+              ? displayItems.map((folderName) => (
                   <div
+                    key={folderName}
+                    onClick={() => setNavPath([...navPath, folderName])}
                     style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "8px",
-                      background:
-                        selectedDoc?.id === doc.id
-                          ? "var(--accent)"
-                          : "rgba(0,0,0,0.04)",
+                      cursor: "pointer",
+                      background: "rgba(99, 102, 241, 0.03)",
+                      border: "1px solid rgba(99, 102, 241, 0.15)",
+                      borderRadius: "10px",
+                      padding: "12px",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
+                      gap: "12px",
+                      transition: "all 0.15s ease",
                     }}
+                    onMouseOver={(e) =>
+                      (e.currentTarget.style.background =
+                        "rgba(99, 102, 241, 0.08)")
+                    }
+                    onMouseOut={(e) =>
+                      (e.currentTarget.style.background =
+                        "rgba(99, 102, 241, 0.03)")
+                    }
                   >
-                    <FileText
-                      size={16}
-                      color={
-                        selectedDoc?.id === doc.id
-                          ? "white"
-                          : "var(--text-muted)"
-                      }
-                    />
+                    <div
+                      style={{
+                        background: "var(--accent)",
+                        color: "white",
+                        padding: "8px",
+                        borderRadius: "8px",
+                        display: "flex",
+                      }}
+                    >
+                      <Folder size={16} fill="currentColor" />
+                    </div>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "14px",
+                        color: "var(--text-main)",
+                      }}
+                    >
+                      {folderName}
+                    </span>
                   </div>
+                ))
+              : displayItems.map((doc) => (
                   <div
+                    key={doc.id}
+                    draggable={isAdmin && viewMode === "docs"}
+                    onDragStart={(e) => handleDragStart(e, doc)}
+                    onDragOver={(e) => handleDragOver(e, doc)}
+                    onDragLeave={(e) => handleDragLeave(e, doc)}
+                    onDrop={(e) => handleDrop(e, doc)}
+                    onClick={() => setSelectedDoc(doc)}
                     style={{
+                      cursor: isAdmin ? "grab" : "pointer",
+                      background:
+                        selectedDoc?.id === doc.id
+                          ? "rgba(99,102,241,0.08)"
+                          : "var(--bg)",
+                      border:
+                        dragOverDocId === doc.id
+                          ? "2px dashed var(--accent)"
+                          : selectedDoc?.id === doc.id
+                            ? "1px solid var(--accent)"
+                            : "1px solid var(--border)",
+                      opacity: draggedDocId === doc.id ? 0.5 : 1,
+                      borderRadius: "10px",
+                      padding: "10px 12px",
                       display: "flex",
-                      flexDirection: "column",
-                      overflow: "hidden",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "8px",
+                      transition: "all 0.15s ease",
                     }}
                   >
-                    <span
+                    <div
                       style={{
-                        fontSize: "13px",
-                        fontWeight: selectedDoc?.id === doc.id ? 700 : 600,
-                        whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        color:
-                          selectedDoc?.id === doc.id
-                            ? "var(--accent)"
-                            : "var(--text-main)",
+                        pointerEvents: "none",
                       }}
                     >
-                      {doc.title}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      {/* {new Date(doc.created_at).toLocaleDateString()} */}
-                    </span>
+                      {isAdmin && (
+                        <div
+                          style={{
+                            color: "var(--text-muted)",
+                            opacity: 0.5,
+                            cursor: "grab",
+                          }}
+                        >
+                          <GripVertical size={16} />
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "8px",
+                          background:
+                            selectedDoc?.id === doc.id
+                              ? "var(--accent)"
+                              : "rgba(0,0,0,0.04)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <FileText
+                          size={16}
+                          color={
+                            selectedDoc?.id === doc.id
+                              ? "white"
+                              : "var(--text-muted)"
+                          }
+                        />
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: selectedDoc?.id === doc.id ? 700 : 600,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            color:
+                              selectedDoc?.id === doc.id
+                                ? "var(--accent)"
+                                : "var(--text-main)",
+                          }}
+                        >
+                          {doc.title}
+                        </span>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        className="icon-btn-minimal"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteDoc(doc.id, doc.file_path);
+                        }}
+                        style={{ color: "var(--danger)", padding: "4px" }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
-                </div>
-                {isAdmin && (
-                  <button
-                    className="icon-btn-minimal"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteDoc(doc.id, doc.file_path);
-                    }}
-                    style={{ color: "var(--danger)", padding: "4px" }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
+                ))}
           </div>
         </div>
       )}
-
-      {/* CENTER PANEL: PDF VIEWER CONTAINER */}
       <div
         style={{
           flex: 1,
@@ -5048,7 +4137,6 @@ function StudyMaterialsModule() {
       >
         {selectedDoc ? (
           <>
-            {/* ALIGNED TOOLBAR TOP BAR */}
             <div
               style={{
                 padding: "10px 16px",
@@ -5062,7 +4150,6 @@ function StudyMaterialsModule() {
                 minHeight: "56px",
               }}
             >
-              {/* LEFT: TOGGLE & TITLE */}
               <div
                 style={{
                   display: "flex",
@@ -5114,12 +4201,10 @@ function StudyMaterialsModule() {
                       fontWeight: 500,
                     }}
                   >
-                    {selectedDoc.category || "Other"}
+                    {(selectedDoc.category || "Other").split("::").join(" • ")}
                   </span>
                 </div>
               </div>
-
-              {/* RIGHT: TIMER & CONTROLS */}
               <div
                 style={{
                   display: "flex",
@@ -5131,7 +4216,6 @@ function StudyMaterialsModule() {
                 <FastReadingTimer
                   onTimerEnded={() => setIsTimerEndedModalOpen(true)}
                 />
-
                 <span
                   style={{
                     fontSize: "11px",
@@ -5145,7 +4229,6 @@ function StudyMaterialsModule() {
                 >
                   READ ONLY
                 </span>
-
                 <button
                   className="icon-btn-minimal"
                   onClick={() => setIsFullscreen(!isFullscreen)}
@@ -5162,7 +4245,6 @@ function StudyMaterialsModule() {
                     <Maximize size={16} />
                   )}
                 </button>
-
                 {!showNotes && (
                   <button
                     className="icon-btn-minimal"
@@ -5179,8 +4261,6 @@ function StudyMaterialsModule() {
                 )}
               </div>
             </div>
-
-            {/* PDF OBJECT FRAME */}
             <div
               style={{
                 flex: 1,
@@ -5258,7 +4338,6 @@ function StudyMaterialsModule() {
         )}
       </div>
 
-      {/* RIGHT PANEL: NOTES SIDEBAR */}
       {showNotes && (
         <div
           style={{
@@ -5273,7 +4352,6 @@ function StudyMaterialsModule() {
             zIndex: 2,
           }}
         >
-          {/* HEADER */}
           <div
             style={{
               padding: "16px 20px",
@@ -5297,8 +4375,6 @@ function StudyMaterialsModule() {
               <X size={16} />
             </button>
           </div>
-
-          {/* ADD NOTE FORM */}
           <form
             onSubmit={handleAddNote}
             style={{
@@ -5356,8 +4432,6 @@ function StudyMaterialsModule() {
               <Plus size={14} /> Save Note
             </button>
           </form>
-
-          {/* SAVED NOTES LIST */}
           <div
             className="scroll-area"
             style={{
@@ -5458,614 +4532,6 @@ function StudyMaterialsModule() {
   );
 }
 
-// --- DIGITAL NOTES BOARD MODULE ---
-function DigitalNotesBoard() {
-  const {
-    digitalNotes,
-    addDigitalNote,
-    updateDigitalNote,
-    deleteDigitalNote,
-    clearDigitalNotes,
-    notify,
-    requestConfirm,
-  } = useAppStore();
-  const [topicFilter, setTopicFilter] = useState("All");
-  const [subtopicFilter, setSubtopicFilter] = useState("All");
-  const [draftNote, setDraftNote] = useState(null);
-  const boardRef = useRef(null);
-  const datalistId = "subtopics-datalist";
-
-  useEffect(() => {
-    setSubtopicFilter("All");
-  }, [topicFilter]);
-
-  const currentSubtopics = [
-    "All",
-    ...new Set(
-      digitalNotes
-        .filter((n) => topicFilter === "All" || n.topic === topicFilter)
-        .map((n) => n.subtopic)
-        .filter((st) => st && st.trim() !== ""),
-    ),
-  ];
-  const filteredNotes = digitalNotes.filter((n) => {
-    if (topicFilter !== "All" && n.topic !== topicFilter) return false;
-    if (subtopicFilter !== "All" && n.subtopic !== subtopicFilter) return false;
-    return true;
-  });
-
-  useEffect(() => {
-    const handlePaste = (e) => {
-      if (
-        document.activeElement.tagName === "INPUT" ||
-        document.activeElement.tagName === "TEXTAREA"
-      ) {
-        const hasImage = Array.from(e.clipboardData?.items || []).some(
-          (item) => item.type.indexOf("image") !== -1,
-        );
-        if (!hasImage) return;
-      }
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1) {
-          e.preventDefault();
-          const blob = items[i].getAsFile();
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const scrollContainer = boardRef.current;
-            const x = scrollContainer ? scrollContainer.scrollLeft + 150 : 150;
-            const y = scrollContainer ? scrollContainer.scrollTop + 150 : 150;
-            const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
-            const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
-            setDraftNote({
-              id: Date.now().toString(),
-              x,
-              y,
-              imageBase64: event.target.result,
-              text: "",
-              topic: defaultTopic,
-              subtopic: defaultSub,
-              type: "image",
-              width: 320,
-              height: "auto",
-            });
-            notify("Image pasted! Fill in tags and save.", "success");
-          };
-          reader.readAsDataURL(blob);
-          break;
-        }
-      }
-    };
-    window.addEventListener("paste", handlePaste);
-    return () => window.removeEventListener("paste", handlePaste);
-  }, [topicFilter, subtopicFilter, notify]);
-
-  const handleBoardClick = (e) => {
-    if (draftNote) return;
-    if (
-      e.target.closest(".saved-note-card") ||
-      e.target.closest(".board-toolbar")
-    )
-      return;
-    const rect = boardRef.current.getBoundingClientRect();
-    const scrollLeft = boardRef.current.scrollLeft;
-    const scrollTop = boardRef.current.scrollTop;
-    const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
-    const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
-    setDraftNote({
-      id: Date.now().toString(),
-      x: e.clientX - rect.left + scrollLeft,
-      y: e.clientY - rect.top + scrollTop,
-      imageBase64: null,
-      text: "",
-      topic: defaultTopic,
-      subtopic: defaultSub,
-      type: "text",
-      width: 280,
-      height: "auto",
-    });
-  };
-
-  const handleSaveDraft = () => {
-    if (!draftNote.text.trim() && draftNote.type !== "image")
-      return notify("Enter some text or paste an image.", "error");
-    addDigitalNote({ ...draftNote, date: new Date().toISOString() });
-    setDraftNote(null);
-    notify("Note saved to cloud!", "success");
-  };
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "calc(100vh - 80px)",
-        background: "var(--bg)",
-        borderRadius: "16px",
-        border: "1px solid var(--border)",
-        overflow: "hidden",
-        boxShadow: "0 10px 40px rgba(0,0,0,0.03)",
-      }}
-    >
-      <datalist id={datalistId}>
-        {currentSubtopics
-          .filter((s) => s !== "All")
-          .map((s) => (
-            <option key={s} value={s} />
-          ))}
-      </datalist>
-      <div
-        className="board-toolbar"
-        style={{
-          padding: "16px 24px",
-          borderBottom: "1px solid var(--border)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "var(--bg)",
-          zIndex: 10,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div
-            style={{
-              padding: "10px",
-              background: "rgba(99, 102, 241, 0.1)",
-              borderRadius: "12px",
-              color: "var(--accent)",
-            }}
-          >
-            <LayoutGrid size={22} />
-          </div>
-          <div>
-            <h2
-              style={{
-                fontSize: "18px",
-                margin: "0 0 4px 0",
-                fontWeight: 800,
-                color: "var(--text-main)",
-              }}
-            >
-              Smart Notes Canvas
-            </h2>
-            <span
-              style={{
-                fontSize: "12px",
-                color: "var(--text-muted)",
-                fontWeight: 500,
-              }}
-            >
-              Click to type • <strong>Ctrl+V</strong> to paste images
-            </span>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "rgba(0,0,0,0.03)",
-              padding: "6px 16px",
-              borderRadius: "24px",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <Filter size={14} color="var(--text-muted)" />
-            <select
-              className="custom-input"
-              style={{
-                border: "none",
-                background: "transparent",
-                padding: "0",
-                fontSize: "13px",
-                outline: "none",
-                fontWeight: 600,
-                color: "var(--text-main)",
-                cursor: "pointer",
-              }}
-              value={topicFilter}
-              onChange={(e) => setTopicFilter(e.target.value)}
-            >
-              <option value="All">All Main Topics</option>
-              {NOTE_TOPICS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          {digitalNotes.length > 0 && (
-            <button
-              className="icon-btn-minimal"
-              title="Clear Entire Canvas"
-              style={{
-                color: "var(--danger)",
-                background: "rgba(239, 68, 68, 0.1)",
-                padding: "8px",
-                borderRadius: "8px",
-              }}
-              onClick={() =>
-                requestConfirm(
-                  "Clear the entire canvas from cloud? This deletes all notes.",
-                  clearDigitalNotes,
-                )
-              }
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {currentSubtopics.length > 1 && (
-        <div
-          className="board-toolbar scroll-area"
-          style={{
-            padding: "12px 24px",
-            borderBottom: "1px solid var(--border)",
-            background: "rgba(0,0,0,0.015)",
-            display: "flex",
-            gap: "10px",
-            overflowX: "auto",
-            zIndex: 9,
-          }}
-        >
-          {currentSubtopics.map((sub) => (
-            <button
-              key={sub}
-              onClick={() => setSubtopicFilter(sub)}
-              style={{
-                padding: "6px 16px",
-                borderRadius: "20px",
-                fontSize: "12px",
-                fontWeight: subtopicFilter === sub ? 700 : 500,
-                border:
-                  subtopicFilter === sub
-                    ? "1px solid var(--accent)"
-                    : "1px solid var(--border)",
-                background:
-                  subtopicFilter === sub ? "var(--accent)" : "var(--bg)",
-                color: subtopicFilter === sub ? "#fff" : "var(--text-main)",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {sub === "All" ? "All Sub-boards" : sub}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div
-        ref={boardRef}
-        onClick={handleBoardClick}
-        style={{
-          flex: 1,
-          overflow: "auto",
-          position: "relative",
-          cursor: draftNote ? "default" : "crosshair",
-          backgroundImage:
-            "radial-gradient(rgba(99, 102, 241, 0.15) 1.5px, transparent 1.5px)",
-          backgroundSize: "24px 24px",
-          backgroundColor: "var(--bg)",
-        }}
-      >
-        <div
-          style={{
-            width: "3000px",
-            height: "3000px",
-            position: "absolute",
-            top: 0,
-            left: 0,
-            pointerEvents: "none",
-          }}
-        ></div>
-        {filteredNotes.map((note) => (
-          <DraggableItem
-            key={note.id}
-            initialX={note.x}
-            initialY={note.y}
-            dragHandleClass="drag-handle"
-            onDragEnd={(x, y) => updateDigitalNote(note.id, { x, y })}
-          >
-            <div
-              className="saved-note-card"
-              style={{
-                background: "rgba(255, 255, 255, 0.85)",
-                backdropFilter: "blur(16px)",
-                WebkitBackdropFilter: "blur(16px)",
-                border: "1px solid rgba(0,0,0,0.08)",
-                borderRadius: "16px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
-                display: "flex",
-                flexDirection: "column",
-                width: note.width || 320,
-                minWidth: "180px",
-                height: note.height || "auto",
-                minHeight: "100px",
-                resize: "both",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                className="drag-handle"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 14px",
-                  background: "rgba(99, 102, 241, 0.04)",
-                  borderBottom: "1px solid rgba(0,0,0,0.05)",
-                  cursor: "grab",
-                }}
-              >
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  <GripHorizontal
-                    size={14}
-                    color="var(--text-muted)"
-                    style={{ opacity: 0.7 }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 800,
-                      color: "var(--accent)",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {note.topic}
-                  </span>
-                </div>
-                <button
-                  className="icon-btn-minimal"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteDigitalNote(note.id);
-                  }}
-                  style={{
-                    padding: "4px",
-                    color: "var(--danger)",
-                    opacity: 0.6,
-                  }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <div
-                style={{
-                  padding: "14px",
-                  flex: 1,
-                  overflowY: "auto",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                {note.type === "image" && note.imageBase64 && (
-                  <img
-                    src={note.imageBase64}
-                    alt="Pasted"
-                    style={{
-                      width: "100%",
-                      height: "auto",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(0,0,0,0.05)",
-                      objectFit: "contain",
-                    }}
-                    draggable="false"
-                  />
-                )}
-                {note.text && (
-                  <p
-                    style={{
-                      fontSize: "15px",
-                      margin: 0,
-                      color: "#1f2937",
-                      whiteSpace: "pre-wrap",
-                      lineHeight: 1.6,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {note.text}
-                  </p>
-                )}
-                {note.subtopic && (
-                  <div
-                    style={{
-                      marginTop: "auto",
-                      paddingTop: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        background: "rgba(99, 102, 241, 0.1)",
-                        color: "var(--accent)",
-                        padding: "4px 10px",
-                        borderRadius: "12px",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                      }}
-                    >
-                      <Tag size={12} /> {note.subtopic}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </DraggableItem>
-        ))}
-        {draftNote && (
-          <DraggableItem
-            initialX={draftNote.x}
-            initialY={draftNote.y}
-            dragHandleClass="drag-handle"
-            onDragEnd={(x, y) => setDraftNote({ ...draftNote, x, y })}
-          >
-            <div
-              className="saved-note-card"
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: "320px",
-                padding: "0",
-                borderRadius: "16px",
-                background: "var(--bg)",
-                border: "2px solid var(--accent)",
-                boxShadow: "0 24px 48px rgba(99, 102, 241, 0.2)",
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                className="drag-handle"
-                style={{
-                  background: "var(--accent)",
-                  padding: "10px 14px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  cursor: "grab",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <Edit3 size={14} />{" "}
-                  {draftNote.type === "image"
-                    ? "Save Image Board"
-                    : "Save Text Board"}
-                </span>
-                <button
-                  className="icon-btn-minimal"
-                  style={{ color: "#fff" }}
-                  onClick={() => setDraftNote(null)}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <div
-                style={{
-                  padding: "16px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <select
-                    className="custom-input"
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      background: "rgba(0,0,0,0.02)",
-                    }}
-                    value={draftNote.topic}
-                    onChange={(e) =>
-                      setDraftNote({ ...draftNote, topic: e.target.value })
-                    }
-                  >
-                    {NOTE_TOPICS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <input
-                  list={datalistId}
-                  type="text"
-                  className="custom-input"
-                  placeholder="Sub-topic (e.g. Syllogism Rule 2)..."
-                  style={{
-                    padding: "10px 12px",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    background: "rgba(0,0,0,0.02)",
-                  }}
-                  value={draftNote.subtopic}
-                  onChange={(e) =>
-                    setDraftNote({ ...draftNote, subtopic: e.target.value })
-                  }
-                />
-                {draftNote.type === "image" && draftNote.imageBase64 && (
-                  <div
-                    style={{
-                      border: "1px dashed var(--border)",
-                      padding: "4px",
-                      borderRadius: "8px",
-                      background: "rgba(0,0,0,0.02)",
-                    }}
-                  >
-                    <img
-                      src={draftNote.imageBase64}
-                      alt="Draft Preview"
-                      style={{ width: "100%", borderRadius: "4px" }}
-                    />
-                  </div>
-                )}
-                <textarea
-                  className="custom-input"
-                  placeholder={
-                    draftNote.type === "image"
-                      ? "Optional description or formula..."
-                      : "Start typing your notes here..."
-                  }
-                  rows="3"
-                  style={{
-                    padding: "12px",
-                    fontSize: "14px",
-                    resize: "none",
-                    lineHeight: 1.5,
-                    background: "rgba(0,0,0,0.02)",
-                  }}
-                  value={draftNote.text}
-                  autoFocus={draftNote.type === "text"}
-                  onChange={(e) =>
-                    setDraftNote({ ...draftNote, text: e.target.value })
-                  }
-                />
-                <button
-                  className="btn"
-                  onClick={handleSaveDraft}
-                  style={{
-                    width: "100%",
-                    justifyContent: "center",
-                    padding: "12px",
-                    fontSize: "14px",
-                    marginTop: "4px",
-                  }}
-                >
-                  <Save size={16} /> Pin to Board
-                </button>
-              </div>
-            </div>
-          </DraggableItem>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // --- MAIN APP COMPONENT ---
 export default function App() {
   const {
@@ -6160,7 +4626,6 @@ export default function App() {
         />
       </div>
     );
-
   if (!user)
     return (
       <div className="app-container">
@@ -6191,14 +4656,11 @@ export default function App() {
           onClick={() => setIsSidebarOpen(false)}
         ></div>
       )}
-
       <TimelineNotificationEngine />
-      {/* <PomodoroTimer /> */}
       <GlobalSearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
       />
-
       <aside className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
         <div className="logo">
           <div className="icon-wrap">
@@ -6242,7 +4704,6 @@ export default function App() {
           ))}
         </nav>
       </aside>
-
       <main className="main-content">
         <Header
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -6267,7 +4728,6 @@ export default function App() {
           {activeView === "settings" && <SettingsView />}
         </div>
       </main>
-
       <ToastContainer />
       <ConfirmModal />
     </div>
