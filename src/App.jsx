@@ -729,6 +729,1626 @@ export const useAppStore = create(
   ),
 );
 
+function DigitalNotesBoard() {
+  const {
+    digitalNotes,
+    addDigitalNote,
+    updateDigitalNote,
+    deleteDigitalNote,
+    clearDigitalNotes,
+    notify,
+    requestConfirm,
+  } = useAppStore();
+
+  // Dual-Layer Filtering
+  const [topicFilter, setTopicFilter] = useState("All");
+  const [subtopicFilter, setSubtopicFilter] = useState("All");
+
+  const [draftNote, setDraftNote] = useState(null);
+  const boardRef = useRef(null);
+  const datalistId = "subtopics-datalist";
+
+  // When Topic changes, always reset Sub-topic to "All"
+  useEffect(() => {
+    setSubtopicFilter("All");
+  }, [topicFilter]);
+
+  // Extract unique subtopics based on currently selected topic
+  const currentSubtopics = [
+    "All",
+    ...new Set(
+      digitalNotes
+        .filter((n) => topicFilter === "All" || n.topic === topicFilter)
+        .map((n) => n.subtopic)
+        .filter((st) => st && st.trim() !== ""),
+    ),
+  ];
+
+  // The actual notes to display
+  const filteredNotes = digitalNotes.filter((n) => {
+    if (topicFilter !== "All" && n.topic !== topicFilter) return false;
+    if (subtopicFilter !== "All" && n.subtopic !== subtopicFilter) return false;
+    return true;
+  });
+
+  // Global Paste Interceptor
+  useEffect(() => {
+    const handlePaste = (e) => {
+      // Don't intercept if user is typing in an input inside a draft
+      if (
+        document.activeElement.tagName === "INPUT" ||
+        document.activeElement.tagName === "TEXTAREA"
+      ) {
+        const hasImage = Array.from(e.clipboardData?.items || []).some(
+          (item) => item.type.indexOf("image") !== -1,
+        );
+        if (!hasImage) return; // Let text paste naturally
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          e.preventDefault();
+          const blob = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const scrollContainer = boardRef.current;
+            const x = scrollContainer ? scrollContainer.scrollLeft + 150 : 150;
+            const y = scrollContainer ? scrollContainer.scrollTop + 150 : 150;
+
+            // Auto-inherit active filters for smooth workflow
+            const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
+            const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
+
+            setDraftNote({
+              id: Date.now().toString(),
+              x,
+              y,
+              imageBase64: event.target.result,
+              text: "",
+              topic: defaultTopic,
+              subtopic: defaultSub,
+              type: "image",
+              width: 320,
+              height: "auto",
+            });
+            notify("Image pasted! Fill in tags and save.", "success");
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [topicFilter, subtopicFilter, notify]);
+
+  const handleBoardClick = (e) => {
+    if (draftNote) return;
+    if (
+      e.target.closest(".saved-note-card") ||
+      e.target.closest(".board-toolbar")
+    )
+      return;
+
+    const rect = boardRef.current.getBoundingClientRect();
+    const scrollLeft = boardRef.current.scrollLeft;
+    const scrollTop = boardRef.current.scrollTop;
+
+    // Auto-inherit
+    const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
+    const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
+
+    setDraftNote({
+      id: Date.now().toString(),
+      x: e.clientX - rect.left + scrollLeft,
+      y: e.clientY - rect.top + scrollTop,
+      imageBase64: null,
+      text: "",
+      topic: defaultTopic,
+      subtopic: defaultSub,
+      type: "text",
+      width: 280,
+      height: "auto",
+    });
+  };
+
+  const handleSaveDraft = () => {
+    if (!draftNote.text.trim() && draftNote.type !== "image") {
+      return notify("Enter some text or paste an image.", "error");
+    }
+    addDigitalNote({ ...draftNote, date: new Date().toISOString() });
+    setDraftNote(null);
+    notify("Note saved to cloud!", "success");
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "calc(100vh - 80px)",
+        background: "var(--bg)",
+        borderRadius: "16px",
+        border: "1px solid var(--border)",
+        overflow: "hidden",
+        boxShadow: "0 10px 40px rgba(0,0,0,0.03)",
+      }}
+    >
+      {/* Hidden Datalist for Subtopic Autocomplete */}
+      <datalist id={datalistId}>
+        {currentSubtopics
+          .filter((s) => s !== "All")
+          .map((s) => (
+            <option key={s} value={s} />
+          ))}
+      </datalist>
+
+      {/* Upper Toolbar: Topics */}
+      <div
+        className="board-toolbar"
+        style={{
+          padding: "16px 24px",
+          borderBottom: "1px solid var(--border)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: "var(--bg)",
+          zIndex: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              padding: "10px",
+              background: "rgba(99, 102, 241, 0.1)",
+              borderRadius: "12px",
+              color: "var(--accent)",
+            }}
+          >
+            <LayoutGrid size={22} />
+          </div>
+          <div>
+            <h2
+              style={{
+                fontSize: "18px",
+                margin: "0 0 4px 0",
+                fontWeight: 800,
+                color: "var(--text-main)",
+              }}
+            >
+              Smart Notes Canvas
+            </h2>
+            <span
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: 500,
+              }}
+            >
+              Click to type • <strong>Ctrl+V</strong> to paste images
+            </span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          {/* Primary Topic Filter */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "rgba(0,0,0,0.03)",
+              padding: "6px 16px",
+              borderRadius: "24px",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Filter size={14} color="var(--text-muted)" />
+            <select
+              className="custom-input"
+              style={{
+                border: "none",
+                background: "transparent",
+                padding: "0",
+                fontSize: "13px",
+                outline: "none",
+                fontWeight: 600,
+                color: "var(--text-main)",
+                cursor: "pointer",
+              }}
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+            >
+              <option value="All">All Main Topics</option>
+              {NOTE_TOPICS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          {digitalNotes.length > 0 && (
+            <button
+              className="icon-btn-minimal"
+              title="Clear Entire Canvas"
+              style={{
+                color: "var(--danger)",
+                background: "rgba(239, 68, 68, 0.1)",
+                padding: "8px",
+                borderRadius: "8px",
+              }}
+              onClick={() =>
+                requestConfirm(
+                  "Clear the entire canvas from cloud? This deletes all notes.",
+                  clearDigitalNotes,
+                )
+              }
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sub-Toolbar: Sub-Topic Boards */}
+      {currentSubtopics.length > 1 && (
+        <div
+          className="board-toolbar scroll-area"
+          style={{
+            padding: "12px 24px",
+            borderBottom: "1px solid var(--border)",
+            background: "rgba(0,0,0,0.015)",
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            zIndex: 9,
+          }}
+        >
+          {currentSubtopics.map((sub) => (
+            <button
+              key={sub}
+              onClick={() => setSubtopicFilter(sub)}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "20px",
+                fontSize: "12px",
+                fontWeight: subtopicFilter === sub ? 700 : 500,
+                border:
+                  subtopicFilter === sub
+                    ? "1px solid var(--accent)"
+                    : "1px solid var(--border)",
+                background:
+                  subtopicFilter === sub ? "var(--accent)" : "var(--bg)",
+                color: subtopicFilter === sub ? "#fff" : "var(--text-main)",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {sub === "All" ? "All Sub-boards" : sub}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Infinite Canvas Area */}
+      <div
+        ref={boardRef}
+        onClick={handleBoardClick}
+        style={{
+          flex: 1,
+          overflow: "auto",
+          position: "relative",
+          cursor: draftNote ? "default" : "crosshair",
+          // Modern Dot Matrix Background
+          backgroundImage:
+            "radial-gradient(rgba(99, 102, 241, 0.15) 1.5px, transparent 1.5px)",
+          backgroundSize: "24px 24px",
+          backgroundColor: "var(--bg)",
+        }}
+      >
+        <div
+          style={{
+            width: "3000px",
+            height: "3000px",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            pointerEvents: "none",
+          }}
+        ></div>
+
+        {/* Render Filtered Saved Notes */}
+        {filteredNotes.map((note) => (
+          <DraggableItem
+            key={note.id}
+            initialX={note.x}
+            initialY={note.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(x, y) => updateDigitalNote(note.id, { x, y })}
+          >
+            <div
+              className="saved-note-card"
+              style={{
+                background: "rgba(255, 255, 255, 0.85)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                border: "1px solid rgba(0,0,0,0.08)",
+                borderRadius: "16px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
+                display: "flex",
+                flexDirection: "column",
+                width: note.width || 320,
+                minWidth: "180px",
+                height: note.height || "auto",
+                minHeight: "100px",
+                resize: "both",
+                overflow: "hidden",
+              }}
+            >
+              {/* Grip Header */}
+              <div
+                className="drag-handle"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 14px",
+                  background: "rgba(99, 102, 241, 0.04)",
+                  borderBottom: "1px solid rgba(0,0,0,0.05)",
+                  cursor: "grab",
+                }}
+              >
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <GripHorizontal
+                    size={14}
+                    color="var(--text-muted)"
+                    style={{ opacity: 0.7 }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "var(--accent)",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {note.topic}
+                  </span>
+                </div>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteDigitalNote(note.id);
+                  }}
+                  style={{
+                    padding: "4px",
+                    color: "var(--danger)",
+                    opacity: 0.6,
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div
+                style={{
+                  padding: "14px",
+                  flex: 1,
+                  overflowY: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {note.type === "image" && note.imageBase64 && (
+                  <img
+                    src={note.imageBase64}
+                    alt="Pasted"
+                    style={{
+                      width: "100%",
+                      height: "auto",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(0,0,0,0.05)",
+                      objectFit: "contain",
+                    }}
+                    draggable="false"
+                  />
+                )}
+                {note.text && (
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      margin: 0,
+                      color: "#1f2937",
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.6,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {note.text}
+                  </p>
+                )}
+
+                {/* EXPLICIT SUB-TOPIC BADGE AT THE BOTTOM */}
+                {note.subtopic && (
+                  <div
+                    style={{
+                      marginTop: "auto",
+                      paddingTop: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        background: "rgba(99, 102, 241, 0.1)",
+                        color: "var(--accent)",
+                        padding: "4px 10px",
+                        borderRadius: "12px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <Tag size={12} /> {note.subtopic}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </DraggableItem>
+        ))}
+
+        {/* Draft Note Window */}
+        {draftNote && (
+          <DraggableItem
+            initialX={draftNote.x}
+            initialY={draftNote.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(x, y) => setDraftNote({ ...draftNote, x, y })}
+          >
+            <div
+              className="saved-note-card"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "320px",
+                padding: "0",
+                borderRadius: "16px",
+                background: "var(--bg)",
+                border: "2px solid var(--accent)",
+                boxShadow: "0 24px 48px rgba(99, 102, 241, 0.2)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                className="drag-handle"
+                style={{
+                  background: "var(--accent)",
+                  padding: "10px 14px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "grab",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <Edit3 size={14} />{" "}
+                  {draftNote.type === "image"
+                    ? "Save Image Board"
+                    : "Save Text Board"}
+                </span>
+                <button
+                  className="icon-btn-minimal"
+                  style={{ color: "#fff" }}
+                  onClick={() => setDraftNote(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div
+                style={{
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <select
+                    className="custom-input"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                    value={draftNote.topic}
+                    onChange={(e) =>
+                      setDraftNote({ ...draftNote, topic: e.target.value })
+                    }
+                  >
+                    {NOTE_TOPICS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  list={datalistId}
+                  type="text"
+                  className="custom-input"
+                  placeholder="Sub-topic (e.g. Syllogism Rule 2)..."
+                  style={{
+                    padding: "10px 12px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    background: "rgba(0,0,0,0.02)",
+                  }}
+                  value={draftNote.subtopic}
+                  onChange={(e) =>
+                    setDraftNote({ ...draftNote, subtopic: e.target.value })
+                  }
+                />
+
+                {draftNote.type === "image" && draftNote.imageBase64 && (
+                  <div
+                    style={{
+                      border: "1px dashed var(--border)",
+                      padding: "4px",
+                      borderRadius: "8px",
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                  >
+                    <img
+                      src={draftNote.imageBase64}
+                      alt="Draft Preview"
+                      style={{ width: "100%", borderRadius: "4px" }}
+                    />
+                  </div>
+                )}
+
+                <textarea
+                  className="custom-input"
+                  placeholder={
+                    draftNote.type === "image"
+                      ? "Optional description or formula..."
+                      : "Start typing your notes here..."
+                  }
+                  rows="3"
+                  style={{
+                    padding: "12px",
+                    fontSize: "14px",
+                    resize: "none",
+                    lineHeight: 1.5,
+                    background: "rgba(0,0,0,0.02)",
+                  }}
+                  value={draftNote.text}
+                  autoFocus={draftNote.type === "text"}
+                  onChange={(e) =>
+                    setDraftNote({ ...draftNote, text: e.target.value })
+                  }
+                />
+                <button
+                  className="btn"
+                  onClick={handleSaveDraft}
+                  style={{
+                    width: "100%",
+                    justifyContent: "center",
+                    padding: "12px",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                  }}
+                >
+                  <Save size={16} /> Pin to Board
+                </button>
+              </div>
+            </div>
+          </DraggableItem>
+        )}
+      </div>
+    </div>
+  );
+}
+function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
+  const { selectedDate, notify } = useAppStore();
+  const [word, setWord] = useState("");
+  const [type, setType] = useState("Vocabulary");
+  const [partOfSpeech, setPartOfSpeech] = useState("");
+  const [meaning, setMeaning] = useState("");
+  const [synonyms, setSynonyms] = useState("");
+  const [antonyms, setAntonyms] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (initialData) {
+      setWord(initialData.word);
+      setType(initialData.type || "Vocabulary");
+      setPartOfSpeech(initialData.partOfSpeech || "");
+      setMeaning(initialData.meaning || "");
+      setSynonyms(initialData.synonyms || "");
+      setAntonyms(initialData.antonyms || "");
+      setNotes(initialData.notes || "");
+    } else {
+      setWord("");
+      setType("Vocabulary");
+      setPartOfSpeech("");
+      setMeaning("");
+      setSynonyms("");
+      setAntonyms("");
+      setNotes("");
+    }
+  }, [isOpen, initialData]);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (!word.trim() || !meaning.trim())
+      return notify("Word and Meaning required.", "error");
+    onSave({
+      id: initialData ? initialData.id : Date.now().toString(),
+      word,
+      type,
+      partOfSpeech,
+      meaning,
+      synonyms,
+      antonyms,
+      notes,
+      dateAdded: initialData ? initialData.dateAdded : selectedDate,
+    });
+    onClose();
+  };
+  const labelStyle = {
+    display: "block",
+    fontSize: "13px",
+    fontWeight: "600",
+    marginBottom: "8px",
+    color: "var(--text-main)",
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
+      <div
+        className="modal-card"
+        style={{ maxWidth: "550px", width: "90%", padding: "32px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3
+          className="modal-title"
+          style={{ marginBottom: "28px", fontSize: "20px" }}
+        >
+          {initialData ? "Edit Study Note" : "Custom Study Note"}
+        </h3>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr 1fr",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Word / Phrase</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Category</label>
+            <select
+              className="custom-input"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
+              <option value="Vocabulary">Vocabulary</option>
+              <option value="Phrasal Verb">Phrasal Verb</option>
+              <option value="Idiom">Idiom</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Part of Speech</label>
+            <input
+              type="text"
+              className="custom-input"
+              placeholder="noun, verb"
+              value={partOfSpeech}
+              onChange={(e) => setPartOfSpeech(e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: "20px" }}>
+          <label style={labelStyle}>Meaning / Definition</label>
+          <textarea
+            className="custom-input"
+            value={meaning}
+            onChange={(e) => setMeaning(e.target.value)}
+            rows="4"
+          />
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Synonyms (comma separated)</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={synonyms}
+              onChange={(e) => setSynonyms(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Antonyms (comma separated)</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={antonyms}
+              onChange={(e) => setAntonyms(e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: "32px" }}>
+          <label style={labelStyle}>Usage Context / Example Sentence</label>
+          <textarea
+            className="custom-input"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows="3"
+          />
+        </div>
+        <div
+          className="modal-actions"
+          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
+        >
+          <button className="btn btn-outline" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn" onClick={handleSave}>
+            <Save size={16} /> Save Note
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function VocabTracker() {
+  const {
+    vocab,
+    selectedDate,
+    requestConfirm,
+    addVocabNote,
+    updateVocabNote,
+    deleteVocabNote,
+    premiumData,
+    setPremiumData,
+  } = useAppStore();
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState(null);
+  const [searchError, setSearchError] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
+  const [filterType, setFilterType] = useState("All");
+
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://api.datamuse.com/sug?s=${encodeURIComponent(query)}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data.slice(0, 5));
+        }
+      } catch (e) {}
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const handleSearch = async (termToSearch) => {
+    const term = termToSearch || query;
+    if (!term.trim()) return;
+    setIsSearching(true);
+    setSearchError("");
+    setSearchResult(null);
+    setShowSuggestions(false);
+    try {
+      const res = await fetch(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term.trim().toLowerCase())}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const entry = data[0];
+        let meaningsList = [];
+        let synonymsList = [];
+        let antonymsList = [];
+        let examplesList = [];
+        let partsOfSpeechSet = new Set();
+        entry.meanings?.forEach((m) => {
+          const pos = m.partOfSpeech || "";
+          if (pos) partsOfSpeechSet.add(pos);
+          if (m.synonyms) synonymsList.push(...m.synonyms);
+          if (m.antonyms) antonymsList.push(...m.antonyms);
+          const firstDef = m.definitions?.[0]?.definition;
+          if (firstDef)
+            meaningsList.push(`${pos ? `[${pos}] ` : ""}${firstDef}`);
+          m.definitions?.forEach((def) => {
+            if (def.example) examplesList.push(def.example);
+            if (def.synonyms) synonymsList.push(...def.synonyms);
+            if (def.antonyms) antonymsList.push(...def.antonyms);
+          });
+        });
+        let detectedType = "Vocabulary";
+        const wordCount = term.trim().split(" ").length;
+        if (wordCount > 2) detectedType = "Idiom";
+        else if (wordCount === 2) detectedType = "Phrasal Verb";
+        setSearchResult({
+          word: entry.word || term,
+          type: detectedType,
+          partOfSpeech: Array.from(partsOfSpeechSet).join(", ") || "word",
+          meaning: meaningsList.join("\n") || "No definition found.",
+          synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
+          antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
+          notes: examplesList[0] ? `"${examplesList[0]}"` : "",
+          audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
+        });
+      } else
+        setSearchError(
+          `No direct online entry for "${term}". You can add it manually!`,
+        );
+    } catch (err) {
+      setSearchError("Unable to connect to dictionary API.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSaveSearchResult = () => {
+    if (!searchResult) return;
+    addVocabNote({
+      id: Date.now().toString(),
+      ...searchResult,
+      dateAdded: selectedDate,
+    });
+    setSearchResult(null);
+    setQuery("");
+  };
+
+  const toggleBookmark = (id) => {
+    setPremiumData((prev) => {
+      const isBookmarked = prev.bookmarks?.includes(id);
+      return {
+        ...prev,
+        bookmarks: isBookmarked
+          ? prev.bookmarks.filter((bId) => bId !== id)
+          : [...(prev.bookmarks || []), id],
+      };
+    });
+  };
+
+  let filteredVocab = vocab.filter((v) => v.dateAdded === selectedDate);
+  if (filterType === "Bookmarks")
+    filteredVocab = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
+  else if (filterType !== "All")
+    filteredVocab = filteredVocab.filter((v) => v.type === filterType);
+  const renderPills = (textStr) => {
+    if (!textStr) return null;
+    return textStr
+      .split(",")
+      .map((w) => w.trim())
+      .filter((w) => w)
+      .map((w, i) => (
+        <span
+          key={i}
+          style={{
+            display: "inline-block",
+            padding: "4px 10px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            fontWeight: 600,
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            color: "var(--text-main)",
+          }}
+        >
+          {w}
+        </span>
+      ));
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Word Power</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Master vocabulary, idioms, and phrasal verbs with modern cards.
+          </p>
+        </div>
+        <button
+          className="btn"
+          onClick={() => {
+            setEditingNote(null);
+            setIsModalOpen(true);
+          }}
+        >
+          <Plus size={16} /> Custom Entry
+        </button>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          marginBottom: "32px",
+          maxWidth: "700px",
+        }}
+      >
+        <div
+          className="card"
+          style={{
+            padding: "8px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            boxShadow: "var(--shadow-md)",
+          }}
+        >
+          <Search size={20} style={{ color: "var(--accent)" }} />
+          <input
+            type="text"
+            className="custom-input"
+            style={{
+              border: "none",
+              background: "transparent",
+              fontSize: "16px",
+              padding: "8px 0",
+            }}
+            placeholder="Type any word, phrasal verb, or idiom..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
+          {query && (
+            <button
+              className="icon-btn-minimal"
+              onClick={() => {
+                setQuery("");
+                setSearchResult(null);
+                setSearchError("");
+              }}
+            >
+              <X size={18} />
+            </button>
+          )}
+          <button
+            className="btn"
+            onClick={() => handleSearch()}
+            disabled={isSearching}
+          >
+            {isSearching ? <Loader2 size={16} className="spinner" /> : "Search"}
+          </button>
+        </div>
+        <AnimatePresence>
+          {showSuggestions && suggestions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="card"
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 100,
+                marginTop: "8px",
+                padding: "8px 0",
+                boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+              }}
+            >
+              {suggestions.map((s, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: "10px 20px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                  className="dash-list-item"
+                  onClick={() => {
+                    setQuery(s.word);
+                    handleSearch(s.word);
+                  }}
+                >
+                  <Search size={14} color="var(--text-muted)" />
+                  <span style={{ color: "var(--text-main)" }}>{s.word}</span>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {searchError && (
+        <div
+          className="card"
+          style={{
+            marginBottom: "32px",
+            borderLeft: "4px solid var(--danger)",
+            padding: "20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span
+            style={{
+              color: "var(--text-main)",
+              fontSize: "14px",
+              fontWeight: 500,
+            }}
+          >
+            {searchError}
+          </span>
+          <button
+            className="btn btn-outline"
+            style={{ padding: "6px 12px", fontSize: "13px" }}
+            onClick={() => {
+              setEditingNote({ word: query, meaning: "", notes: "" });
+              setIsModalOpen(true);
+            }}
+          >
+            <Plus size={14} /> Add Custom Entry
+          </button>
+        </div>
+      )}
+
+      {searchResult && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="card"
+          style={{
+            marginBottom: "32px",
+            borderRadius: "20px",
+            border: "1px solid var(--border)",
+            padding: "28px",
+            background: "var(--bg)",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: "12px",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "30px",
+                margin: 0,
+                fontWeight: 800,
+                color: "var(--text-main)",
+                letterSpacing: "-0.5px",
+              }}
+            >
+              {searchResult.word}
+            </h2>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {searchResult.audio && (
+                <button
+                  className="icon-btn-minimal"
+                  onClick={() => new Audio(searchResult.audio).play()}
+                  title="Listen Pronunciation"
+                  style={{ color: "var(--accent)" }}
+                >
+                  <Volume2 size={18} />
+                </button>
+              )}
+              <button
+                className="btn"
+                style={{
+                  borderRadius: "12px",
+                  padding: "8px 16px",
+                  marginLeft: "12px",
+                }}
+                onClick={handleSaveSearchResult}
+              >
+                <Plus size={16} /> Save to Cloud
+              </button>
+            </div>
+          </div>
+          <div style={{ marginBottom: "24px" }}>
+            <span
+              style={{
+                background: "rgba(99, 102, 241, 0.1)",
+                color: "var(--accent)",
+                fontSize: "11px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                padding: "4px 12px",
+                borderRadius: "16px",
+                letterSpacing: "0.5px",
+              }}
+            >
+              {searchResult.type}
+              {searchResult.partOfSpeech
+                ? ` • ${searchResult.partOfSpeech}`
+                : ""}
+            </span>
+          </div>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+          >
+            <div>
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  display: "block",
+                  marginBottom: "8px",
+                }}
+              >
+                Meaning
+              </span>
+              <p
+                style={{
+                  fontFamily: "serif",
+                  fontSize: "17px",
+                  lineHeight: "1.6",
+                  color: "var(--text-main)",
+                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {searchResult.meaning}
+              </p>
+            </div>
+            {(searchResult.synonyms || searchResult.antonyms) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "24px",
+                  marginTop: "12px",
+                  paddingTop: "20px",
+                  borderTop: "1px dashed var(--border)",
+                }}
+              >
+                {searchResult.synonyms && (
+                  <div style={{ flex: 1, minWidth: "150px" }}>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Synonyms
+                    </span>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+                    >
+                      {renderPills(searchResult.synonyms)}
+                    </div>
+                  </div>
+                )}
+                {searchResult.antonyms && (
+                  <div style={{ flex: 1, minWidth: "150px" }}>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Antonyms
+                    </span>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+                    >
+                      {renderPills(searchResult.antonyms)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {searchResult.notes && (
+              <div
+                style={{
+                  background: "rgba(99, 102, 241, 0.04)",
+                  padding: "16px",
+                  borderRadius: "12px",
+                  borderLeft: "4px solid var(--accent)",
+                  marginTop: "8px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--accent)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Usage Context
+                </span>
+                <span
+                  style={{
+                    fontStyle: "italic",
+                    fontSize: "15px",
+                    color: "var(--text-main)",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {searchResult.notes}
+                </span>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          marginBottom: "24px",
+          flexWrap: "wrap",
+        }}
+      >
+        {["All", "Vocabulary", "Phrasal Verb", "Idiom", "Bookmarks"].map(
+          (type) => (
+            <button
+              key={type}
+              className={`btn ${filterType === type ? "" : "btn-outline"}`}
+              style={{
+                padding: "8px 18px",
+                fontSize: "13px",
+                borderRadius: "20px",
+                fontWeight: filterType === type ? 700 : 500,
+              }}
+              onClick={() => setFilterType(type)}
+            >
+              {type === "Bookmarks" && (
+                <Bookmark size={14} style={{ marginRight: 6 }} />
+              )}{" "}
+              {type}
+            </button>
+          ),
+        )}
+      </div>
+
+      {filteredVocab.length === 0 ? (
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "60px 20px",
+            color: "var(--text-muted)",
+          }}
+        >
+          <BookMarked
+            size={48}
+            style={{
+              opacity: 0.2,
+              margin: "0 auto 16px auto",
+              display: "block",
+            }}
+          />
+          <p style={{ fontSize: "15px" }}>
+            No saved study notes found in this category.
+          </p>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+            gap: "24px",
+          }}
+        >
+          {filteredVocab.map((item) => {
+            const isBookmarked = premiumData?.bookmarks?.includes(item.id);
+            return (
+              <motion.div
+                whileHover={{ y: -4 }}
+                transition={{ duration: 0.2 }}
+                key={item.id}
+                className="card"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "28px",
+                  borderRadius: "20px",
+                  border: "1px solid var(--border)",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.04)",
+                  background: "var(--bg)",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                {isBookmarked && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: "4px",
+                      background: "var(--warning)",
+                    }}
+                  ></div>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "28px",
+                      margin: 0,
+                      fontWeight: 800,
+                      color: "var(--text-main)",
+                      letterSpacing: "-0.5px",
+                    }}
+                  >
+                    {item.word}
+                  </h3>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => toggleBookmark(item.id)}
+                      title="Bookmark"
+                      style={{
+                        color: isBookmarked
+                          ? "var(--warning)"
+                          : "var(--text-muted)",
+                      }}
+                    >
+                      <Bookmark
+                        size={18}
+                        fill={isBookmarked ? "var(--warning)" : "none"}
+                      />
+                    </button>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => {
+                        setEditingNote(item);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      <Edit3 size={18} />
+                    </button>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() =>
+                        requestConfirm("Delete this cloud entry?", () =>
+                          deleteVocabNote(item.id),
+                        )
+                      }
+                      style={{ color: "var(--danger)" }}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+                <div style={{ marginBottom: "24px" }}>
+                  <span
+                    style={{
+                      background: "rgba(99, 102, 241, 0.1)",
+                      color: "var(--accent)",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      padding: "4px 12px",
+                      borderRadius: "16px",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    {item.type}
+                    {item.partOfSpeech ? ` • ${item.partOfSpeech}` : ""}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "20px",
+                    flex: 1,
+                  }}
+                >
+                  <div>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        fontSize: "11px",
+                        display: "block",
+                        marginBottom: "8px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.8px",
+                      }}
+                    >
+                      Meaning
+                    </span>
+                    <p
+                      style={{
+                        color: "var(--text-main)",
+                        fontFamily: "serif",
+                        fontSize: "16px",
+                        lineHeight: "1.6",
+                        margin: 0,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {item.meaning}
+                    </p>
+                  </div>
+                  {(item.synonyms || item.antonyms) && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "24px",
+                        marginTop: "auto",
+                        paddingTop: "20px",
+                        borderTop: "1px dashed var(--border)",
+                      }}
+                    >
+                      {item.synonyms && (
+                        <div style={{ flex: 1, minWidth: "120px" }}>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              color: "var(--text-muted)",
+                              textTransform: "uppercase",
+                              display: "block",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Synonyms
+                          </span>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "6px",
+                            }}
+                          >
+                            {renderPills(item.synonyms)}
+                          </div>
+                        </div>
+                      )}
+                      {item.antonyms && (
+                        <div style={{ flex: 1, minWidth: "120px" }}>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              color: "var(--text-muted)",
+                              textTransform: "uppercase",
+                              display: "block",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Antonyms
+                          </span>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "6px",
+                            }}
+                          >
+                            {renderPills(item.antonyms)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {item.notes && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        background: "rgba(99, 102, 241, 0.04)",
+                        padding: "12px 16px",
+                        borderRadius: "10px",
+                        borderLeft: "3px solid var(--accent)",
+                        fontSize: "14px",
+                        lineHeight: "1.5",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "var(--text-main)",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        "{item.notes}"
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+      <VocabModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={(note) =>
+          editingNote ? updateVocabNote(note) : addVocabNote(note)
+        }
+        initialData={editingNote}
+      />
+    </div>
+  );
+}
+
 // --- HELPER DRAGGABLE COMPONENT ---
 function DraggableItem({
   initialX,
@@ -3396,10 +5016,32 @@ function StudyMaterialsModule() {
 
   useEffect(() => {
     fetchDocuments();
+
+    // OPTIMIZED REALTIME SUBSCRIPTION
+    const documentsSubscription = supabase
+      .channel("public:documents")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "documents" },
+        () => fetchDocuments(),
+      )
+      .subscribe();
+
+    // POLLING FALLBACK (Guarantees sync every 5 seconds even if Realtime is OFF in Supabase Dashboard)
+    const pollInterval = setInterval(() => {
+      fetchDocuments();
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(documentsSubscription);
+      clearInterval(pollInterval);
+    };
   }, []);
+
   useEffect(() => {
     if (selectedDoc) fetchNotes(selectedDoc.id);
   }, [selectedDoc]);
+
   useEffect(() => {
     setNavPath([]);
   }, [activeTab]);
@@ -3407,16 +5049,10 @@ function StudyMaterialsModule() {
   const fetchDocuments = async () => {
     const { data, error } = await supabase.from("documents").select("*");
     if (error) {
-      notify("Failed to load PDFs.", "error");
-    } else {
-      setDocuments(data || []);
-      if (data && data.length > 0 && !selectedDoc) {
-        const defaultDoc =
-          data.find(
-            (d) => (d.category?.split("::")[0] || "Other") === activeTab,
-          ) || data[0];
-        if (activeTab !== "Current Affairs") setSelectedDoc(defaultDoc);
-      }
+      console.error("Failed to load PDFs.", error);
+    } else if (data) {
+      setDocuments(data);
+      // We don't auto-select here on every refresh to avoid breaking user's current reading session
     }
   };
 
@@ -3563,30 +5199,42 @@ function StudyMaterialsModule() {
     const [removed] = newList.splice(draggedIndex, 1);
     newList.splice(targetIndex, 0, removed);
 
+    // Only map the fields we actually need to update
     const updates = newList.map((doc, index) => ({
-      ...doc,
+      id: doc.id,
       order_index: index + 1,
     }));
 
+    // Optimistic UI update for the admin
     setDocuments((prev) => {
       const docMap = new Map(prev.map((d) => [d.id, d]));
-      updates.forEach((u) => docMap.set(u.id, u));
+      updates.forEach((u) => docMap.set(u.id, { ...docMap.get(u.id), ...u }));
       return Array.from(docMap.values());
     });
 
     setDragOverDocId(null);
     setDraggedDocId(null);
 
+    // PARALLEL UPDATE: Replaces upsert to avoid strict RLS policy conflicts
     try {
-      for (const u of updates) {
-        await supabase
-          .from("documents")
-          .update({ order_index: u.order_index })
-          .eq("id", u.id);
-      }
+      const results = await Promise.all(
+        updates.map((u) =>
+          supabase
+            .from("documents")
+            .update({ order_index: u.order_index })
+            .eq("id", u.id),
+        ),
+      );
+
+      const hasError = results.some((res) => res.error);
+      if (hasError) throw new Error("403 Forbidden Check RLS");
     } catch (err) {
-      notify("Failed to save new order to database.", "error");
-      fetchDocuments();
+      console.error(err);
+      notify(
+        "Failed to save new order to database. Check Supabase RLS.",
+        "error",
+      );
+      fetchDocuments(); // Revert to database state on failure
     }
   };
 
@@ -4711,9 +6359,16 @@ export default function App() {
           {activeView === "today" && (
             <DailyPlan timeline={currentHistory.timeline} />
           )}
-          {activeView === "digital_notes" && <DigitalNotesBoard />}
+          {activeView === "digital_notes" &&
+            /* Assume DigitalNotesBoard is imported or defined elsewhere if omitted from your prompt */
+            (typeof DigitalNotesBoard !== "undefined" ? (
+              <DigitalNotesBoard />
+            ) : (
+              <div>Digital Notes UI Component</div>
+            ))}
           {activeView === "materials" && <StudyMaterialsModule />}
           {activeView === "vocab" && <VocabTracker />}
+
           {activeView === "quant" && (
             <QuantRotation quant={currentHistory.quant} />
           )}

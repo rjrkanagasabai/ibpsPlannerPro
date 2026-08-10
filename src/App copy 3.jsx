@@ -315,17 +315,6 @@ const expectedNotifications = [
   "LIC Assistant",
   "UIICL AO",
 ];
-
-const NOTE_TOPICS = [
-  "Quants",
-  "Reasoning",
-  "English",
-  "Current Affairs",
-  "Static GK",
-  "Banking Awareness",
-  "General",
-];
-
 const MONTHS_LIST = [
   "January",
   "February",
@@ -340,7 +329,6 @@ const MONTHS_LIST = [
   "November",
   "December",
 ];
-
 const CA_TOPICS_LIST = [
   "Sports",
   "National",
@@ -898,6 +886,7 @@ function ReadingTimerModal({ isOpen, onClose }) {
   );
 }
 
+// --- AUTH MODAL ---
 function AuthModal() {
   const { loginWithUsername, signUpWithUsername, notify, setActiveView } =
     useAppStore();
@@ -1094,6 +1083,7 @@ function AuthModal() {
   );
 }
 
+// --- GLOBAL SEARCH MODAL ---
 function GlobalSearchModal({ isOpen, onClose }) {
   const { vocab } = useAppStore();
   const [searchTerm, setSearchTerm] = useState("");
@@ -1201,6 +1191,7 @@ function GlobalSearchModal({ isOpen, onClose }) {
   );
 }
 
+// --- POMODORO TIMER ---
 function PomodoroTimer() {
   const { setPremiumData, settings } = useAppStore();
   const [isOpen, setIsOpen] = useState(false);
@@ -1375,6 +1366,7 @@ function PomodoroTimer() {
   );
 }
 
+// --- TOAST CONTAINER ---
 function ToastContainer() {
   const { toasts } = useAppStore();
   return (
@@ -1401,6 +1393,7 @@ function ToastContainer() {
   );
 }
 
+// --- CONFIRM MODAL ---
 function ConfirmModal() {
   const { confirmDialog, closeConfirm } = useAppStore();
   if (!confirmDialog.isOpen) return null;
@@ -1437,6 +1430,7 @@ function ConfirmModal() {
   );
 }
 
+// --- HEADER ---
 function Header({ toggleSidebar, onOpenSearch }) {
   const { theme, setTheme, selectedDate, setSelectedDate, user, logout } =
     useAppStore();
@@ -1528,6 +1522,7 @@ function Header({ toggleSidebar, onOpenSearch }) {
   );
 }
 
+// --- UPCOMING EXAMS WIDGET ---
 function UpcomingExamsWidget() {
   const getCategoryColor = (cat) => {
     switch (cat) {
@@ -1685,6 +1680,7 @@ function UpcomingExamsWidget() {
   );
 }
 
+// --- VOCAB QUIZ WIDGET ---
 function VocabQuiz() {
   const { vocab, selectedDate, notify, premiumData } = useAppStore();
   const [quizState, setQuizState] = useState("idle");
@@ -1973,6 +1969,7 @@ function VocabQuiz() {
   );
 }
 
+// --- DASHBOARD (Main Landing View) ---
 function Dashboard({ history }) {
   const { user, selectedDate, updateHistory, notify } = useAppStore();
   const [newMissed, setNewMissed] = useState("");
@@ -2203,6 +2200,7 @@ function Dashboard({ history }) {
   );
 }
 
+// --- DAILY PLAN (TIMELINE BUILDER) ---
 function DailyPlan({ timeline }) {
   const { updateHistory, notify } = useAppStore();
   const handleChange = (index, field, value) => {
@@ -2431,6 +2429,456 @@ function DailyPlan({ timeline }) {
   );
 }
 
+// --- DIGITAL NOTES BOARD (SMART CANVAS) ---
+function DigitalNotesBoard() {
+  const {
+    digitalNotes,
+    addDigitalNote,
+    updateDigitalNote,
+    deleteDigitalNote,
+    clearDigitalNotes,
+    requestConfirm,
+  } = useAppStore();
+  const [newNoteText, setNewNoteText] = useState("");
+  const boardRef = useRef(null);
+
+  const handleAddNote = (e) => {
+    e.preventDefault();
+    if (!newNoteText.trim()) return;
+    const randomX = Math.floor(Math.random() * 200) + 50;
+    const randomY = Math.floor(Math.random() * 200) + 50;
+    const colors = [
+      "#fef3c7",
+      "#d1fae5",
+      "#dbeafe",
+      "#fee2e2",
+      "#f3e8ff",
+      "#fce7f3",
+    ];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    addDigitalNote({
+      id: Date.now().toString(),
+      text: newNoteText.trim(),
+      x: randomX,
+      y: randomY,
+      color: randomColor,
+    });
+    setNewNoteText("");
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Smart Notes Canvas</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Freeform workspace for formulas, shortcuts, and quick reminders.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <button
+            className="btn btn-outline"
+            onClick={() =>
+              requestConfirm("Clear entire canvas?", clearDigitalNotes)
+            }
+            style={{
+              color: "var(--danger)",
+              borderColor: "rgba(239,68,68,0.3)",
+            }}
+          >
+            <Trash2 size={16} /> Clear Canvas
+          </button>
+        </div>
+      </div>
+      <form
+        onSubmit={handleAddNote}
+        style={{
+          display: "flex",
+          gap: "12px",
+          marginBottom: "24px",
+          background: "var(--bg)",
+          padding: "16px",
+          borderRadius: "12px",
+          border: "1px solid var(--border)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        }}
+      >
+        <div
+          className="icon-wrap"
+          style={{ background: "rgba(99,102,241,0.1)", color: "var(--accent)" }}
+        >
+          <PenTool size={20} />
+        </div>
+        <input
+          type="text"
+          className="custom-input"
+          placeholder="Type a formula or quick note and press Enter..."
+          value={newNoteText}
+          onChange={(e) => setNewNoteText(e.target.value)}
+          style={{ flex: 1, fontSize: "15px" }}
+        />
+        <button type="submit" className="btn" disabled={!newNoteText.trim()}>
+          <Plus size={16} /> Drop Note
+        </button>
+      </form>
+      <div
+        ref={boardRef}
+        style={{
+          width: "100%",
+          height: "65vh",
+          minHeight: "500px",
+          position: "relative",
+          background: "radial-gradient(var(--border) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+          backgroundColor: "var(--bg)",
+          borderRadius: "16px",
+          border: "1px solid var(--border)",
+          overflow: "hidden",
+          boxShadow: "inset 0 0 20px rgba(0,0,0,0.02)",
+        }}
+      >
+        {digitalNotes.length === 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              color: "var(--text-muted)",
+              textAlign: "center",
+            }}
+          >
+            <Layers
+              size={48}
+              style={{ opacity: 0.2, margin: "0 auto 16px auto" }}
+            />
+            <p>Canvas is empty. Add a note above!</p>
+          </div>
+        )}
+        {digitalNotes.map((note) => (
+          <DraggableItem
+            key={note.id}
+            initialX={note.x}
+            initialY={note.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(newX, newY) =>
+              updateDigitalNote(note.id, { x: newX, y: newY })
+            }
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              whileHover={{ boxShadow: "0 10px 25px rgba(0,0,0,0.1)" }}
+              style={{
+                width: "220px",
+                minHeight: "100px",
+                backgroundColor: note.color || "#fef3c7",
+                borderRadius: "12px",
+                boxShadow: "0 4px 15px rgba(0,0,0,0.08)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                border: "1px solid rgba(0,0,0,0.05)",
+              }}
+            >
+              <div
+                className="drag-handle"
+                style={{
+                  height: "28px",
+                  background: "rgba(0,0,0,0.05)",
+                  cursor: "grab",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0 8px",
+                }}
+              >
+                <GripHorizontal
+                  size={14}
+                  style={{ opacity: 0.4, color: "#000" }}
+                />
+                <button
+                  onClick={() => deleteDigitalNote(note.id)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "4px",
+                    color: "rgba(0,0,0,0.4)",
+                    display: "flex",
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <textarea
+                value={note.text}
+                onChange={(e) =>
+                  updateDigitalNote(note.id, { text: e.target.value })
+                }
+                style={{
+                  flex: 1,
+                  background: "transparent",
+                  border: "none",
+                  padding: "12px",
+                  fontSize: "14px",
+                  color: "#1f2937",
+                  resize: "none",
+                  outline: "none",
+                  fontFamily: "inherit",
+                  lineHeight: "1.5",
+                }}
+              />
+            </motion.div>
+          </DraggableItem>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- VOCABULARY & DICTIONARY TRACKER ---
+function VocabTracker() {
+  const { vocab, addVocabNote, deleteVocabNote, selectedDate } = useAppStore();
+  const [word, setWord] = useState("");
+  const [meaning, setMeaning] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    if (!word.trim() || !meaning.trim()) return;
+    addVocabNote({
+      id: Date.now().toString(),
+      word: word.trim(),
+      meaning: meaning.trim(),
+      dateAdded: selectedDate,
+    });
+    setWord("");
+    setMeaning("");
+  };
+
+  const filteredVocab = vocab.filter(
+    (v) =>
+      v.word.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      v.meaning.toLowerCase().includes(searchFilter.toLowerCase()),
+  );
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Dictionary & Vocab</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Save new words and definitions. Synced automatically for your
+            quizzes.
+          </p>
+        </div>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 2fr",
+          gap: "24px",
+          alignItems: "start",
+        }}
+      >
+        <div className="card" style={{ position: "sticky", top: "24px" }}>
+          <h3
+            style={{
+              fontSize: "16px",
+              marginBottom: "16px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <Plus size={18} color="var(--accent)" /> Add New Word
+          </h3>
+          <form
+            onSubmit={handleAdd}
+            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          >
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "6px",
+                }}
+              >
+                Word
+              </label>
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="e.g. Ubiquitous"
+                value={word}
+                onChange={(e) => setWord(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  marginBottom: "6px",
+                }}
+              >
+                Meaning / Synonyms
+              </label>
+              <textarea
+                className="custom-input"
+                placeholder="Present, appearing, or found everywhere..."
+                value={meaning}
+                onChange={(e) => setMeaning(e.target.value)}
+                rows="4"
+                style={{ resize: "vertical" }}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="btn"
+              style={{ justifyContent: "center" }}
+            >
+              Save to Dictionary
+            </button>
+          </form>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              background: "var(--bg)",
+              padding: "12px 16px",
+              borderRadius: "12px",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Search size={18} color="var(--text-muted)" />
+            <input
+              type="text"
+              placeholder="Search your dictionary..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontSize: "15px",
+                color: "var(--text-main)",
+              }}
+            />
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--accent)",
+                background: "rgba(99,102,241,0.1)",
+                padding: "4px 8px",
+                borderRadius: "20px",
+              }}
+            >
+              {filteredVocab.length} Words
+            </span>
+          </div>
+          {filteredVocab.length === 0 ? (
+            <div
+              className="card"
+              style={{
+                textAlign: "center",
+                padding: "40px",
+                color: "var(--text-muted)",
+              }}
+            >
+              <BookText
+                size={40}
+                style={{ opacity: 0.2, margin: "0 auto 16px auto" }}
+              />
+              <p>
+                No words found. Add your first word to start building your
+                vocabulary!
+              </p>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gap: "16px",
+              }}
+            >
+              <AnimatePresence>
+                {filteredVocab.map((v) => (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    key={v.id}
+                    className="card"
+                    style={{ position: "relative", padding: "20px" }}
+                  >
+                    <button
+                      onClick={() => deleteVocabNote(v.id)}
+                      className="icon-btn-minimal"
+                      style={{
+                        position: "absolute",
+                        top: "12px",
+                        right: "12px",
+                        color: "var(--text-muted)",
+                        padding: "4px",
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <h3
+                      style={{
+                        fontSize: "18px",
+                        margin: "0 0 8px 0",
+                        color: "var(--accent)",
+                        paddingRight: "24px",
+                      }}
+                    >
+                      {v.word}
+                    </h3>
+                    <p
+                      style={{
+                        fontSize: "14px",
+                        lineHeight: "1.6",
+                        color: "var(--text-main)",
+                        margin: "0 0 12px 0",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {v.meaning}
+                    </p>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Added: {v.dateAdded}
+                    </span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- FAST READING TIMER ---
 function FastReadingTimer({ onTimerEnded }) {
   const [timeLeft, setTimeLeft] = useState(5 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -2535,6 +2983,7 @@ function FastReadingTimer({ onTimerEnded }) {
   );
 }
 
+// --- QUANT ROTATION ---
 function QuantRotation({ quant = [] }) {
   const { updateHistory } = useAppStore();
   const handleChange = (index, field, value) =>
@@ -2582,6 +3031,7 @@ function QuantRotation({ quant = [] }) {
   );
 }
 
+// --- REASONING ROTATION ---
 function ReasoningRotation({ reasoning = [] }) {
   const { updateHistory } = useAppStore();
   const handleChange = (index, field, value) =>
@@ -2634,6 +3084,7 @@ function ReasoningRotation({ reasoning = [] }) {
   );
 }
 
+// --- MOCK TRACKER ---
 function MockTracker() {
   const { mocks, setMocks, selectedDate, notify } = useAppStore();
   const addMock = () => {
@@ -2880,6 +3331,7 @@ function MockTracker() {
   );
 }
 
+// --- HABIT TRACKER ---
 function HabitTracker() {
   const {
     selectedDate,
@@ -3184,6 +3636,7 @@ function HabitTracker() {
   );
 }
 
+// --- SETTINGS VIEW ---
 function SettingsView() {
   const {
     user,
@@ -3205,7 +3658,6 @@ function SettingsView() {
           Manage your profile credentials, notifications, and local data
           preference.
         </p>
-
         <div
           style={{
             display: "grid",
@@ -3309,7 +3761,6 @@ function SettingsView() {
             </div>
           </div>
         </div>
-
         <div
           style={{
             marginTop: "32px",
@@ -3362,7 +3813,7 @@ function SettingsView() {
   );
 }
 
-// --- REDESIGNED ALIGNED STUDY MATERIALS / PDF LIBRARY MODULE ---
+// --- STUDY MATERIALS / PDF LIBRARY MODULE ---
 function StudyMaterialsModule() {
   const { user, notify } = useAppStore();
   const [documents, setDocuments] = useState([]);
@@ -3383,7 +3834,7 @@ function StudyMaterialsModule() {
   const [showNotes, setShowNotes] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState("Current Affairs");
-  const [navPath, setNavPath] = useState([]); // Subfolder tracking (e.g., ["July", "Sports"])
+  const [navPath, setNavPath] = useState([]);
   const [isTimerEndedModalOpen, setIsTimerEndedModalOpen] = useState(false);
 
   // Drag and drop state
@@ -3396,7 +3847,25 @@ function StudyMaterialsModule() {
 
   useEffect(() => {
     fetchDocuments();
+    // OPTIMIZED REALTIME SUBSCRIPTION
+    const documentsSubscription = supabase
+      .channel("public:documents")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "documents" },
+        () => fetchDocuments(),
+      )
+      .subscribe();
+
+    const pollInterval = setInterval(() => {
+      fetchDocuments();
+    }, 5000);
+    return () => {
+      supabase.removeChannel(documentsSubscription);
+      clearInterval(pollInterval);
+    };
   }, []);
+
   useEffect(() => {
     if (selectedDoc) fetchNotes(selectedDoc.id);
   }, [selectedDoc]);
@@ -3406,18 +3875,8 @@ function StudyMaterialsModule() {
 
   const fetchDocuments = async () => {
     const { data, error } = await supabase.from("documents").select("*");
-    if (error) {
-      notify("Failed to load PDFs.", "error");
-    } else {
-      setDocuments(data || []);
-      if (data && data.length > 0 && !selectedDoc) {
-        const defaultDoc =
-          data.find(
-            (d) => (d.category?.split("::")[0] || "Other") === activeTab,
-          ) || data[0];
-        if (activeTab !== "Current Affairs") setSelectedDoc(defaultDoc);
-      }
-    }
+    if (error) console.error("Failed to load PDFs.", error);
+    else if (data) setDocuments(data);
   };
 
   const fetchNotes = async (docId) => {
@@ -3438,13 +3897,11 @@ function StudyMaterialsModule() {
       const file = event.target.files[0];
       if (!file || file.type !== "application/pdf")
         return notify("Please select a valid PDF file.", "error");
-
       const filePath = `${Date.now()}.${file.name.split(".").pop()}`;
       const { error: uploadError } = await supabase.storage
         .from("pdf-files")
         .upload(filePath, file);
       if (uploadError) throw uploadError;
-
       const { data: urlData } = supabase.storage
         .from("pdf-files")
         .getPublicUrl(filePath);
@@ -3460,15 +3917,17 @@ function StudyMaterialsModule() {
         0,
       );
 
-      const { error: dbError } = await supabase.from("documents").insert([
-        {
-          title: finalTitle,
-          file_path: filePath,
-          file_url: urlData.publicUrl,
-          category: finalCategory,
-          order_index: maxOrder + 1,
-        },
-      ]);
+      const { error: dbError } = await supabase
+        .from("documents")
+        .insert([
+          {
+            title: finalTitle,
+            file_path: filePath,
+            file_url: urlData.publicUrl,
+            category: finalCategory,
+            order_index: maxOrder + 1,
+          },
+        ]);
       if (dbError) throw dbError;
 
       notify("PDF uploaded successfully!", "success");
@@ -3498,14 +3957,16 @@ function StudyMaterialsModule() {
   const handleAddNote = async (e) => {
     e.preventDefault();
     if (!newNote.trim() || !selectedDoc || !user) return;
-    const { error } = await supabase.from("document_notes").insert([
-      {
-        document_id: selectedDoc.id,
-        user_id: user.id,
-        content: newNote,
-        page_number: parseInt(pageNumber) || 1,
-      },
-    ]);
+    const { error } = await supabase
+      .from("document_notes")
+      .insert([
+        {
+          document_id: selectedDoc.id,
+          user_id: user.id,
+          content: newNote,
+          page_number: parseInt(pageNumber) || 1,
+        },
+      ]);
     if (error) notify("Failed to save note.", "error");
     else {
       setNewNote("");
@@ -3525,7 +3986,6 @@ function StudyMaterialsModule() {
     setDraggedDocId(doc.id);
     e.dataTransfer.effectAllowed = "move";
   };
-
   const handleDragOver = (e, doc) => {
     if (!isAdmin) return;
     e.preventDefault();
@@ -3533,7 +3993,6 @@ function StudyMaterialsModule() {
     e.dataTransfer.dropEffect = "move";
     if (dragOverDocId !== doc.id) setDragOverDocId(doc.id);
   };
-
   const handleDragLeave = (e, doc) => {
     if (!isAdmin) return;
     e.stopPropagation();
@@ -3563,29 +4022,39 @@ function StudyMaterialsModule() {
     const [removed] = newList.splice(draggedIndex, 1);
     newList.splice(targetIndex, 0, removed);
 
+    // FIX FOR 403 RLS ERROR
     const updates = newList.map((doc, index) => ({
-      ...doc,
+      id: doc.id,
       order_index: index + 1,
     }));
 
+    // Optimistic UI
     setDocuments((prev) => {
       const docMap = new Map(prev.map((d) => [d.id, d]));
-      updates.forEach((u) => docMap.set(u.id, u));
+      updates.forEach((u) => docMap.set(u.id, { ...docMap.get(u.id), ...u }));
       return Array.from(docMap.values());
     });
-
     setDragOverDocId(null);
     setDraggedDocId(null);
 
+    // PARALLEL UPDATE (Bypasses Upsert RLS limitation)
     try {
-      for (const u of updates) {
-        await supabase
-          .from("documents")
-          .update({ order_index: u.order_index })
-          .eq("id", u.id);
-      }
+      const results = await Promise.all(
+        updates.map((u) =>
+          supabase
+            .from("documents")
+            .update({ order_index: u.order_index })
+            .eq("id", u.id),
+        ),
+      );
+      if (results.some((res) => res.error))
+        throw new Error("403 Forbidden Check RLS");
     } catch (err) {
-      notify("Failed to save new order to database.", "error");
+      console.error(err);
+      notify(
+        "Failed to save new order to database. Check Supabase RLS.",
+        "error",
+      );
       fetchDocuments();
     }
   };
@@ -3845,7 +4314,7 @@ function StudyMaterialsModule() {
                   <Loader2 size={14} className="spinner" />
                 ) : (
                   <UploadCloud size={14} />
-                )}
+                )}{" "}
                 {uploading ? "Uploading..." : "Upload PDF"}
                 <input
                   type="file"
@@ -4548,13 +5017,11 @@ export default function App() {
   useEffect(() => {
     initAuth();
   }, []);
-
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     const contentArea = document.querySelector(".content-area");
     if (contentArea) contentArea.scrollTo({ top: 0, behavior: "smooth" });
   }, [activeView]);
-
   useEffect(() => {
     document.body.setAttribute("data-theme", theme);
   }, [theme]);
@@ -4658,6 +5125,7 @@ export default function App() {
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
       />
+      <PomodoroTimer />
       <aside className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
         <div className="logo">
           <div className="icon-wrap">
