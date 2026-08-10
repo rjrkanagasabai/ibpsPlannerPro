@@ -1865,7 +1865,7 @@ function VocabTracker() {
               {searchResult.word}
             </h2>
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {searchResult.audio && (
+              {/* {searchResult.audio && (
                 <button
                   className="icon-btn-minimal"
                   onClick={() => new Audio(searchResult.audio).play()}
@@ -1874,7 +1874,7 @@ function VocabTracker() {
                 >
                   <Volume2 size={18} />
                 </button>
-              )}
+              )} */}
               <button
                 className="btn"
                 style={{
