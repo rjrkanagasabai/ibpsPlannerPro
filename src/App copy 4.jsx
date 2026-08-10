@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { create } from "zustand";
-import * as htmlToImage from "html-to-image";
 import { persist } from "zustand/middleware";
 import "./App.css";
 import {
@@ -73,7 +72,6 @@ import {
   Bell,
   VolumeX,
   Folder,
-  Download,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
@@ -742,6 +740,7 @@ function DigitalNotesBoard() {
     requestConfirm,
   } = useAppStore();
 
+  // Dual-Layer Filtering
   const [topicFilter, setTopicFilter] = useState("All");
   const [subtopicFilter, setSubtopicFilter] = useState("All");
 
@@ -749,10 +748,12 @@ function DigitalNotesBoard() {
   const boardRef = useRef(null);
   const datalistId = "subtopics-datalist";
 
+  // When Topic changes, always reset Sub-topic to "All"
   useEffect(() => {
     setSubtopicFilter("All");
   }, [topicFilter]);
 
+  // Extract unique subtopics based on currently selected topic
   const currentSubtopics = [
     "All",
     ...new Set(
@@ -763,14 +764,17 @@ function DigitalNotesBoard() {
     ),
   ];
 
+  // The actual notes to display
   const filteredNotes = digitalNotes.filter((n) => {
     if (topicFilter !== "All" && n.topic !== topicFilter) return false;
     if (subtopicFilter !== "All" && n.subtopic !== subtopicFilter) return false;
     return true;
   });
 
+  // Global Paste Interceptor
   useEffect(() => {
     const handlePaste = (e) => {
+      // Don't intercept if user is typing in an input inside a draft
       if (
         document.activeElement.tagName === "INPUT" ||
         document.activeElement.tagName === "TEXTAREA"
@@ -778,7 +782,7 @@ function DigitalNotesBoard() {
         const hasImage = Array.from(e.clipboardData?.items || []).some(
           (item) => item.type.indexOf("image") !== -1,
         );
-        if (!hasImage) return;
+        if (!hasImage) return; // Let text paste naturally
       }
 
       const items = e.clipboardData?.items;
@@ -794,6 +798,7 @@ function DigitalNotesBoard() {
             const x = scrollContainer ? scrollContainer.scrollLeft + 150 : 150;
             const y = scrollContainer ? scrollContainer.scrollTop + 150 : 150;
 
+            // Auto-inherit active filters for smooth workflow
             const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
             const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
 
@@ -832,6 +837,7 @@ function DigitalNotesBoard() {
     const scrollLeft = boardRef.current.scrollLeft;
     const scrollTop = boardRef.current.scrollTop;
 
+    // Auto-inherit
     const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
     const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
 
@@ -871,6 +877,7 @@ function DigitalNotesBoard() {
         boxShadow: "0 10px 40px rgba(0,0,0,0.03)",
       }}
     >
+      {/* Hidden Datalist for Subtopic Autocomplete */}
       <datalist id={datalistId}>
         {currentSubtopics
           .filter((s) => s !== "All")
@@ -879,6 +886,7 @@ function DigitalNotesBoard() {
           ))}
       </datalist>
 
+      {/* Upper Toolbar: Topics */}
       <div
         className="board-toolbar"
         style={{
@@ -925,6 +933,7 @@ function DigitalNotesBoard() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          {/* Primary Topic Filter */}
           <div
             style={{
               display: "flex",
@@ -983,6 +992,7 @@ function DigitalNotesBoard() {
         </div>
       </div>
 
+      {/* Sub-Toolbar: Sub-Topic Boards */}
       {currentSubtopics.length > 1 && (
         <div
           className="board-toolbar scroll-area"
@@ -1023,6 +1033,7 @@ function DigitalNotesBoard() {
         </div>
       )}
 
+      {/* Infinite Canvas Area */}
       <div
         ref={boardRef}
         onClick={handleBoardClick}
@@ -1031,6 +1042,7 @@ function DigitalNotesBoard() {
           overflow: "auto",
           position: "relative",
           cursor: draftNote ? "default" : "crosshair",
+          // Modern Dot Matrix Background
           backgroundImage:
             "radial-gradient(rgba(99, 102, 241, 0.15) 1.5px, transparent 1.5px)",
           backgroundSize: "24px 24px",
@@ -1048,6 +1060,7 @@ function DigitalNotesBoard() {
           }}
         ></div>
 
+        {/* Render Filtered Saved Notes */}
         {filteredNotes.map((note) => (
           <DraggableItem
             key={note.id}
@@ -1075,6 +1088,7 @@ function DigitalNotesBoard() {
                 overflow: "hidden",
               }}
             >
+              {/* Grip Header */}
               <div
                 className="drag-handle"
                 style={{
@@ -1122,6 +1136,7 @@ function DigitalNotesBoard() {
                 </button>
               </div>
 
+              {/* Body */}
               <div
                 style={{
                   padding: "14px",
@@ -1161,6 +1176,7 @@ function DigitalNotesBoard() {
                   </p>
                 )}
 
+                {/* EXPLICIT SUB-TOPIC BADGE AT THE BOTTOM */}
                 {note.subtopic && (
                   <div
                     style={{
@@ -1193,6 +1209,7 @@ function DigitalNotesBoard() {
           </DraggableItem>
         ))}
 
+        {/* Draft Note Window */}
         {draftNote && (
           <DraggableItem
             initialX={draftNote.x}
@@ -1356,7 +1373,6 @@ function DigitalNotesBoard() {
     </div>
   );
 }
-
 function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
   const { selectedDate, notify } = useAppStore();
   const [word, setWord] = useState("");
@@ -1526,7 +1542,6 @@ function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
     </div>
   );
 }
-
 function VocabTracker() {
   const {
     vocab,
@@ -3809,22 +3824,17 @@ function Dashboard({ history }) {
 }
 
 function DailyPlan({ timeline }) {
-  const { updateHistory, notify, vocab, selectedDate, user } = useAppStore();
-  const reportRef = useRef(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-
+  const { updateHistory, notify } = useAppStore();
   const handleChange = (index, field, value) => {
     const updated = timeline.map((item, i) =>
       i === index ? { ...item, [field]: value } : item,
     );
     updateHistory({ timeline: updated });
   };
-
   const deleteTask = (index) => {
     updateHistory({ timeline: timeline.filter((_, i) => i !== index) });
     notify("Task removed", "info");
   };
-
   const addTask = () => {
     updateHistory({
       timeline: [
@@ -3840,57 +3850,8 @@ function DailyPlan({ timeline }) {
     });
   };
 
-  // Ultra-Clear "Off-Screen to Image" Generator
-  const generateDailyReportImage = async () => {
-    if (!reportRef.current) return;
-    try {
-      setIsGenerating(true);
-      notify("Capturing high-resolution report...", "info");
-
-      // We explicitly capture the full scrollHeight to prevent clipping
-      const targetElement = reportRef.current;
-      const originalHeight = targetElement.style.height;
-      targetElement.style.height = "max-content"; // Force expansion
-
-      const dataUrl = await htmlToImage.toPng(targetElement, {
-        pixelRatio: 2, // 2x resolution for retina-crisp text
-        backgroundColor: "#f1f5f9",
-        width: 1400, // Fixed wide canvas
-      });
-
-      // Restore original style
-      targetElement.style.height = originalHeight;
-
-      const link = document.createElement("a");
-      link.download = `IBPS_Planner_Report_${selectedDate}.png`;
-      link.href = dataUrl;
-      link.click();
-
-      notify("Report downloaded successfully!", "success");
-    } catch (err) {
-      console.error(err);
-      notify("Failed to generate image.", "error");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // Data Aggregation
-  const studySessions = timeline.filter((t) => t.isStudy);
-  const completedStudy = studySessions.filter((t) => t.checked);
-  const wordsLearned = vocab.filter((v) => v.dateAdded === selectedDate);
-  const dailyStudy = calculateStudyMinutes(timeline);
-  const completedHrs = (dailyStudy.completedMins / 60).toFixed(1);
-  const targetHrs = (dailyStudy.targetMins / 60).toFixed(1);
-  const completionRate =
-    studySessions.length > 0
-      ? Math.round((completedStudy.length / studySessions.length) * 100)
-      : 0;
-  const userName = user?.user_metadata?.display_username || "Aspirant";
-
   return (
     <div>
-      {/* UI HEADER */}
       <div className="page-header">
         <div>
           <h1 style={{ fontSize: "28px" }}>Daily Timeline</h1>
@@ -3898,32 +3859,12 @@ function DailyPlan({ timeline }) {
             Structure and execute your study routine block by block.
           </p>
         </div>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <button
-            className="btn"
-            style={{
-              background: "linear-gradient(135deg, #1e293b, #0f172a)",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.1)",
-              boxShadow: "0 4px 15px rgba(15, 23, 42, 0.2)",
-            }}
-            onClick={generateDailyReportImage}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <Loader2 className="spinner" size={16} />
-            ) : (
-              <Download size={16} />
-            )}
-            {isGenerating ? "Processing..." : "Export  Image"}
-          </button>
+        <div style={{ display: "flex", gap: "12px" }}>
           <button className="btn" onClick={addTask}>
             <Plus size={16} /> Add Task
           </button>
         </div>
       </div>
-
-      {/* TIMELINE UI LIST */}
       <div
         style={{
           position: "relative",
@@ -4106,426 +4047,10 @@ function DailyPlan({ timeline }) {
           ))}
         </div>
       </div>
-
-      {/* --- INVISIBLE DOM ELEMENT FOR HIGH-RES IMAGE GENERATION --- */}
-      {/* 
-        Changes Made for Clear Visibility:
-        1. position: absolute, top: 0 (avoids vertical culling)
-        2. left: -9999px (keeps it offscreen)
-        3. width: 1400px (wider canvas prevents text bunching)
-        4. zIndex: -1 (keeps it securely behind UI)
-      */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: "-9999px",
-          zIndex: -1,
-        }}
-      >
-        <div
-          ref={reportRef}
-          style={{
-            width: "1400px",
-            minHeight: "1000px",
-            padding: "60px",
-            background: "#f1f5f9", // Crisp light gray background
-            fontFamily: "system-ui, -apple-system, sans-serif",
-            color: "#0f172a",
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-              borderRadius: "24px",
-              padding: "40px 56px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              color: "white",
-              marginBottom: "40px",
-              boxShadow: "0 20px 40px -10px rgba(15, 23, 42, 0.4)",
-            }}
-          >
-            <div>
-              <h1
-                style={{
-                  fontSize: "44px", // Increased
-                  fontWeight: 800,
-                  margin: "0 0 12px 0",
-                  letterSpacing: "-1px",
-                }}
-              >
-                IBPS Planner PRO
-              </h1>
-              <p
-                style={{
-                  margin: 0,
-                  color: "#94a3b8",
-                  fontSize: "20px", // Increased
-                  fontWeight: 500,
-                }}
-              >
-                Daily Execution & Vocabulary Analytics Profile
-              </p>
-            </div>
-            <div
-              style={{
-                textAlign: "right",
-                background: "rgba(255,255,255,0.1)",
-                padding: "20px 32px",
-                borderRadius: "20px",
-                border: "1px solid rgba(255,255,255,0.15)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "26px", // Increased
-                  fontWeight: 800,
-                  color: "#38bdf8",
-                  marginBottom: "8px",
-                }}
-              >
-                {selectedDate}
-              </div>
-              <div
-                style={{
-                  fontSize: "16px", // Increased
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                  color: "#cbd5e1",
-                  fontWeight: 700,
-                }}
-              >
-                Aspirant: {userName}
-              </div>
-            </div>
-          </div>
-
-          {/* Stats Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "32px",
-              marginBottom: "48px",
-            }}
-          >
-            {[
-              {
-                label: "Study Time",
-                val: `${completedHrs}`,
-                sub: `/ ${targetHrs}h`,
-              },
-              {
-                label: "Sessions Completed",
-                val: `${completedStudy.length}`,
-                sub: `/ ${studySessions.length}`,
-              },
-              { label: "Completion Rate", val: `${completionRate}%`, sub: "" },
-              {
-                label: "New Words Mastered",
-                val: wordsLearned.length,
-                sub: "",
-              },
-            ].map((stat, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: "white",
-                  padding: "32px",
-                  borderRadius: "20px",
-                  border: "1px solid #e2e8f0",
-                  boxShadow: "0 10px 20px -5px rgba(0,0,0,0.05)",
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "15px", // Increased
-                    fontWeight: 800,
-                    color: "#64748b",
-                    textTransform: "uppercase",
-                    letterSpacing: "1px",
-                    marginBottom: "12px",
-                  }}
-                >
-                  {stat.label}
-                </div>
-                <div
-                  style={{
-                    fontSize: "44px", // Increased
-                    fontWeight: 800,
-                    color: idx === 0 || idx === 3 ? "#6366f1" : "#0f172a",
-                  }}
-                >
-                  {stat.val}{" "}
-                  <span
-                    style={{
-                      fontSize: "22px",
-                      color: "#94a3b8",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {stat.sub}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Two Column Content */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "48px", // Expanded gap
-              alignItems: "start",
-            }}
-          >
-            {/* Left Column: Timeline */}
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <h2
-                style={{
-                  fontSize: "26px", // Increased
-                  fontWeight: 800,
-                  color: "#0f172a",
-                  marginBottom: "28px",
-                  borderBottom: "3px solid #e2e8f0",
-                  paddingBottom: "16px",
-                }}
-              >
-                📅 Timeline Execution
-              </h2>
-              {studySessions.length === 0 ? (
-                <div
-                  style={{
-                    color: "#64748b",
-                    fontSize: "20px",
-                    fontStyle: "italic",
-                  }}
-                >
-                  No study sessions scheduled.
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "16px", // More breathing room
-                  }}
-                >
-                  {studySessions.map((s, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        background: s.checked ? "white" : "#fffbf0",
-                        padding: "24px",
-                        borderRadius: "16px",
-                        border: "1px solid #e2e8f0",
-                        borderLeft: `8px solid ${s.checked ? "#6366f1" : "#f59e0b"}`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        boxShadow: "0 4px 10px rgba(0,0,0,0.03)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "20px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            background: "#f1f5f9",
-                            color: "#475569",
-                            padding: "10px 18px",
-                            borderRadius: "10px",
-                            fontWeight: 800,
-                            fontSize: "18px", // Increased
-                          }}
-                        >
-                          {s.time}
-                        </div>
-                        <div>
-                          <div
-                            style={{
-                              fontSize: "22px", // Increased
-                              fontWeight: 800,
-                              color: "#1e293b",
-                            }}
-                          >
-                            {s.activity}
-                          </div>
-                          {s.notes && (
-                            <div
-                              style={{
-                                fontSize: "16px", // Increased
-                                color: "#475569",
-                                marginTop: "8px",
-                                fontWeight: 500,
-                              }}
-                            >
-                              📝 {s.notes}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          background: s.checked ? "#dcfce7" : "#fef3c7",
-                          color: s.checked ? "#15803d" : "#b45309",
-                          padding: "10px 20px",
-                          borderRadius: "30px",
-                          fontSize: "15px", // Increased
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        {s.checked ? "Done" : "Pending"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Right Column: Vocab */}
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <h2
-                style={{
-                  fontSize: "26px", // Increased
-                  fontWeight: 800,
-                  color: "#0f172a",
-                  marginBottom: "28px",
-                  borderBottom: "3px solid #e2e8f0",
-                  paddingBottom: "16px",
-                }}
-              >
-                🧠 Vocabulary Mastered
-              </h2>
-              {wordsLearned.length === 0 ? (
-                <div
-                  style={{
-                    color: "#64748b",
-                    fontSize: "20px",
-                    fontStyle: "italic",
-                  }}
-                >
-                  No vocabulary logged today.
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "20px", // More breathing room
-                  }}
-                >
-                  {wordsLearned.map((v, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        background: "white",
-                        padding: "28px",
-                        borderRadius: "20px",
-                        border: "1px solid #e2e8f0",
-                        boxShadow: "0 4px 10px rgba(0,0,0,0.03)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                          marginBottom: "16px",
-                          borderBottom: "1px dashed #cbd5e1",
-                          paddingBottom: "16px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "26px", // Increased prominently
-                            fontWeight: 800,
-                            color: "#0f172a",
-                          }}
-                        >
-                          {v.word}
-                        </div>
-                        <div
-                          style={{
-                            background: "#e0e7ff",
-                            color: "#4338ca",
-                            padding: "6px 14px",
-                            borderRadius: "10px",
-                            fontSize: "14px", // Increased
-                            fontWeight: 800,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                          }}
-                        >
-                          {v.type || "Vocabulary"}
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "18px", // Increased
-                          color: "#334155",
-                          lineHeight: 1.6,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {v.meaning}
-                      </div>
-                      {v.notes && (
-                        <div
-                          style={{
-                            background: "#f8fafc",
-                            padding: "16px 20px",
-                            borderRadius: "12px",
-                            borderLeft: "4px solid #38bdf8",
-                            fontSize: "16px", // Increased
-                            color: "#475569",
-                            fontStyle: "italic",
-                            marginTop: "16px",
-                            fontWeight: 500,
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          "{v.notes}"
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div
-            style={{
-              marginTop: "60px",
-              paddingTop: "32px",
-              borderTop: "3px solid #e2e8f0",
-              textAlign: "center",
-              fontSize: "16px",
-              fontWeight: 700,
-              color: "#94a3b8",
-            }}
-          >
-            Generated via IBPS Planner PRO • Report Date:{" "}
-            {new Date().toLocaleString()}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
+
 function FastReadingTimer({ onTimerEnded }) {
   const [timeLeft, setTimeLeft] = useState(5 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -5464,21 +4989,24 @@ function StudyMaterialsModule() {
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [notes, setNotes] = useState([]);
 
+  // Admin Upload State
   const [uploading, setUploading] = useState(false);
   const [uploadCategory, setUploadCategory] = useState("Current Affairs");
   const [uploadMonth, setUploadMonth] = useState("July");
   const [uploadSubCategory, setUploadSubCategory] = useState("Sports");
   const [uploadTitleOverride, setUploadTitleOverride] = useState("");
 
+  // UI State
   const [newNote, setNewNote] = useState("");
   const [pageNumber, setPageNumber] = useState(1);
   const [showLibrary, setShowLibrary] = useState(true);
   const [showNotes, setShowNotes] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState("Current Affairs");
-  const [navPath, setNavPath] = useState([]);
+  const [navPath, setNavPath] = useState([]); // Subfolder tracking (e.g., ["July", "Sports"])
   const [isTimerEndedModalOpen, setIsTimerEndedModalOpen] = useState(false);
 
+  // Drag and drop state
   const [draggedDocId, setDraggedDocId] = useState(null);
   const [dragOverDocId, setDragOverDocId] = useState(null);
 
@@ -5489,6 +5017,7 @@ function StudyMaterialsModule() {
   useEffect(() => {
     fetchDocuments();
 
+    // OPTIMIZED REALTIME SUBSCRIPTION
     const documentsSubscription = supabase
       .channel("public:documents")
       .on(
@@ -5498,6 +5027,7 @@ function StudyMaterialsModule() {
       )
       .subscribe();
 
+    // POLLING FALLBACK (Guarantees sync every 5 seconds even if Realtime is OFF in Supabase Dashboard)
     const pollInterval = setInterval(() => {
       fetchDocuments();
     }, 5000);
@@ -5522,6 +5052,7 @@ function StudyMaterialsModule() {
       console.error("Failed to load PDFs.", error);
     } else if (data) {
       setDocuments(data);
+      // We don't auto-select here on every refresh to avoid breaking user's current reading session
     }
   };
 
@@ -5668,11 +5199,13 @@ function StudyMaterialsModule() {
     const [removed] = newList.splice(draggedIndex, 1);
     newList.splice(targetIndex, 0, removed);
 
+    // Only map the fields we actually need to update
     const updates = newList.map((doc, index) => ({
       id: doc.id,
       order_index: index + 1,
     }));
 
+    // Optimistic UI update for the admin
     setDocuments((prev) => {
       const docMap = new Map(prev.map((d) => [d.id, d]));
       updates.forEach((u) => docMap.set(u.id, { ...docMap.get(u.id), ...u }));
@@ -5682,6 +5215,7 @@ function StudyMaterialsModule() {
     setDragOverDocId(null);
     setDraggedDocId(null);
 
+    // PARALLEL UPDATE: Replaces upsert to avoid strict RLS policy conflicts
     try {
       const results = await Promise.all(
         updates.map((u) =>
@@ -5700,7 +5234,7 @@ function StudyMaterialsModule() {
         "Failed to save new order to database. Check Supabase RLS.",
         "error",
       );
-      fetchDocuments();
+      fetchDocuments(); // Revert to database state on failure
     }
   };
 
@@ -6826,6 +6360,7 @@ export default function App() {
             <DailyPlan timeline={currentHistory.timeline} />
           )}
           {activeView === "digital_notes" &&
+            /* Assume DigitalNotesBoard is imported or defined elsewhere if omitted from your prompt */
             (typeof DigitalNotesBoard !== "undefined" ? (
               <DigitalNotesBoard />
             ) : (
