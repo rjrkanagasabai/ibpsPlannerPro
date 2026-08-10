@@ -1612,7 +1612,7 @@ function VocabTracker() {
           synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
           antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
           notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-          audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
+          // audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
         });
       } else
         setSearchError(
