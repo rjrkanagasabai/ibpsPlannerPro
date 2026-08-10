@@ -4471,7 +4471,7 @@ function DailyPlan({ timeline }) {
                         >
                           {v.word}
                         </div>
-                        <div
+                        {/* <div
                           style={{
                             background: "rgba(99, 102, 241, 0.1)",
                             color: "#4f46e5",
@@ -4485,7 +4485,7 @@ function DailyPlan({ timeline }) {
                           }}
                         >
                           {v.type || "Vocabulary"}
-                        </div>
+                        </div> */}
                       </div>
                       {/* <div
                         style={{
