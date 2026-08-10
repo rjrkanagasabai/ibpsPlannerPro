@@ -1612,7 +1612,7 @@ function VocabTracker() {
           synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
           antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
           notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-          // audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
+          audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
         });
       } else
         setSearchError(
@@ -3888,6 +3888,11 @@ function DailyPlan({ timeline }) {
       : 0;
   const userName = user?.user_metadata?.display_username || "Aspirant";
 
+  // Filter for report: Include only tasks that are both completed AND marked as a study session (no breaktimes)
+  const completedTasksForReport = timeline.filter(
+    (t) => t.checked && t.isStudy,
+  );
+
   return (
     <div>
       {/* UI HEADER */}
@@ -3915,7 +3920,7 @@ function DailyPlan({ timeline }) {
             ) : (
               <Download size={16} />
             )}
-            {isGenerating ? "Processing..." : "Export  Image"}
+            {isGenerating ? "Processing..." : "Export Image"}
           </button>
           <button className="btn" onClick={addTask}>
             <Plus size={16} /> Add Task
@@ -4108,13 +4113,6 @@ function DailyPlan({ timeline }) {
       </div>
 
       {/* --- INVISIBLE DOM ELEMENT FOR HIGH-RES IMAGE GENERATION --- */}
-      {/* 
-        Changes Made for Clear Visibility:
-        1. position: absolute, top: 0 (avoids vertical culling)
-        2. left: -9999px (keeps it offscreen)
-        3. width: 1400px (wider canvas prevents text bunching)
-        4. zIndex: -1 (keeps it securely behind UI)
-      */}
       <div
         style={{
           position: "absolute",
@@ -4129,7 +4127,7 @@ function DailyPlan({ timeline }) {
             width: "1400px",
             minHeight: "1000px",
             padding: "60px",
-            background: "#f1f5f9", // Crisp light gray background
+            background: "#f1f5f9",
             fontFamily: "system-ui, -apple-system, sans-serif",
             color: "#0f172a",
           }}
@@ -4151,7 +4149,7 @@ function DailyPlan({ timeline }) {
             <div>
               <h1
                 style={{
-                  fontSize: "44px", // Increased
+                  fontSize: "44px",
                   fontWeight: 800,
                   margin: "0 0 12px 0",
                   letterSpacing: "-1px",
@@ -4163,7 +4161,7 @@ function DailyPlan({ timeline }) {
                 style={{
                   margin: 0,
                   color: "#94a3b8",
-                  fontSize: "20px", // Increased
+                  fontSize: "20px",
                   fontWeight: 500,
                 }}
               >
@@ -4181,7 +4179,7 @@ function DailyPlan({ timeline }) {
             >
               <div
                 style={{
-                  fontSize: "26px", // Increased
+                  fontSize: "26px",
                   fontWeight: 800,
                   color: "#38bdf8",
                   marginBottom: "8px",
@@ -4191,7 +4189,7 @@ function DailyPlan({ timeline }) {
               </div>
               <div
                 style={{
-                  fontSize: "16px", // Increased
+                  fontSize: "16px",
                   textTransform: "uppercase",
                   letterSpacing: "1px",
                   color: "#cbd5e1",
@@ -4243,7 +4241,7 @@ function DailyPlan({ timeline }) {
               >
                 <div
                   style={{
-                    fontSize: "15px", // Increased
+                    fontSize: "15px",
                     fontWeight: 800,
                     color: "#64748b",
                     textTransform: "uppercase",
@@ -4255,7 +4253,7 @@ function DailyPlan({ timeline }) {
                 </div>
                 <div
                   style={{
-                    fontSize: "44px", // Increased
+                    fontSize: "44px",
                     fontWeight: 800,
                     color: idx === 0 || idx === 3 ? "#6366f1" : "#0f172a",
                   }}
@@ -4280,7 +4278,7 @@ function DailyPlan({ timeline }) {
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
-              gap: "48px", // Expanded gap
+              gap: "48px",
               alignItems: "start",
             }}
           >
@@ -4288,7 +4286,7 @@ function DailyPlan({ timeline }) {
             <div style={{ display: "flex", flexDirection: "column" }}>
               <h2
                 style={{
-                  fontSize: "26px", // Increased
+                  fontSize: "26px",
                   fontWeight: 800,
                   color: "#0f172a",
                   marginBottom: "28px",
@@ -4296,9 +4294,9 @@ function DailyPlan({ timeline }) {
                   paddingBottom: "16px",
                 }}
               >
-                📅 Timeline Execution
+                ✅ Completed Tasks
               </h2>
-              {studySessions.length === 0 ? (
+              {completedTasksForReport.length === 0 ? (
                 <div
                   style={{
                     color: "#64748b",
@@ -4306,25 +4304,25 @@ function DailyPlan({ timeline }) {
                     fontStyle: "italic",
                   }}
                 >
-                  No study sessions scheduled.
+                  No tasks completed yet.
                 </div>
               ) : (
                 <div
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: "16px", // More breathing room
+                    gap: "16px",
                   }}
                 >
-                  {studySessions.map((s, idx) => (
+                  {completedTasksForReport.map((s, idx) => (
                     <div
                       key={idx}
                       style={{
-                        background: s.checked ? "white" : "#fffbf0",
+                        background: "white",
                         padding: "24px",
                         borderRadius: "16px",
                         border: "1px solid #e2e8f0",
-                        borderLeft: `8px solid ${s.checked ? "#6366f1" : "#f59e0b"}`,
+                        borderLeft: "8px solid #10b981",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
@@ -4345,7 +4343,7 @@ function DailyPlan({ timeline }) {
                             padding: "10px 18px",
                             borderRadius: "10px",
                             fontWeight: 800,
-                            fontSize: "18px", // Increased
+                            fontSize: "18px",
                           }}
                         >
                           {s.time}
@@ -4353,7 +4351,7 @@ function DailyPlan({ timeline }) {
                         <div>
                           <div
                             style={{
-                              fontSize: "22px", // Increased
+                              fontSize: "22px",
                               fontWeight: 800,
                               color: "#1e293b",
                             }}
@@ -4363,7 +4361,7 @@ function DailyPlan({ timeline }) {
                           {s.notes && (
                             <div
                               style={{
-                                fontSize: "16px", // Increased
+                                fontSize: "16px",
                                 color: "#475569",
                                 marginTop: "8px",
                                 fontWeight: 500,
@@ -4376,17 +4374,17 @@ function DailyPlan({ timeline }) {
                       </div>
                       <div
                         style={{
-                          background: s.checked ? "#dcfce7" : "#fef3c7",
-                          color: s.checked ? "#15803d" : "#b45309",
+                          background: "#dcfce7",
+                          color: "#15803d",
                           padding: "10px 20px",
                           borderRadius: "30px",
-                          fontSize: "15px", // Increased
+                          fontSize: "15px",
                           fontWeight: 800,
                           textTransform: "uppercase",
                           letterSpacing: "0.5px",
                         }}
                       >
-                        {s.checked ? "Done" : "Pending"}
+                        Done
                       </div>
                     </div>
                   ))}
@@ -4398,7 +4396,7 @@ function DailyPlan({ timeline }) {
             <div style={{ display: "flex", flexDirection: "column" }}>
               <h2
                 style={{
-                  fontSize: "26px", // Increased
+                  fontSize: "26px",
                   fontWeight: 800,
                   color: "#0f172a",
                   marginBottom: "28px",
@@ -4421,74 +4419,154 @@ function DailyPlan({ timeline }) {
               ) : (
                 <div
                   style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "20px", // More breathing room
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(260px, 1fr))",
+                    gap: "20px",
                   }}
                 >
                   {wordsLearned.map((v, idx) => (
                     <div
                       key={idx}
                       style={{
-                        background: "white",
-                        padding: "28px",
+                        background: "linear-gradient(145deg, #ffffff, #f8fafc)",
+                        padding: "24px",
                         borderRadius: "20px",
                         border: "1px solid #e2e8f0",
-                        boxShadow: "0 4px 10px rgba(0,0,0,0.03)",
+                        boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+                        position: "relative",
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
                       }}
                     >
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          height: "4px",
+                          background:
+                            "linear-gradient(90deg, #6366f1, #a855f7)",
+                        }}
+                      ></div>
                       <div
                         style={{
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "flex-start",
                           marginBottom: "16px",
-                          borderBottom: "1px dashed #cbd5e1",
-                          paddingBottom: "16px",
+                          gap: "12px",
                         }}
                       >
                         <div
                           style={{
-                            fontSize: "26px", // Increased prominently
+                            fontSize: "24px",
                             fontWeight: 800,
                             color: "#0f172a",
+                            lineHeight: 1.2,
+                            wordBreak: "break-word",
                           }}
                         >
                           {v.word}
                         </div>
                         <div
                           style={{
-                            background: "#e0e7ff",
-                            color: "#4338ca",
-                            padding: "6px 14px",
-                            borderRadius: "10px",
-                            fontSize: "14px", // Increased
+                            background: "rgba(99, 102, 241, 0.1)",
+                            color: "#4f46e5",
+                            padding: "6px 12px",
+                            borderRadius: "12px",
+                            fontSize: "12px",
                             fontWeight: 800,
                             textTransform: "uppercase",
                             letterSpacing: "0.5px",
+                            flexShrink: 0,
                           }}
                         >
                           {v.type || "Vocabulary"}
                         </div>
                       </div>
-                      <div
+                      {/* <div
                         style={{
-                          fontSize: "18px", // Increased
+                          fontSize: "16px",
                           color: "#334155",
                           lineHeight: 1.6,
                           fontWeight: 500,
                         }}
                       >
                         {v.meaning}
-                      </div>
+                      </div> */}
+
+                      {/* SYNONYMS AND ANTONYMS SECTION ADDED HERE */}
+                      {(v.synonyms || v.antonyms) && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "12px",
+                            marginTop: "16px",
+                            paddingTop: "12px",
+                            borderTop: "1px dashed #cbd5e1",
+                          }}
+                        >
+                          {v.synonyms && (
+                            <div style={{ flex: 1, minWidth: "100px" }}>
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  color: "#64748b",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                Synonyms
+                              </span>
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  color: "#334155",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {v.synonyms}
+                              </div>
+                            </div>
+                          )}
+                          {v.antonyms && (
+                            <div style={{ flex: 1, minWidth: "100px" }}>
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  color: "#64748b",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                Antonyms
+                              </span>
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  color: "#334155",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {v.antonyms}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {v.notes && (
                         <div
                           style={{
-                            background: "#f8fafc",
-                            padding: "16px 20px",
+                            background: "rgba(0,0,0,0.02)",
+                            padding: "14px",
                             borderRadius: "12px",
-                            borderLeft: "4px solid #38bdf8",
-                            fontSize: "16px", // Increased
+                            borderLeft: "3px solid #38bdf8",
+                            fontSize: "14px",
                             color: "#475569",
                             fontStyle: "italic",
                             marginTop: "16px",

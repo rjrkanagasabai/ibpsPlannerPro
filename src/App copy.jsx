@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { create } from "zustand";
+import * as htmlToImage from "html-to-image";
 import { persist } from "zustand/middleware";
 import "./App.css";
 import {
@@ -72,6 +73,7 @@ import {
   Bell,
   VolumeX,
   Folder,
+  Download,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
@@ -728,6 +730,1609 @@ export const useAppStore = create(
     },
   ),
 );
+
+function DigitalNotesBoard() {
+  const {
+    digitalNotes,
+    addDigitalNote,
+    updateDigitalNote,
+    deleteDigitalNote,
+    clearDigitalNotes,
+    notify,
+    requestConfirm,
+  } = useAppStore();
+
+  const [topicFilter, setTopicFilter] = useState("All");
+  const [subtopicFilter, setSubtopicFilter] = useState("All");
+
+  const [draftNote, setDraftNote] = useState(null);
+  const boardRef = useRef(null);
+  const datalistId = "subtopics-datalist";
+
+  useEffect(() => {
+    setSubtopicFilter("All");
+  }, [topicFilter]);
+
+  const currentSubtopics = [
+    "All",
+    ...new Set(
+      digitalNotes
+        .filter((n) => topicFilter === "All" || n.topic === topicFilter)
+        .map((n) => n.subtopic)
+        .filter((st) => st && st.trim() !== ""),
+    ),
+  ];
+
+  const filteredNotes = digitalNotes.filter((n) => {
+    if (topicFilter !== "All" && n.topic !== topicFilter) return false;
+    if (subtopicFilter !== "All" && n.subtopic !== subtopicFilter) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    const handlePaste = (e) => {
+      if (
+        document.activeElement.tagName === "INPUT" ||
+        document.activeElement.tagName === "TEXTAREA"
+      ) {
+        const hasImage = Array.from(e.clipboardData?.items || []).some(
+          (item) => item.type.indexOf("image") !== -1,
+        );
+        if (!hasImage) return;
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          e.preventDefault();
+          const blob = items[i].getAsFile();
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const scrollContainer = boardRef.current;
+            const x = scrollContainer ? scrollContainer.scrollLeft + 150 : 150;
+            const y = scrollContainer ? scrollContainer.scrollTop + 150 : 150;
+
+            const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
+            const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
+
+            setDraftNote({
+              id: Date.now().toString(),
+              x,
+              y,
+              imageBase64: event.target.result,
+              text: "",
+              topic: defaultTopic,
+              subtopic: defaultSub,
+              type: "image",
+              width: 320,
+              height: "auto",
+            });
+            notify("Image pasted! Fill in tags and save.", "success");
+          };
+          reader.readAsDataURL(blob);
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [topicFilter, subtopicFilter, notify]);
+
+  const handleBoardClick = (e) => {
+    if (draftNote) return;
+    if (
+      e.target.closest(".saved-note-card") ||
+      e.target.closest(".board-toolbar")
+    )
+      return;
+
+    const rect = boardRef.current.getBoundingClientRect();
+    const scrollLeft = boardRef.current.scrollLeft;
+    const scrollTop = boardRef.current.scrollTop;
+
+    const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
+    const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
+
+    setDraftNote({
+      id: Date.now().toString(),
+      x: e.clientX - rect.left + scrollLeft,
+      y: e.clientY - rect.top + scrollTop,
+      imageBase64: null,
+      text: "",
+      topic: defaultTopic,
+      subtopic: defaultSub,
+      type: "text",
+      width: 280,
+      height: "auto",
+    });
+  };
+
+  const handleSaveDraft = () => {
+    if (!draftNote.text.trim() && draftNote.type !== "image") {
+      return notify("Enter some text or paste an image.", "error");
+    }
+    addDigitalNote({ ...draftNote, date: new Date().toISOString() });
+    setDraftNote(null);
+    notify("Note saved to cloud!", "success");
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "calc(100vh - 80px)",
+        background: "var(--bg)",
+        borderRadius: "16px",
+        border: "1px solid var(--border)",
+        overflow: "hidden",
+        boxShadow: "0 10px 40px rgba(0,0,0,0.03)",
+      }}
+    >
+      <datalist id={datalistId}>
+        {currentSubtopics
+          .filter((s) => s !== "All")
+          .map((s) => (
+            <option key={s} value={s} />
+          ))}
+      </datalist>
+
+      <div
+        className="board-toolbar"
+        style={{
+          padding: "16px 24px",
+          borderBottom: "1px solid var(--border)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          background: "var(--bg)",
+          zIndex: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              padding: "10px",
+              background: "rgba(99, 102, 241, 0.1)",
+              borderRadius: "12px",
+              color: "var(--accent)",
+            }}
+          >
+            <LayoutGrid size={22} />
+          </div>
+          <div>
+            <h2
+              style={{
+                fontSize: "18px",
+                margin: "0 0 4px 0",
+                fontWeight: 800,
+                color: "var(--text-main)",
+              }}
+            >
+              Smart Notes Canvas
+            </h2>
+            <span
+              style={{
+                fontSize: "12px",
+                color: "var(--text-muted)",
+                fontWeight: 500,
+              }}
+            >
+              Click to type • <strong>Ctrl+V</strong> to paste images
+            </span>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "rgba(0,0,0,0.03)",
+              padding: "6px 16px",
+              borderRadius: "24px",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <Filter size={14} color="var(--text-muted)" />
+            <select
+              className="custom-input"
+              style={{
+                border: "none",
+                background: "transparent",
+                padding: "0",
+                fontSize: "13px",
+                outline: "none",
+                fontWeight: 600,
+                color: "var(--text-main)",
+                cursor: "pointer",
+              }}
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+            >
+              <option value="All">All Main Topics</option>
+              {NOTE_TOPICS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          {digitalNotes.length > 0 && (
+            <button
+              className="icon-btn-minimal"
+              title="Clear Entire Canvas"
+              style={{
+                color: "var(--danger)",
+                background: "rgba(239, 68, 68, 0.1)",
+                padding: "8px",
+                borderRadius: "8px",
+              }}
+              onClick={() =>
+                requestConfirm(
+                  "Clear the entire canvas from cloud? This deletes all notes.",
+                  clearDigitalNotes,
+                )
+              }
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {currentSubtopics.length > 1 && (
+        <div
+          className="board-toolbar scroll-area"
+          style={{
+            padding: "12px 24px",
+            borderBottom: "1px solid var(--border)",
+            background: "rgba(0,0,0,0.015)",
+            display: "flex",
+            gap: "10px",
+            overflowX: "auto",
+            zIndex: 9,
+          }}
+        >
+          {currentSubtopics.map((sub) => (
+            <button
+              key={sub}
+              onClick={() => setSubtopicFilter(sub)}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "20px",
+                fontSize: "12px",
+                fontWeight: subtopicFilter === sub ? 700 : 500,
+                border:
+                  subtopicFilter === sub
+                    ? "1px solid var(--accent)"
+                    : "1px solid var(--border)",
+                background:
+                  subtopicFilter === sub ? "var(--accent)" : "var(--bg)",
+                color: subtopicFilter === sub ? "#fff" : "var(--text-main)",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {sub === "All" ? "All Sub-boards" : sub}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div
+        ref={boardRef}
+        onClick={handleBoardClick}
+        style={{
+          flex: 1,
+          overflow: "auto",
+          position: "relative",
+          cursor: draftNote ? "default" : "crosshair",
+          backgroundImage:
+            "radial-gradient(rgba(99, 102, 241, 0.15) 1.5px, transparent 1.5px)",
+          backgroundSize: "24px 24px",
+          backgroundColor: "var(--bg)",
+        }}
+      >
+        <div
+          style={{
+            width: "3000px",
+            height: "3000px",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            pointerEvents: "none",
+          }}
+        ></div>
+
+        {filteredNotes.map((note) => (
+          <DraggableItem
+            key={note.id}
+            initialX={note.x}
+            initialY={note.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(x, y) => updateDigitalNote(note.id, { x, y })}
+          >
+            <div
+              className="saved-note-card"
+              style={{
+                background: "rgba(255, 255, 255, 0.85)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                border: "1px solid rgba(0,0,0,0.08)",
+                borderRadius: "16px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
+                display: "flex",
+                flexDirection: "column",
+                width: note.width || 320,
+                minWidth: "180px",
+                height: note.height || "auto",
+                minHeight: "100px",
+                resize: "both",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                className="drag-handle"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "10px 14px",
+                  background: "rgba(99, 102, 241, 0.04)",
+                  borderBottom: "1px solid rgba(0,0,0,0.05)",
+                  cursor: "grab",
+                }}
+              >
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  <GripHorizontal
+                    size={14}
+                    color="var(--text-muted)"
+                    style={{ opacity: 0.7 }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "var(--accent)",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {note.topic}
+                  </span>
+                </div>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteDigitalNote(note.id);
+                  }}
+                  style={{
+                    padding: "4px",
+                    color: "var(--danger)",
+                    opacity: 0.6,
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div
+                style={{
+                  padding: "14px",
+                  flex: 1,
+                  overflowY: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {note.type === "image" && note.imageBase64 && (
+                  <img
+                    src={note.imageBase64}
+                    alt="Pasted"
+                    style={{
+                      width: "100%",
+                      height: "auto",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(0,0,0,0.05)",
+                      objectFit: "contain",
+                    }}
+                    draggable="false"
+                  />
+                )}
+                {note.text && (
+                  <p
+                    style={{
+                      fontSize: "15px",
+                      margin: 0,
+                      color: "#1f2937",
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.6,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {note.text}
+                  </p>
+                )}
+
+                {note.subtopic && (
+                  <div
+                    style={{
+                      marginTop: "auto",
+                      paddingTop: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        background: "rgba(99, 102, 241, 0.1)",
+                        color: "var(--accent)",
+                        padding: "4px 10px",
+                        borderRadius: "12px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                      }}
+                    >
+                      <Tag size={12} /> {note.subtopic}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </DraggableItem>
+        ))}
+
+        {draftNote && (
+          <DraggableItem
+            initialX={draftNote.x}
+            initialY={draftNote.y}
+            dragHandleClass="drag-handle"
+            onDragEnd={(x, y) => setDraftNote({ ...draftNote, x, y })}
+          >
+            <div
+              className="saved-note-card"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "320px",
+                padding: "0",
+                borderRadius: "16px",
+                background: "var(--bg)",
+                border: "2px solid var(--accent)",
+                boxShadow: "0 24px 48px rgba(99, 102, 241, 0.2)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                className="drag-handle"
+                style={{
+                  background: "var(--accent)",
+                  padding: "10px 14px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "grab",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <Edit3 size={14} />{" "}
+                  {draftNote.type === "image"
+                    ? "Save Image Board"
+                    : "Save Text Board"}
+                </span>
+                <button
+                  className="icon-btn-minimal"
+                  style={{ color: "#fff" }}
+                  onClick={() => setDraftNote(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div
+                style={{
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <select
+                    className="custom-input"
+                    style={{
+                      flex: 1,
+                      padding: "8px 12px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                    value={draftNote.topic}
+                    onChange={(e) =>
+                      setDraftNote({ ...draftNote, topic: e.target.value })
+                    }
+                  >
+                    {NOTE_TOPICS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  list={datalistId}
+                  type="text"
+                  className="custom-input"
+                  placeholder="Sub-topic (e.g. Syllogism Rule 2)..."
+                  style={{
+                    padding: "10px 12px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    background: "rgba(0,0,0,0.02)",
+                  }}
+                  value={draftNote.subtopic}
+                  onChange={(e) =>
+                    setDraftNote({ ...draftNote, subtopic: e.target.value })
+                  }
+                />
+
+                {draftNote.type === "image" && draftNote.imageBase64 && (
+                  <div
+                    style={{
+                      border: "1px dashed var(--border)",
+                      padding: "4px",
+                      borderRadius: "8px",
+                      background: "rgba(0,0,0,0.02)",
+                    }}
+                  >
+                    <img
+                      src={draftNote.imageBase64}
+                      alt="Draft Preview"
+                      style={{ width: "100%", borderRadius: "4px" }}
+                    />
+                  </div>
+                )}
+
+                <textarea
+                  className="custom-input"
+                  placeholder={
+                    draftNote.type === "image"
+                      ? "Optional description or formula..."
+                      : "Start typing your notes here..."
+                  }
+                  rows="3"
+                  style={{
+                    padding: "12px",
+                    fontSize: "14px",
+                    resize: "none",
+                    lineHeight: 1.5,
+                    background: "rgba(0,0,0,0.02)",
+                  }}
+                  value={draftNote.text}
+                  autoFocus={draftNote.type === "text"}
+                  onChange={(e) =>
+                    setDraftNote({ ...draftNote, text: e.target.value })
+                  }
+                />
+                <button
+                  className="btn"
+                  onClick={handleSaveDraft}
+                  style={{
+                    width: "100%",
+                    justifyContent: "center",
+                    padding: "12px",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                  }}
+                >
+                  <Save size={16} /> Pin to Board
+                </button>
+              </div>
+            </div>
+          </DraggableItem>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
+  const { selectedDate, notify } = useAppStore();
+  const [word, setWord] = useState("");
+  const [type, setType] = useState("Vocabulary");
+  const [partOfSpeech, setPartOfSpeech] = useState("");
+  const [meaning, setMeaning] = useState("");
+  const [synonyms, setSynonyms] = useState("");
+  const [antonyms, setAntonyms] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (initialData) {
+      setWord(initialData.word);
+      setType(initialData.type || "Vocabulary");
+      setPartOfSpeech(initialData.partOfSpeech || "");
+      setMeaning(initialData.meaning || "");
+      setSynonyms(initialData.synonyms || "");
+      setAntonyms(initialData.antonyms || "");
+      setNotes(initialData.notes || "");
+    } else {
+      setWord("");
+      setType("Vocabulary");
+      setPartOfSpeech("");
+      setMeaning("");
+      setSynonyms("");
+      setAntonyms("");
+      setNotes("");
+    }
+  }, [isOpen, initialData]);
+
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (!word.trim() || !meaning.trim())
+      return notify("Word and Meaning required.", "error");
+    onSave({
+      id: initialData ? initialData.id : Date.now().toString(),
+      word,
+      type,
+      partOfSpeech,
+      meaning,
+      synonyms,
+      antonyms,
+      notes,
+      dateAdded: initialData ? initialData.dateAdded : selectedDate,
+    });
+    onClose();
+  };
+  const labelStyle = {
+    display: "block",
+    fontSize: "13px",
+    fontWeight: "600",
+    marginBottom: "8px",
+    color: "var(--text-main)",
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
+      <div
+        className="modal-card"
+        style={{ maxWidth: "550px", width: "90%", padding: "32px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3
+          className="modal-title"
+          style={{ marginBottom: "28px", fontSize: "20px" }}
+        >
+          {initialData ? "Edit Study Note" : "Custom Study Note"}
+        </h3>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr 1fr",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Word / Phrase</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Category</label>
+            <select
+              className="custom-input"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
+              <option value="Vocabulary">Vocabulary</option>
+              <option value="Phrasal Verb">Phrasal Verb</option>
+              <option value="Idiom">Idiom</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Part of Speech</label>
+            <input
+              type="text"
+              className="custom-input"
+              placeholder="noun, verb"
+              value={partOfSpeech}
+              onChange={(e) => setPartOfSpeech(e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: "20px" }}>
+          <label style={labelStyle}>Meaning / Definition</label>
+          <textarea
+            className="custom-input"
+            value={meaning}
+            onChange={(e) => setMeaning(e.target.value)}
+            rows="4"
+          />
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Synonyms (comma separated)</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={synonyms}
+              onChange={(e) => setSynonyms(e.target.value)}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Antonyms (comma separated)</label>
+            <input
+              type="text"
+              className="custom-input"
+              value={antonyms}
+              onChange={(e) => setAntonyms(e.target.value)}
+            />
+          </div>
+        </div>
+        <div style={{ marginBottom: "32px" }}>
+          <label style={labelStyle}>Usage Context / Example Sentence</label>
+          <textarea
+            className="custom-input"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows="3"
+          />
+        </div>
+        <div
+          className="modal-actions"
+          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
+        >
+          <button className="btn btn-outline" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn" onClick={handleSave}>
+            <Save size={16} /> Save Note
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VocabTracker() {
+  const {
+    vocab,
+    selectedDate,
+    requestConfirm,
+    addVocabNote,
+    updateVocabNote,
+    deleteVocabNote,
+    premiumData,
+    setPremiumData,
+  } = useAppStore();
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState(null);
+  const [searchError, setSearchError] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
+  const [filterType, setFilterType] = useState("All");
+
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://api.datamuse.com/sug?s=${encodeURIComponent(query)}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data.slice(0, 5));
+        }
+      } catch (e) {}
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const handleSearch = async (termToSearch) => {
+    const term = termToSearch || query;
+    if (!term.trim()) return;
+    setIsSearching(true);
+    setSearchError("");
+    setSearchResult(null);
+    setShowSuggestions(false);
+    try {
+      const res = await fetch(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term.trim().toLowerCase())}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const entry = data[0];
+        let meaningsList = [];
+        let synonymsList = [];
+        let antonymsList = [];
+        let examplesList = [];
+        let partsOfSpeechSet = new Set();
+        entry.meanings?.forEach((m) => {
+          const pos = m.partOfSpeech || "";
+          if (pos) partsOfSpeechSet.add(pos);
+          if (m.synonyms) synonymsList.push(...m.synonyms);
+          if (m.antonyms) antonymsList.push(...m.antonyms);
+          const firstDef = m.definitions?.[0]?.definition;
+          if (firstDef)
+            meaningsList.push(`${pos ? `[${pos}] ` : ""}${firstDef}`);
+          m.definitions?.forEach((def) => {
+            if (def.example) examplesList.push(def.example);
+            if (def.synonyms) synonymsList.push(...def.synonyms);
+            if (def.antonyms) antonymsList.push(...def.antonyms);
+          });
+        });
+        let detectedType = "Vocabulary";
+        const wordCount = term.trim().split(" ").length;
+        if (wordCount > 2) detectedType = "Idiom";
+        else if (wordCount === 2) detectedType = "Phrasal Verb";
+        setSearchResult({
+          word: entry.word || term,
+          type: detectedType,
+          partOfSpeech: Array.from(partsOfSpeechSet).join(", ") || "word",
+          meaning: meaningsList.join("\n") || "No definition found.",
+          synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
+          antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
+          notes: examplesList[0] ? `"${examplesList[0]}"` : "",
+          audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
+        });
+      } else
+        setSearchError(
+          `No direct online entry for "${term}". You can add it manually!`,
+        );
+    } catch (err) {
+      setSearchError("Unable to connect to dictionary API.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSaveSearchResult = () => {
+    if (!searchResult) return;
+    addVocabNote({
+      id: Date.now().toString(),
+      ...searchResult,
+      dateAdded: selectedDate,
+    });
+    setSearchResult(null);
+    setQuery("");
+  };
+
+  const toggleBookmark = (id) => {
+    setPremiumData((prev) => {
+      const isBookmarked = prev.bookmarks?.includes(id);
+      return {
+        ...prev,
+        bookmarks: isBookmarked
+          ? prev.bookmarks.filter((bId) => bId !== id)
+          : [...(prev.bookmarks || []), id],
+      };
+    });
+  };
+
+  let filteredVocab = vocab.filter((v) => v.dateAdded === selectedDate);
+  if (filterType === "Bookmarks")
+    filteredVocab = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
+  else if (filterType !== "All")
+    filteredVocab = filteredVocab.filter((v) => v.type === filterType);
+  const renderPills = (textStr) => {
+    if (!textStr) return null;
+    return textStr
+      .split(",")
+      .map((w) => w.trim())
+      .filter((w) => w)
+      .map((w, i) => (
+        <span
+          key={i}
+          style={{
+            display: "inline-block",
+            padding: "4px 10px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            fontWeight: 600,
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            color: "var(--text-main)",
+          }}
+        >
+          {w}
+        </span>
+      ));
+  };
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Word Power</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Master vocabulary, idioms, and phrasal verbs with modern cards.
+          </p>
+        </div>
+        <button
+          className="btn"
+          onClick={() => {
+            setEditingNote(null);
+            setIsModalOpen(true);
+          }}
+        >
+          <Plus size={16} /> Custom Entry
+        </button>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          marginBottom: "32px",
+          maxWidth: "700px",
+        }}
+      >
+        <div
+          className="card"
+          style={{
+            padding: "8px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            boxShadow: "var(--shadow-md)",
+          }}
+        >
+          <Search size={20} style={{ color: "var(--accent)" }} />
+          <input
+            type="text"
+            className="custom-input"
+            style={{
+              border: "none",
+              background: "transparent",
+              fontSize: "16px",
+              padding: "8px 0",
+            }}
+            placeholder="Type any word, phrasal verb, or idiom..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
+          {query && (
+            <button
+              className="icon-btn-minimal"
+              onClick={() => {
+                setQuery("");
+                setSearchResult(null);
+                setSearchError("");
+              }}
+            >
+              <X size={18} />
+            </button>
+          )}
+          <button
+            className="btn"
+            onClick={() => handleSearch()}
+            disabled={isSearching}
+          >
+            {isSearching ? <Loader2 size={16} className="spinner" /> : "Search"}
+          </button>
+        </div>
+        <AnimatePresence>
+          {showSuggestions && suggestions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="card"
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 100,
+                marginTop: "8px",
+                padding: "8px 0",
+                boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+              }}
+            >
+              {suggestions.map((s, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: "10px 20px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                  className="dash-list-item"
+                  onClick={() => {
+                    setQuery(s.word);
+                    handleSearch(s.word);
+                  }}
+                >
+                  <Search size={14} color="var(--text-muted)" />
+                  <span style={{ color: "var(--text-main)" }}>{s.word}</span>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {searchError && (
+        <div
+          className="card"
+          style={{
+            marginBottom: "32px",
+            borderLeft: "4px solid var(--danger)",
+            padding: "20px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span
+            style={{
+              color: "var(--text-main)",
+              fontSize: "14px",
+              fontWeight: 500,
+            }}
+          >
+            {searchError}
+          </span>
+          <button
+            className="btn btn-outline"
+            style={{ padding: "6px 12px", fontSize: "13px" }}
+            onClick={() => {
+              setEditingNote({ word: query, meaning: "", notes: "" });
+              setIsModalOpen(true);
+            }}
+          >
+            <Plus size={14} /> Add Custom Entry
+          </button>
+        </div>
+      )}
+
+      {searchResult && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="card"
+          style={{
+            marginBottom: "32px",
+            borderRadius: "20px",
+            border: "1px solid var(--border)",
+            padding: "28px",
+            background: "var(--bg)",
+            boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: "12px",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "30px",
+                margin: 0,
+                fontWeight: 800,
+                color: "var(--text-main)",
+                letterSpacing: "-0.5px",
+              }}
+            >
+              {searchResult.word}
+            </h2>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              {searchResult.audio && (
+                <button
+                  className="icon-btn-minimal"
+                  onClick={() => new Audio(searchResult.audio).play()}
+                  title="Listen Pronunciation"
+                  style={{ color: "var(--accent)" }}
+                >
+                  <Volume2 size={18} />
+                </button>
+              )}
+              <button
+                className="btn"
+                style={{
+                  borderRadius: "12px",
+                  padding: "8px 16px",
+                  marginLeft: "12px",
+                }}
+                onClick={handleSaveSearchResult}
+              >
+                <Plus size={16} /> Save to Cloud
+              </button>
+            </div>
+          </div>
+          <div style={{ marginBottom: "24px" }}>
+            <span
+              style={{
+                background: "rgba(99, 102, 241, 0.1)",
+                color: "var(--accent)",
+                fontSize: "11px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                padding: "4px 12px",
+                borderRadius: "16px",
+                letterSpacing: "0.5px",
+              }}
+            >
+              {searchResult.type}
+              {searchResult.partOfSpeech
+                ? ` • ${searchResult.partOfSpeech}`
+                : ""}
+            </span>
+          </div>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+          >
+            <div>
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.8px",
+                  display: "block",
+                  marginBottom: "8px",
+                }}
+              >
+                Meaning
+              </span>
+              <p
+                style={{
+                  fontFamily: "serif",
+                  fontSize: "17px",
+                  lineHeight: "1.6",
+                  color: "var(--text-main)",
+                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {searchResult.meaning}
+              </p>
+            </div>
+            {(searchResult.synonyms || searchResult.antonyms) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "24px",
+                  marginTop: "12px",
+                  paddingTop: "20px",
+                  borderTop: "1px dashed var(--border)",
+                }}
+              >
+                {searchResult.synonyms && (
+                  <div style={{ flex: 1, minWidth: "150px" }}>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Synonyms
+                    </span>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+                    >
+                      {renderPills(searchResult.synonyms)}
+                    </div>
+                  </div>
+                )}
+                {searchResult.antonyms && (
+                  <div style={{ flex: 1, minWidth: "150px" }}>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Antonyms
+                    </span>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+                    >
+                      {renderPills(searchResult.antonyms)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {searchResult.notes && (
+              <div
+                style={{
+                  background: "rgba(99, 102, 241, 0.04)",
+                  padding: "16px",
+                  borderRadius: "12px",
+                  borderLeft: "4px solid var(--accent)",
+                  marginTop: "8px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--accent)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.8px",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Usage Context
+                </span>
+                <span
+                  style={{
+                    fontStyle: "italic",
+                    fontSize: "15px",
+                    color: "var(--text-main)",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {searchResult.notes}
+                </span>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          gap: "10px",
+          marginBottom: "24px",
+          flexWrap: "wrap",
+        }}
+      >
+        {["All", "Vocabulary", "Phrasal Verb", "Idiom", "Bookmarks"].map(
+          (type) => (
+            <button
+              key={type}
+              className={`btn ${filterType === type ? "" : "btn-outline"}`}
+              style={{
+                padding: "8px 18px",
+                fontSize: "13px",
+                borderRadius: "20px",
+                fontWeight: filterType === type ? 700 : 500,
+              }}
+              onClick={() => setFilterType(type)}
+            >
+              {type === "Bookmarks" && (
+                <Bookmark size={14} style={{ marginRight: 6 }} />
+              )}{" "}
+              {type}
+            </button>
+          ),
+        )}
+      </div>
+
+      {filteredVocab.length === 0 ? (
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "60px 20px",
+            color: "var(--text-muted)",
+          }}
+        >
+          <BookMarked
+            size={48}
+            style={{
+              opacity: 0.2,
+              margin: "0 auto 16px auto",
+              display: "block",
+            }}
+          />
+          <p style={{ fontSize: "15px" }}>
+            No saved study notes found in this category.
+          </p>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+            gap: "24px",
+          }}
+        >
+          {filteredVocab.map((item) => {
+            const isBookmarked = premiumData?.bookmarks?.includes(item.id);
+            return (
+              <motion.div
+                whileHover={{ y: -4 }}
+                transition={{ duration: 0.2 }}
+                key={item.id}
+                className="card"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "28px",
+                  borderRadius: "20px",
+                  border: "1px solid var(--border)",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.04)",
+                  background: "var(--bg)",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                {isBookmarked && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: "4px",
+                      background: "var(--warning)",
+                    }}
+                  ></div>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "28px",
+                      margin: 0,
+                      fontWeight: 800,
+                      color: "var(--text-main)",
+                      letterSpacing: "-0.5px",
+                    }}
+                  >
+                    {item.word}
+                  </h3>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => toggleBookmark(item.id)}
+                      title="Bookmark"
+                      style={{
+                        color: isBookmarked
+                          ? "var(--warning)"
+                          : "var(--text-muted)",
+                      }}
+                    >
+                      <Bookmark
+                        size={18}
+                        fill={isBookmarked ? "var(--warning)" : "none"}
+                      />
+                    </button>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => {
+                        setEditingNote(item);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      <Edit3 size={18} />
+                    </button>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() =>
+                        requestConfirm("Delete this cloud entry?", () =>
+                          deleteVocabNote(item.id),
+                        )
+                      }
+                      style={{ color: "var(--danger)" }}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+                <div style={{ marginBottom: "24px" }}>
+                  <span
+                    style={{
+                      background: "rgba(99, 102, 241, 0.1)",
+                      color: "var(--accent)",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      padding: "4px 12px",
+                      borderRadius: "16px",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    {item.type}
+                    {item.partOfSpeech ? ` • ${item.partOfSpeech}` : ""}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "20px",
+                    flex: 1,
+                  }}
+                >
+                  <div>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        fontSize: "11px",
+                        display: "block",
+                        marginBottom: "8px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.8px",
+                      }}
+                    >
+                      Meaning
+                    </span>
+                    <p
+                      style={{
+                        color: "var(--text-main)",
+                        fontFamily: "serif",
+                        fontSize: "16px",
+                        lineHeight: "1.6",
+                        margin: 0,
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {item.meaning}
+                    </p>
+                  </div>
+                  {(item.synonyms || item.antonyms) && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "24px",
+                        marginTop: "auto",
+                        paddingTop: "20px",
+                        borderTop: "1px dashed var(--border)",
+                      }}
+                    >
+                      {item.synonyms && (
+                        <div style={{ flex: 1, minWidth: "120px" }}>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              color: "var(--text-muted)",
+                              textTransform: "uppercase",
+                              display: "block",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Synonyms
+                          </span>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "6px",
+                            }}
+                          >
+                            {renderPills(item.synonyms)}
+                          </div>
+                        </div>
+                      )}
+                      {item.antonyms && (
+                        <div style={{ flex: 1, minWidth: "120px" }}>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              color: "var(--text-muted)",
+                              textTransform: "uppercase",
+                              display: "block",
+                              marginBottom: "8px",
+                            }}
+                          >
+                            Antonyms
+                          </span>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "6px",
+                            }}
+                          >
+                            {renderPills(item.antonyms)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {item.notes && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        background: "rgba(99, 102, 241, 0.04)",
+                        padding: "12px 16px",
+                        borderRadius: "10px",
+                        borderLeft: "3px solid var(--accent)",
+                        fontSize: "14px",
+                        lineHeight: "1.5",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "var(--text-main)",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        "{item.notes}"
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+      <VocabModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSave={(note) =>
+          editingNote ? updateVocabNote(note) : addVocabNote(note)
+        }
+        initialData={editingNote}
+      />
+    </div>
+  );
+}
 
 // --- HELPER DRAGGABLE COMPONENT ---
 function DraggableItem({
@@ -2204,17 +3809,22 @@ function Dashboard({ history }) {
 }
 
 function DailyPlan({ timeline }) {
-  const { updateHistory, notify } = useAppStore();
+  const { updateHistory, notify, vocab, selectedDate, user } = useAppStore();
+  const reportRef = useRef(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
   const handleChange = (index, field, value) => {
     const updated = timeline.map((item, i) =>
       i === index ? { ...item, [field]: value } : item,
     );
     updateHistory({ timeline: updated });
   };
+
   const deleteTask = (index) => {
     updateHistory({ timeline: timeline.filter((_, i) => i !== index) });
     notify("Task removed", "info");
   };
+
   const addTask = () => {
     updateHistory({
       timeline: [
@@ -2230,8 +3840,62 @@ function DailyPlan({ timeline }) {
     });
   };
 
+  // Ultra-Clear "Off-Screen to Image" Generator
+  const generateDailyReportImage = async () => {
+    if (!reportRef.current) return;
+    try {
+      setIsGenerating(true);
+      notify("Capturing high-resolution report...", "info");
+
+      // We explicitly capture the full scrollHeight to prevent clipping
+      const targetElement = reportRef.current;
+      const originalHeight = targetElement.style.height;
+      targetElement.style.height = "max-content"; // Force expansion
+
+      const dataUrl = await htmlToImage.toPng(targetElement, {
+        pixelRatio: 2, // 2x resolution for retina-crisp text
+        backgroundColor: "#f1f5f9",
+        width: 1400, // Fixed wide canvas
+      });
+
+      // Restore original style
+      targetElement.style.height = originalHeight;
+
+      const link = document.createElement("a");
+      link.download = `IBPS_Planner_Report_${selectedDate}.png`;
+      link.href = dataUrl;
+      link.click();
+
+      notify("Report downloaded successfully!", "success");
+    } catch (err) {
+      console.error(err);
+      notify("Failed to generate image.", "error");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Data Aggregation
+  const studySessions = timeline.filter((t) => t.isStudy);
+  const completedStudy = studySessions.filter((t) => t.checked);
+  const wordsLearned = vocab.filter((v) => v.dateAdded === selectedDate);
+  const dailyStudy = calculateStudyMinutes(timeline);
+  const completedHrs = (dailyStudy.completedMins / 60).toFixed(1);
+  const targetHrs = (dailyStudy.targetMins / 60).toFixed(1);
+  const completionRate =
+    studySessions.length > 0
+      ? Math.round((completedStudy.length / studySessions.length) * 100)
+      : 0;
+  const userName = user?.user_metadata?.display_username || "Aspirant";
+
+  // Filter for report: Include only tasks that are both completed AND marked as a study session (no breaktimes)
+  const completedTasksForReport = timeline.filter(
+    (t) => t.checked && t.isStudy,
+  );
+
   return (
     <div>
+      {/* UI HEADER */}
       <div className="page-header">
         <div>
           <h1 style={{ fontSize: "28px" }}>Daily Timeline</h1>
@@ -2239,12 +3903,32 @@ function DailyPlan({ timeline }) {
             Structure and execute your study routine block by block.
           </p>
         </div>
-        <div style={{ display: "flex", gap: "12px" }}>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <button
+            className="btn"
+            style={{
+              background: "linear-gradient(135deg, #1e293b, #0f172a)",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.1)",
+              boxShadow: "0 4px 15px rgba(15, 23, 42, 0.2)",
+            }}
+            onClick={generateDailyReportImage}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <Loader2 className="spinner" size={16} />
+            ) : (
+              <Download size={16} />
+            )}
+            {isGenerating ? "Processing..." : "Export Image"}
+          </button>
           <button className="btn" onClick={addTask}>
             <Plus size={16} /> Add Task
           </button>
         </div>
       </div>
+
+      {/* TIMELINE UI LIST */}
       <div
         style={{
           position: "relative",
@@ -2427,10 +4111,499 @@ function DailyPlan({ timeline }) {
           ))}
         </div>
       </div>
+
+      {/* --- INVISIBLE DOM ELEMENT FOR HIGH-RES IMAGE GENERATION --- */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: "-9999px",
+          zIndex: -1,
+        }}
+      >
+        <div
+          ref={reportRef}
+          style={{
+            width: "1400px",
+            minHeight: "1000px",
+            padding: "60px",
+            background: "#f1f5f9",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            color: "#0f172a",
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+              borderRadius: "24px",
+              padding: "40px 56px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              color: "white",
+              marginBottom: "40px",
+              boxShadow: "0 20px 40px -10px rgba(15, 23, 42, 0.4)",
+            }}
+          >
+            <div>
+              <h1
+                style={{
+                  fontSize: "44px",
+                  fontWeight: 800,
+                  margin: "0 0 12px 0",
+                  letterSpacing: "-1px",
+                }}
+              >
+                IBPS Planner PRO
+              </h1>
+              <p
+                style={{
+                  margin: 0,
+                  color: "#94a3b8",
+                  fontSize: "20px",
+                  fontWeight: 500,
+                }}
+              >
+                Daily Execution & Vocabulary Analytics Profile
+              </p>
+            </div>
+            <div
+              style={{
+                textAlign: "right",
+                background: "rgba(255,255,255,0.1)",
+                padding: "20px 32px",
+                borderRadius: "20px",
+                border: "1px solid rgba(255,255,255,0.15)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "26px",
+                  fontWeight: 800,
+                  color: "#38bdf8",
+                  marginBottom: "8px",
+                }}
+              >
+                {selectedDate}
+              </div>
+              <div
+                style={{
+                  fontSize: "16px",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  color: "#cbd5e1",
+                  fontWeight: 700,
+                }}
+              >
+                Aspirant: {userName}
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "32px",
+              marginBottom: "48px",
+            }}
+          >
+            {[
+              {
+                label: "Study Time",
+                val: `${completedHrs}`,
+                sub: `/ ${targetHrs}h`,
+              },
+              {
+                label: "Sessions Completed",
+                val: `${completedStudy.length}`,
+                sub: `/ ${studySessions.length}`,
+              },
+              { label: "Completion Rate", val: `${completionRate}%`, sub: "" },
+              {
+                label: "New Words Mastered",
+                val: wordsLearned.length,
+                sub: "",
+              },
+            ].map((stat, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: "white",
+                  padding: "32px",
+                  borderRadius: "20px",
+                  border: "1px solid #e2e8f0",
+                  boxShadow: "0 10px 20px -5px rgba(0,0,0,0.05)",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "15px",
+                    fontWeight: 800,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "1px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {stat.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: "44px",
+                    fontWeight: 800,
+                    color: idx === 0 || idx === 3 ? "#6366f1" : "#0f172a",
+                  }}
+                >
+                  {stat.val}{" "}
+                  <span
+                    style={{
+                      fontSize: "22px",
+                      color: "#94a3b8",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {stat.sub}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Two Column Content */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "48px",
+              alignItems: "start",
+            }}
+          >
+            {/* Left Column: Timeline */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <h2
+                style={{
+                  fontSize: "26px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                  marginBottom: "28px",
+                  borderBottom: "3px solid #e2e8f0",
+                  paddingBottom: "16px",
+                }}
+              >
+                ✅ Completed Tasks
+              </h2>
+              {completedTasksForReport.length === 0 ? (
+                <div
+                  style={{
+                    color: "#64748b",
+                    fontSize: "20px",
+                    fontStyle: "italic",
+                  }}
+                >
+                  No tasks completed yet.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "16px",
+                  }}
+                >
+                  {completedTasksForReport.map((s, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: "white",
+                        padding: "24px",
+                        borderRadius: "16px",
+                        border: "1px solid #e2e8f0",
+                        borderLeft: "8px solid #10b981",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        boxShadow: "0 4px 10px rgba(0,0,0,0.03)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "20px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            background: "#f1f5f9",
+                            color: "#475569",
+                            padding: "10px 18px",
+                            borderRadius: "10px",
+                            fontWeight: 800,
+                            fontSize: "18px",
+                          }}
+                        >
+                          {s.time}
+                        </div>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: "22px",
+                              fontWeight: 800,
+                              color: "#1e293b",
+                            }}
+                          >
+                            {s.activity}
+                          </div>
+                          {s.notes && (
+                            <div
+                              style={{
+                                fontSize: "16px",
+                                color: "#475569",
+                                marginTop: "8px",
+                                fontWeight: 500,
+                              }}
+                            >
+                              📝 {s.notes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          background: "#dcfce7",
+                          color: "#15803d",
+                          padding: "10px 20px",
+                          borderRadius: "30px",
+                          fontSize: "15px",
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        Done
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Vocab */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <h2
+                style={{
+                  fontSize: "26px",
+                  fontWeight: 800,
+                  color: "#0f172a",
+                  marginBottom: "28px",
+                  borderBottom: "3px solid #e2e8f0",
+                  paddingBottom: "16px",
+                }}
+              >
+                🧠 Vocabulary Mastered
+              </h2>
+              {wordsLearned.length === 0 ? (
+                <div
+                  style={{
+                    color: "#64748b",
+                    fontSize: "20px",
+                    fontStyle: "italic",
+                  }}
+                >
+                  No vocabulary logged today.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(260px, 1fr))",
+                    gap: "20px",
+                  }}
+                >
+                  {wordsLearned.map((v, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: "linear-gradient(145deg, #ffffff, #f8fafc)",
+                        padding: "24px",
+                        borderRadius: "20px",
+                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)",
+                        position: "relative",
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          height: "4px",
+                          background:
+                            "linear-gradient(90deg, #6366f1, #a855f7)",
+                        }}
+                      ></div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          marginBottom: "16px",
+                          gap: "12px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "24px",
+                            fontWeight: 800,
+                            color: "#0f172a",
+                            lineHeight: 1.2,
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {v.word}
+                        </div>
+                        <div
+                          style={{
+                            background: "rgba(99, 102, 241, 0.1)",
+                            color: "#4f46e5",
+                            padding: "6px 12px",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                            fontWeight: 800,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {v.type || "Vocabulary"}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "16px",
+                          color: "#334155",
+                          lineHeight: 1.6,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {v.meaning}
+                      </div>
+
+                      {/* SYNONYMS AND ANTONYMS SECTION ADDED HERE */}
+                      {(v.synonyms || v.antonyms) && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "12px",
+                            marginTop: "16px",
+                            paddingTop: "12px",
+                            borderTop: "1px dashed #cbd5e1",
+                          }}
+                        >
+                          {v.synonyms && (
+                            <div style={{ flex: 1, minWidth: "100px" }}>
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  color: "#64748b",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                Synonyms
+                              </span>
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  color: "#334155",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {v.synonyms}
+                              </div>
+                            </div>
+                          )}
+                          {v.antonyms && (
+                            <div style={{ flex: 1, minWidth: "100px" }}>
+                              <span
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  color: "#64748b",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                Antonyms
+                              </span>
+                              <div
+                                style={{
+                                  fontSize: "14px",
+                                  color: "#334155",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {v.antonyms}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {v.notes && (
+                        <div
+                          style={{
+                            background: "rgba(0,0,0,0.02)",
+                            padding: "14px",
+                            borderRadius: "12px",
+                            borderLeft: "3px solid #38bdf8",
+                            fontSize: "14px",
+                            color: "#475569",
+                            fontStyle: "italic",
+                            marginTop: "16px",
+                            fontWeight: 500,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          "{v.notes}"
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            style={{
+              marginTop: "60px",
+              paddingTop: "32px",
+              borderTop: "3px solid #e2e8f0",
+              textAlign: "center",
+              fontSize: "16px",
+              fontWeight: 700,
+              color: "#94a3b8",
+            }}
+          >
+            Generated via IBPS Planner PRO • Report Date:{" "}
+            {new Date().toLocaleString()}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-
 function FastReadingTimer({ onTimerEnded }) {
   const [timeLeft, setTimeLeft] = useState(5 * 60);
   const [isActive, setIsActive] = useState(false);
@@ -2880,1655 +5053,6 @@ function MockTracker() {
   );
 }
 
-function HabitTracker() {
-  const {
-    selectedDate,
-    habits,
-    baseHabits,
-    setAppData,
-    notify,
-    requestConfirm,
-  } = useAppStore();
-  const scrollRef = useRef(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const dateParts = (selectedDate || getFormattedDateStr()).split("-");
-  const year = parseInt(dateParts[0], 10),
-    month = parseInt(dateParts[1], 10) - 1;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthName = new Date(year, month, 1).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
-
-  const currentHabits =
-    habits[monthKey] ||
-    (baseHabits || []).map((h) => ({
-      name: h,
-      days: Array(daysInMonth).fill(""),
-    }));
-  const updateHabits = (newHabits) =>
-    setAppData((state) => ({
-      ...state,
-      baseHabits: newHabits.map((h) => h.name),
-      habits: { ...state.habits, [monthKey]: newHabits },
-    }));
-
-  const toggleHabit = (hIndex, dIndex) => {
-    const newHabits = [...currentHabits];
-    const existingDays = newHabits[hIndex].days
-      ? [...newHabits[hIndex].days]
-      : Array(daysInMonth).fill("");
-    while (existingDays.length < daysInMonth) existingDays.push("");
-    const currentState = existingDays[dIndex];
-    let nextState = "";
-    if (currentState === "done" || currentState === true) nextState = "partial";
-    else if (currentState === "partial") nextState = "missed";
-    else if (currentState === "missed") nextState = "";
-    else nextState = "done";
-    existingDays[dIndex] = nextState;
-    newHabits[hIndex] = { ...newHabits[hIndex], days: existingDays };
-    updateHabits(newHabits);
-  };
-  const handleNameChange = (hIndex, val) => {
-    const newHabits = [...currentHabits];
-    newHabits[hIndex].name = val;
-    updateHabits(newHabits);
-  };
-  const deleteHabit = (hIndex) => {
-    requestConfirm("Remove this habit?", () => {
-      updateHabits(currentHabits.filter((_, i) => i !== hIndex));
-      notify("Habit deleted", "info");
-    });
-  };
-  const addHabit = () => {
-    updateHabits([
-      ...currentHabits,
-      { name: "New Habit", days: Array(daysInMonth).fill("") },
-    ]);
-    setIsEditing(true);
-    notify("New habit added", "success");
-  };
-  const handleScroll = (amount) => {
-    if (scrollRef.current)
-      scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
-  };
-  const leftColWidth = 200;
-  const cellSize = 34;
-  const cellGap = 8;
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Habits Heatmap</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Consistency calendar for <strong>{monthName}</strong> ({daysInMonth}{" "}
-            Days)
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button
-            className={`btn ${isEditing ? "" : "btn-outline"}`}
-            onClick={() => setIsEditing(!isEditing)}
-          >
-            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}{" "}
-            <span>{isEditing ? "Done Editing" : "Edit Habits"}</span>
-          </button>
-          <button className="btn" onClick={addHabit}>
-            <Plus size={16} /> Add Habit
-          </button>
-        </div>
-      </div>
-      <div
-        className="card"
-        style={{ padding: "24px", overflow: "hidden", position: "relative" }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: "8px",
-            marginBottom: "16px",
-          }}
-        >
-          <button
-            className="icon-btn-minimal"
-            onClick={() => handleScroll(-300)}
-            style={{ border: "1px solid var(--border)" }}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            className="icon-btn-minimal"
-            onClick={() => handleScroll(300)}
-            style={{ border: "1px solid var(--border)" }}
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-        <div style={{ display: "flex", width: "100%" }}>
-          <div
-            style={{
-              flex: `0 0 ${leftColWidth}px`,
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-              borderRight: "1px solid var(--border)",
-              paddingRight: "16px",
-              zIndex: 2,
-            }}
-          >
-            <div style={{ height: "24px", marginBottom: "16px" }}></div>
-            {currentHabits.map((h, hIndex) => (
-              <div
-                key={hIndex}
-                style={{
-                  height: `${cellSize}px`,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                {isEditing ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      width: "100%",
-                    }}
-                  >
-                    <input
-                      type="text"
-                      className="custom-input"
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: "13px",
-                        width: "100%",
-                      }}
-                      value={h.name}
-                      onChange={(e) => handleNameChange(hIndex, e.target.value)}
-                    />
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => deleteHabit(hIndex)}
-                    >
-                      <Trash2 size={14} color="var(--danger)" />
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                    title={h.name}
-                  >
-                    {h.name}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <div
-            ref={scrollRef}
-            style={{
-              flex: 1,
-              overflowX: "auto",
-              paddingLeft: "16px",
-              scrollBehavior: "smooth",
-            }}
-          >
-            <div style={{ minWidth: "max-content", paddingRight: "16px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  gap: `${cellGap}px`,
-                  marginBottom: "16px",
-                }}
-              >
-                {Array.from({ length: daysInMonth }, (_, i) => {
-                  const isToday =
-                    i + 1 === new Date().getDate() &&
-                    month === new Date().getMonth();
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        width: `${cellSize}px`,
-                        textAlign: "center",
-                        fontSize: "12px",
-                        fontWeight: isToday ? 800 : 600,
-                        color: isToday ? "var(--accent)" : "var(--text-muted)",
-                        background: isToday
-                          ? "rgba(99, 102, 241, 0.1)"
-                          : "transparent",
-                        borderRadius: "6px",
-                        height: "24px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {i + 1}
-                    </div>
-                  );
-                })}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                {currentHabits.map((h, hIndex) => (
-                  <div
-                    key={hIndex}
-                    style={{ display: "flex", gap: `${cellGap}px` }}
-                  >
-                    {Array.from({ length: daysInMonth }, (_, dIndex) => {
-                      const state = h.days && h.days[dIndex];
-                      let cellBg = "var(--bg)";
-                      let cellBorder = "1px solid var(--border)";
-                      let content = null;
-                      if (state === "done" || state === true) {
-                        cellBg = "#10b981";
-                        cellBorder = "1px solid #10b981";
-                        content = <CheckCircle2 size={16} color="#fff" />;
-                      } else if (state === "partial") {
-                        cellBg = "#f59e0b";
-                        cellBorder = "1px solid #f59e0b";
-                        content = (
-                          <Minus size={16} color="#fff" strokeWidth={3} />
-                        );
-                      } else if (state === "missed") {
-                        cellBg = "#ef4444";
-                        cellBorder = "1px solid #ef4444";
-                        content = <X size={16} color="#fff" strokeWidth={3} />;
-                      }
-                      return (
-                        <motion.div
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.9 }}
-                          key={dIndex}
-                          onClick={() => toggleHabit(hIndex, dIndex)}
-                          style={{
-                            width: `${cellSize}px`,
-                            height: `${cellSize}px`,
-                            borderRadius: "8px",
-                            background: cellBg,
-                            border: cellBorder,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                          }}
-                        >
-                          {content}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SettingsView() {
-  const {
-    user,
-    logout,
-    premiumData,
-    setPremiumData,
-    requestConfirm,
-    deleteAccount,
-  } = useAppStore();
-  const displayName = user?.user_metadata?.display_username || "Aspirant";
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      <div className="card" style={{ maxWidth: 800 }}>
-        <h1 style={{ fontSize: "24px", marginBottom: "8px" }}>
-          Account & System Settings
-        </h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: 32 }}>
-          Manage your profile credentials, notifications, and local data
-          preference.
-        </p>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: "24px",
-          }}
-        >
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "24px" }}
-          >
-            <div
-              style={{
-                borderBottom: "1px solid var(--border)",
-                paddingBottom: 24,
-              }}
-            >
-              <label
-                style={{
-                  fontWeight: 700,
-                  display: "block",
-                  marginBottom: 12,
-                  fontSize: "15px",
-                  color: "var(--text-main)",
-                }}
-              >
-                Active Aspirant Account
-              </label>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "16px" }}
-              >
-                <div
-                  style={{
-                    width: "56px",
-                    height: "56px",
-                    background: "rgba(99, 102, 241, 0.1)",
-                    borderRadius: "8px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--accent)",
-                  }}
-                >
-                  <ShieldCheck size={28} />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "22px",
-                      color: "var(--text-main)",
-                      fontWeight: 800,
-                      lineHeight: 1,
-                    }}
-                  >
-                    {displayName}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      color: "#10b981",
-                      fontWeight: 700,
-                      lineHeight: 1,
-                    }}
-                  >
-                    Cloud Real-Time Sync Active
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div
-              style={{
-                borderBottom: "1px solid var(--border)",
-                paddingBottom: 24,
-              }}
-            >
-              <label
-                style={{ fontWeight: 600, display: "block", marginBottom: 8 }}
-              >
-                Target Exam Date
-              </label>
-              <input
-                type="date"
-                className="custom-input"
-                value={premiumData?.examDate || ""}
-                onChange={(e) =>
-                  setPremiumData((p) => ({ ...p, examDate: e.target.value }))
-                }
-                style={{ maxWidth: "300px" }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              <button className="btn btn-outline" onClick={logout}>
-                <LogOut size={16} /> Sign Out Account
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            marginTop: "32px",
-            paddingTop: "24px",
-            borderTop: "1px solid var(--border)",
-          }}
-        >
-          <h3
-            style={{
-              color: "var(--danger)",
-              fontSize: "16px",
-              marginBottom: "8px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <ShieldAlert size={18} /> Danger Zone
-          </h3>
-          <p
-            style={{
-              fontSize: "13px",
-              color: "var(--text-muted)",
-              marginBottom: "16px",
-              lineHeight: "1.6",
-            }}
-          >
-            This will immediately and permanently delete your account, wipe all
-            your cloud dictionary entries, and clear your local storage.
-          </p>
-          <button
-            className="btn btn-danger"
-            style={{
-              background: "var(--danger)",
-              color: "white",
-              border: "none",
-            }}
-            onClick={() =>
-              requestConfirm(
-                "Delete your account and wipe ALL cloud data permanently? This CANNOT be undone.",
-                deleteAccount,
-              )
-            }
-          >
-            <Trash2 size={16} /> Delete Account & Data
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- REDESIGNED ALIGNED STUDY MATERIALS / PDF LIBRARY MODULE ---
-function StudyMaterialsModule() {
-  const { user, notify } = useAppStore();
-  const [documents, setDocuments] = useState([]);
-  const [selectedDoc, setSelectedDoc] = useState(null);
-  const [notes, setNotes] = useState([]);
-
-  // Admin Upload State
-  const [uploading, setUploading] = useState(false);
-  const [uploadCategory, setUploadCategory] = useState("Current Affairs");
-  const [uploadMonth, setUploadMonth] = useState("July");
-  const [uploadSubCategory, setUploadSubCategory] = useState("Sports");
-  const [uploadTitleOverride, setUploadTitleOverride] = useState("");
-
-  // UI State
-  const [newNote, setNewNote] = useState("");
-  const [pageNumber, setPageNumber] = useState(1);
-  const [showLibrary, setShowLibrary] = useState(true);
-  const [showNotes, setShowNotes] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeTab, setActiveTab] = useState("Current Affairs");
-  const [navPath, setNavPath] = useState([]); // Subfolder tracking (e.g., ["July", "Sports"])
-  const [isTimerEndedModalOpen, setIsTimerEndedModalOpen] = useState(false);
-
-  // Drag and drop state
-  const [draggedDocId, setDraggedDocId] = useState(null);
-  const [dragOverDocId, setDragOverDocId] = useState(null);
-
-  const isAdmin =
-    user?.user_metadata?.display_username ===
-    import.meta.env.VITE_ADMIN_USERNAME;
-
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
-  useEffect(() => {
-    if (selectedDoc) fetchNotes(selectedDoc.id);
-  }, [selectedDoc]);
-  useEffect(() => {
-    setNavPath([]);
-  }, [activeTab]);
-
-  const fetchDocuments = async () => {
-    const { data, error } = await supabase.from("documents").select("*");
-    if (error) {
-      notify("Failed to load PDFs.", "error");
-    } else {
-      setDocuments(data || []);
-      if (data && data.length > 0 && !selectedDoc) {
-        const defaultDoc =
-          data.find(
-            (d) => (d.category?.split("::")[0] || "Other") === activeTab,
-          ) || data[0];
-        if (activeTab !== "Current Affairs") setSelectedDoc(defaultDoc);
-      }
-    }
-  };
-
-  const fetchNotes = async (docId) => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from("document_notes")
-      .select("*")
-      .eq("document_id", docId)
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-    if (!error) setNotes(data || []);
-  };
-
-  const handleFileUpload = async (event) => {
-    if (!isAdmin) return notify("Only the admin can upload PDFs.", "error");
-    try {
-      setUploading(true);
-      const file = event.target.files[0];
-      if (!file || file.type !== "application/pdf")
-        return notify("Please select a valid PDF file.", "error");
-
-      const filePath = `${Date.now()}.${file.name.split(".").pop()}`;
-      const { error: uploadError } = await supabase.storage
-        .from("pdf-files")
-        .upload(filePath, file);
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("pdf-files")
-        .getPublicUrl(filePath);
-
-      const finalCategory =
-        uploadCategory === "Current Affairs"
-          ? `Current Affairs::${uploadMonth}::${uploadSubCategory}`
-          : uploadCategory;
-      const finalTitle =
-        uploadTitleOverride.trim() || file.name.replace(".pdf", "");
-      const maxOrder = documents.reduce(
-        (max, d) => Math.max(max, d.order_index || 0),
-        0,
-      );
-
-      const { error: dbError } = await supabase.from("documents").insert([
-        {
-          title: finalTitle,
-          file_path: filePath,
-          file_url: urlData.publicUrl,
-          category: finalCategory,
-          order_index: maxOrder + 1,
-        },
-      ]);
-      if (dbError) throw dbError;
-
-      notify("PDF uploaded successfully!", "success");
-      setUploadTitleOverride("");
-      fetchDocuments();
-    } catch (error) {
-      notify("Upload failed: " + error.message, "error");
-    } finally {
-      setUploading(false);
-      event.target.value = null;
-    }
-  };
-
-  const handleDeleteDoc = async (id, filePath) => {
-    if (!isAdmin) return;
-    try {
-      await supabase.storage.from("pdf-files").remove([filePath]);
-      await supabase.from("documents").delete().eq("id", id);
-      notify("Document removed.", "info");
-      if (selectedDoc?.id === id) setSelectedDoc(null);
-      fetchDocuments();
-    } catch (err) {
-      notify("Failed to delete document.", "error");
-    }
-  };
-
-  const handleAddNote = async (e) => {
-    e.preventDefault();
-    if (!newNote.trim() || !selectedDoc || !user) return;
-    const { error } = await supabase.from("document_notes").insert([
-      {
-        document_id: selectedDoc.id,
-        user_id: user.id,
-        content: newNote,
-        page_number: parseInt(pageNumber) || 1,
-      },
-    ]);
-    if (error) notify("Failed to save note.", "error");
-    else {
-      setNewNote("");
-      fetchNotes(selectedDoc.id);
-      notify("Note saved!", "success");
-    }
-  };
-
-  const handleDeleteNote = async (id) => {
-    await supabase.from("document_notes").delete().eq("id", id);
-    fetchNotes(selectedDoc.id);
-  };
-
-  const handleDragStart = (e, doc) => {
-    if (!isAdmin) return;
-    e.stopPropagation();
-    setDraggedDocId(doc.id);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragOver = (e, doc) => {
-    if (!isAdmin) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "move";
-    if (dragOverDocId !== doc.id) setDragOverDocId(doc.id);
-  };
-
-  const handleDragLeave = (e, doc) => {
-    if (!isAdmin) return;
-    e.stopPropagation();
-    if (dragOverDocId === doc.id) setDragOverDocId(null);
-  };
-
-  const handleDrop = async (e, targetDoc) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isAdmin || !draggedDocId || draggedDocId === targetDoc.id) {
-      setDragOverDocId(null);
-      setDraggedDocId(null);
-      return;
-    }
-
-    const currentList = [...displayItems];
-    const draggedIndex = currentList.findIndex((d) => d.id === draggedDocId);
-    const targetIndex = currentList.findIndex((d) => d.id === targetDoc.id);
-
-    if (draggedIndex === -1 || targetIndex === -1) {
-      setDragOverDocId(null);
-      setDraggedDocId(null);
-      return;
-    }
-
-    const newList = [...currentList];
-    const [removed] = newList.splice(draggedIndex, 1);
-    newList.splice(targetIndex, 0, removed);
-
-    const updates = newList.map((doc, index) => ({
-      ...doc,
-      order_index: index + 1,
-    }));
-
-    setDocuments((prev) => {
-      const docMap = new Map(prev.map((d) => [d.id, d]));
-      updates.forEach((u) => docMap.set(u.id, u));
-      return Array.from(docMap.values());
-    });
-
-    setDragOverDocId(null);
-    setDraggedDocId(null);
-
-    try {
-      for (const u of updates) {
-        await supabase
-          .from("documents")
-          .update({ order_index: u.order_index })
-          .eq("id", u.id);
-      }
-    } catch (err) {
-      notify("Failed to save new order to database.", "error");
-      fetchDocuments();
-    }
-  };
-
-  const dynamicTabs = Array.from(
-    new Set([
-      "Grammar Rule",
-      "Editorial",
-      "English",
-      "Current Affairs",
-      "Other",
-      ...documents.map((d) => (d.category || "Other").split("::")[0]),
-    ]),
-  );
-
-  const mainCategoryDocs = useMemo(() => {
-    let filtered = documents.filter(
-      (doc) => (doc.category || "Other").split("::")[0] === activeTab,
-    );
-    filtered.sort((a, b) => {
-      const orderA = a.order_index ?? 0;
-      const orderB = b.order_index ?? 0;
-      if (orderA !== orderB) return orderA - orderB;
-      const dateA = new Date(a.created_at || 0).getTime();
-      const dateB = new Date(b.created_at || 0).getTime();
-      if (
-        activeTab === "Grammar Rule" ||
-        activeTab === "English" ||
-        activeTab === "Current Affairs"
-      )
-        return dateA - dateB;
-      else return dateB - dateA;
-    });
-    return filtered;
-  }, [documents, activeTab]);
-
-  let displayItems = [];
-  let viewMode = "docs";
-
-  if (activeTab === "Current Affairs") {
-    if (navPath.length === 0) {
-      viewMode = "folders";
-      displayItems = [
-        ...new Set(
-          mainCategoryDocs
-            .map((d) => d.category.split("::")[1] || "Uncategorized")
-            .filter(Boolean),
-        ),
-      ];
-    } else if (navPath.length === 1) {
-      viewMode = "folders";
-      const m = navPath[0];
-      displayItems = [
-        ...new Set(
-          mainCategoryDocs
-            .filter((d) => (d.category.split("::")[1] || "Uncategorized") === m)
-            .map((d) => d.category.split("::")[2] || "General")
-            .filter(Boolean),
-        ),
-      ];
-    } else if (navPath.length === 2) {
-      viewMode = "docs";
-      const m = navPath[0];
-      const sc = navPath[1];
-      displayItems = mainCategoryDocs.filter(
-        (d) =>
-          (d.category.split("::")[1] || "Uncategorized") === m &&
-          (d.category.split("::")[2] || "General") === sc,
-      );
-    }
-  } else {
-    viewMode = "docs";
-    displayItems = mainCategoryDocs;
-  }
-
-  return (
-    <div
-      style={
-        isFullscreen
-          ? {
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 99999,
-              display: "flex",
-              background: "var(--bg)",
-              animation: "fadeIn 0.2s",
-            }
-          : {
-              display: "flex",
-              height: "calc(150vh - 0px)",
-              background: "var(--bg)",
-              borderRadius: "16px",
-              overflow: "hidden",
-              border: "1px solid var(--border)",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
-              animation: "fadeIn 0.5s ease",
-            }
-      }
-    >
-      <ReadingTimerModal
-        isOpen={isTimerEndedModalOpen}
-        onClose={() => setIsTimerEndedModalOpen(false)}
-      />
-      {showLibrary && (
-        <div
-          style={{
-            width: "300px",
-            minWidth: "280px",
-            maxWidth: "320px",
-            borderRight: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--bg)",
-            flexShrink: 0,
-            zIndex: 2,
-          }}
-        >
-          <div
-            style={{
-              padding: "16px 20px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "16px",
-                fontWeight: 800,
-                margin: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                color: "var(--text-main)",
-              }}
-            >
-              <BookOpen size={18} color="var(--accent)" /> Study Library
-            </h2>
-            <button
-              className="icon-btn-minimal"
-              onClick={() => setShowLibrary(false)}
-              title="Close Library"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          {isAdmin && (
-            <div
-              style={{
-                padding: "14px 16px",
-                background: "rgba(99, 102, 241, 0.04)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <h4
-                style={{
-                  fontSize: "11px",
-                  textTransform: "uppercase",
-                  color: "var(--accent)",
-                  marginBottom: "10px",
-                  fontWeight: 800,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                <ShieldCheck size={14} /> Admin Tools
-              </h4>
-              <select
-                className="custom-input"
-                value={uploadCategory}
-                onChange={(e) => setUploadCategory(e.target.value)}
-                style={{
-                  width: "100%",
-                  marginBottom: "8px",
-                  fontSize: "12px",
-                  padding: "6px 8px",
-                  fontWeight: 600,
-                }}
-              >
-                <option value="Current Affairs">Current Affairs</option>
-                <option value="Grammar Rule">120 Rules of Grammar</option>
-                <option value="Editorial">Editorial</option>
-                <option value="English">English</option>
-                <option value="Other">Other</option>
-              </select>
-              {uploadCategory === "Current Affairs" && (
-                <div
-                  style={{ display: "flex", gap: "6px", marginBottom: "8px" }}
-                >
-                  <select
-                    className="custom-input"
-                    value={uploadMonth}
-                    onChange={(e) => setUploadMonth(e.target.value)}
-                    style={{
-                      width: "50%",
-                      fontSize: "12px",
-                      padding: "6px 8px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {MONTHS_LIST.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="custom-input"
-                    value={uploadSubCategory}
-                    onChange={(e) => setUploadSubCategory(e.target.value)}
-                    style={{
-                      width: "50%",
-                      fontSize: "12px",
-                      padding: "6px 8px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {CA_TOPICS_LIST.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <input
-                type="text"
-                className="custom-input"
-                placeholder="PDF Title Override (Optional)"
-                value={uploadTitleOverride}
-                onChange={(e) => setUploadTitleOverride(e.target.value)}
-                style={{
-                  width: "100%",
-                  marginBottom: "10px",
-                  fontSize: "12px",
-                  padding: "6px 8px",
-                  fontWeight: 600,
-                }}
-              />
-              <label
-                className="btn"
-                style={{
-                  width: "100%",
-                  justifyContent: "center",
-                  padding: "8px",
-                  fontSize: "12px",
-                  cursor: uploading ? "not-allowed" : "pointer",
-                }}
-              >
-                {uploading ? (
-                  <Loader2 size={14} className="spinner" />
-                ) : (
-                  <UploadCloud size={14} />
-                )}
-                {uploading ? "Uploading..." : "Upload PDF"}
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleFileUpload}
-                  style={{ display: "none" }}
-                  disabled={uploading}
-                />
-              </label>
-            </div>
-          )}
-          <div
-            className="scroll-area"
-            style={{
-              display: "flex",
-              overflowX: "auto",
-              padding: "12px 14px",
-              flexWrap: "wrap",
-              gap: "6px",
-              borderBottom: "1px solid var(--border)",
-              background: "rgba(0,0,0,0.01)",
-            }}
-          >
-            {dynamicTabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: "20px",
-                  background: activeTab === tab ? "var(--accent)" : "var(--bg)",
-                  border:
-                    activeTab === tab
-                      ? "1px solid var(--accent)"
-                      : "1px solid var(--border)",
-                  color: activeTab === tab ? "#fff" : "var(--text-muted)",
-                  fontWeight: activeTab === tab ? 700 : 500,
-                  fontSize: "11px",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  transition: "all 0.2s ease",
-                  boxShadow:
-                    activeTab === tab
-                      ? "0 4px 10px rgba(99, 102, 241, 0.2)"
-                      : "none",
-                }}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-          <div
-            style={{
-              padding: "10px 16px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              background: "rgba(0,0,0,0.015)",
-            }}
-          >
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                color: "var(--text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              {displayItems.length}{" "}
-              {viewMode === "folders" ? "Folders" : "Documents"}
-            </span>
-          </div>
-          <div
-            className="scroll-area"
-            style={{
-              flex: 1,
-              padding: "12px",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-          >
-            {activeTab === "Current Affairs" && navPath.length > 0 && (
-              <button
-                onClick={() => setNavPath(navPath.slice(0, -1))}
-                className="btn btn-outline"
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  marginBottom: "8px",
-                  alignSelf: "flex-start",
-                  gap: "4px",
-                }}
-              >
-                <ChevronLeft size={14} /> Back
-              </button>
-            )}
-            {displayItems.length === 0 && !uploading && (
-              <p
-                style={{
-                  textAlign: "center",
-                  fontSize: "13px",
-                  color: "var(--text-muted)",
-                  marginTop: "24px",
-                }}
-              >
-                No items found here.
-              </p>
-            )}
-            {viewMode === "folders"
-              ? displayItems.map((folderName) => (
-                  <div
-                    key={folderName}
-                    onClick={() => setNavPath([...navPath, folderName])}
-                    style={{
-                      cursor: "pointer",
-                      background: "rgba(99, 102, 241, 0.03)",
-                      border: "1px solid rgba(99, 102, 241, 0.15)",
-                      borderRadius: "10px",
-                      padding: "12px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      transition: "all 0.15s ease",
-                    }}
-                    onMouseOver={(e) =>
-                      (e.currentTarget.style.background =
-                        "rgba(99, 102, 241, 0.08)")
-                    }
-                    onMouseOut={(e) =>
-                      (e.currentTarget.style.background =
-                        "rgba(99, 102, 241, 0.03)")
-                    }
-                  >
-                    <div
-                      style={{
-                        background: "var(--accent)",
-                        color: "white",
-                        padding: "8px",
-                        borderRadius: "8px",
-                        display: "flex",
-                      }}
-                    >
-                      <Folder size={16} fill="currentColor" />
-                    </div>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "14px",
-                        color: "var(--text-main)",
-                      }}
-                    >
-                      {folderName}
-                    </span>
-                  </div>
-                ))
-              : displayItems.map((doc) => (
-                  <div
-                    key={doc.id}
-                    draggable={isAdmin && viewMode === "docs"}
-                    onDragStart={(e) => handleDragStart(e, doc)}
-                    onDragOver={(e) => handleDragOver(e, doc)}
-                    onDragLeave={(e) => handleDragLeave(e, doc)}
-                    onDrop={(e) => handleDrop(e, doc)}
-                    onClick={() => setSelectedDoc(doc)}
-                    style={{
-                      cursor: isAdmin ? "grab" : "pointer",
-                      background:
-                        selectedDoc?.id === doc.id
-                          ? "rgba(99,102,241,0.08)"
-                          : "var(--bg)",
-                      border:
-                        dragOverDocId === doc.id
-                          ? "2px dashed var(--accent)"
-                          : selectedDoc?.id === doc.id
-                            ? "1px solid var(--accent)"
-                            : "1px solid var(--border)",
-                      opacity: draggedDocId === doc.id ? 0.5 : 1,
-                      borderRadius: "10px",
-                      padding: "10px 12px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "8px",
-                      transition: "all 0.15s ease",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        overflow: "hidden",
-                        pointerEvents: "none",
-                      }}
-                    >
-                      {isAdmin && (
-                        <div
-                          style={{
-                            color: "var(--text-muted)",
-                            opacity: 0.5,
-                            cursor: "grab",
-                          }}
-                        >
-                          <GripVertical size={16} />
-                        </div>
-                      )}
-                      <div
-                        style={{
-                          width: "32px",
-                          height: "32px",
-                          borderRadius: "8px",
-                          background:
-                            selectedDoc?.id === doc.id
-                              ? "var(--accent)"
-                              : "rgba(0,0,0,0.04)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        <FileText
-                          size={16}
-                          color={
-                            selectedDoc?.id === doc.id
-                              ? "white"
-                              : "var(--text-muted)"
-                          }
-                        />
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          overflow: "hidden",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "13px",
-                            fontWeight: selectedDoc?.id === doc.id ? 700 : 600,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            color:
-                              selectedDoc?.id === doc.id
-                                ? "var(--accent)"
-                                : "var(--text-main)",
-                          }}
-                        >
-                          {doc.title}
-                        </span>
-                      </div>
-                    </div>
-                    {isAdmin && (
-                      <button
-                        className="icon-btn-minimal"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteDoc(doc.id, doc.file_path);
-                        }}
-                        style={{ color: "var(--danger)", padding: "4px" }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-          </div>
-        </div>
-      )}
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-          position: "relative",
-          height: "100%",
-          background: "var(--bg)",
-        }}
-      >
-        {selectedDoc ? (
-          <>
-            <div
-              style={{
-                padding: "10px 16px",
-                borderBottom: "1px solid var(--border)",
-                background: "var(--bg)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "12px",
-                flexWrap: "wrap",
-                minHeight: "56px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  flex: 1,
-                  minWidth: "180px",
-                  overflow: "hidden",
-                }}
-              >
-                {!showLibrary && (
-                  <button
-                    className="icon-btn-minimal"
-                    onClick={() => setShowLibrary(true)}
-                    title="Open Library"
-                    style={{
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                      padding: "6px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <BookOpen size={16} />
-                  </button>
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    overflow: "hidden",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontWeight: 700,
-                      fontSize: "14px",
-                      color: "var(--text-main)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {selectedDoc.title}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-muted)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {(selectedDoc.category || "Other").split("::").join(" • ")}
-                  </span>
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  flexShrink: 0,
-                }}
-              >
-                <FastReadingTimer
-                  onTimerEnded={() => setIsTimerEndedModalOpen(true)}
-                />
-                <span
-                  style={{
-                    fontSize: "11px",
-                    padding: "4px 8px",
-                    background: "rgba(245,158,11,0.1)",
-                    color: "var(--warning)",
-                    borderRadius: "8px",
-                    fontWeight: 800,
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  READ ONLY
-                </span>
-                <button
-                  className="icon-btn-minimal"
-                  onClick={() => setIsFullscreen(!isFullscreen)}
-                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Viewer"}
-                  style={{
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    padding: "6px",
-                  }}
-                >
-                  {isFullscreen ? (
-                    <Minimize size={16} />
-                  ) : (
-                    <Maximize size={16} />
-                  )}
-                </button>
-                {!showNotes && (
-                  <button
-                    className="icon-btn-minimal"
-                    onClick={() => setShowNotes(true)}
-                    title="Show Notes"
-                    style={{
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                      padding: "6px",
-                    }}
-                  >
-                    <Edit3 size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                padding: isFullscreen ? "0" : "12px",
-                background: "rgba(0,0,0,0.04)",
-                overflow: "hidden",
-              }}
-            >
-              <object
-                data={`${selectedDoc.file_url}#toolbar=0&navpanes=0`}
-                type="application/pdf"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  borderRadius: isFullscreen ? "0" : "10px",
-                  border: isFullscreen ? "none" : "1px solid var(--border)",
-                  boxShadow: isFullscreen
-                    ? "none"
-                    : "0 8px 24px rgba(0,0,0,0.06)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                    color: "var(--text-muted)",
-                    padding: "20px",
-                  }}
-                >
-                  <p>Unable to render PDF preview directly.</p>
-                  <a
-                    href={selectedDoc.file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      color: "var(--accent)",
-                      textDecoration: "underline",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Open PDF in new tab
-                  </a>
-                </div>
-              </object>
-            </div>
-          </>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "var(--text-muted)",
-            }}
-          >
-            <Layers size={48} style={{ opacity: 0.2, marginBottom: "16px" }} />
-            <p style={{ fontSize: "14px", fontWeight: 500 }}>
-              Select a document from the library to start reading.
-            </p>
-            {!showLibrary && (
-              <button
-                className="btn btn-outline"
-                style={{ marginTop: "16px" }}
-                onClick={() => setShowLibrary(true)}
-              >
-                <BookOpen size={16} /> Open Library
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {showNotes && (
-        <div
-          style={{
-            width: "300px",
-            minWidth: "280px",
-            maxWidth: "320px",
-            borderLeft: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--bg)",
-            flexShrink: 0,
-            zIndex: 2,
-          }}
-        >
-          <div
-            style={{
-              padding: "16px 20px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Edit3 size={18} color="var(--accent)" />
-              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0 }}>
-                My Notes
-              </h3>
-            </div>
-            <button
-              className="icon-btn-minimal"
-              onClick={() => setShowNotes(false)}
-              title="Close Notes"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <form
-            onSubmit={handleAddNote}
-            style={{
-              padding: "14px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "10px",
-              background: "rgba(0,0,0,0.01)",
-            }}
-          >
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: "var(--text-muted)",
-                }}
-              >
-                Page
-              </span>
-              <input
-                type="number"
-                min="1"
-                value={pageNumber}
-                onChange={(e) => setPageNumber(e.target.value)}
-                className="custom-input"
-                style={{
-                  width: "60px",
-                  padding: "6px",
-                  textAlign: "center",
-                  fontWeight: 700,
-                }}
-              />
-            </div>
-            <textarea
-              rows="3"
-              placeholder="Write personal takeaways here..."
-              className="custom-input"
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              style={{ resize: "none", fontSize: "13px" }}
-            />
-            <button
-              type="submit"
-              className="btn"
-              disabled={!selectedDoc || !newNote.trim()}
-              style={{
-                width: "100%",
-                justifyContent: "center",
-                padding: "8px",
-                fontSize: "13px",
-              }}
-            >
-              <Plus size={14} /> Save Note
-            </button>
-          </form>
-          <div
-            className="scroll-area"
-            style={{
-              flex: 1,
-              padding: "14px",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "10px",
-            }}
-          >
-            {notes.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  color: "var(--text-muted)",
-                  marginTop: "20px",
-                  padding: "10px",
-                }}
-              >
-                <MessageSquare
-                  size={32}
-                  style={{ opacity: 0.2, margin: "0 auto 8px auto" }}
-                />
-                <p style={{ fontSize: "12px" }}>
-                  No notes saved for this document.
-                </p>
-              </div>
-            ) : (
-              notes.map((note) => (
-                <div
-                  key={note.id}
-                  className="card"
-                  style={{
-                    padding: "12px",
-                    background: "rgba(0,0,0,0.015)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "6px",
-                    border: "1px solid var(--border)",
-                    borderRadius: "10px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        fontWeight: 800,
-                        color: "var(--accent)",
-                        background: "rgba(99,102,241,0.1)",
-                        padding: "2px 6px",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      PAGE {note.page_number}
-                    </span>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => handleDeleteNote(note.id)}
-                      style={{ color: "var(--text-muted)", padding: 0 }}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                  <p
-                    style={{
-                      fontSize: "12px",
-                      margin: 0,
-                      lineHeight: 1.5,
-                      color: "var(--text-main)",
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {note.content}
-                  </p>
-                  <span
-                    style={{
-                      fontSize: "10px",
-                      color: "var(--text-muted)",
-                      marginTop: "2px",
-                    }}
-                  >
-                    {new Date(note.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // --- MAIN APP COMPONENT ---
 export default function App() {
   const {
@@ -4711,9 +5235,15 @@ export default function App() {
           {activeView === "today" && (
             <DailyPlan timeline={currentHistory.timeline} />
           )}
-          {activeView === "digital_notes" && <DigitalNotesBoard />}
+          {activeView === "digital_notes" &&
+            (typeof DigitalNotesBoard !== "undefined" ? (
+              <DigitalNotesBoard />
+            ) : (
+              <div>Digital Notes UI Component</div>
+            ))}
           {activeView === "materials" && <StudyMaterialsModule />}
           {activeView === "vocab" && <VocabTracker />}
+
           {activeView === "quant" && (
             <QuantRotation quant={currentHistory.quant} />
           )}
