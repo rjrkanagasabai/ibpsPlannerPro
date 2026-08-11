@@ -1612,7 +1612,7 @@ function VocabTracker() {
           synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
           antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
           notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-          audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
+          // audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
         });
       } else
         setSearchError(
@@ -1865,7 +1865,7 @@ function VocabTracker() {
               {searchResult.word}
             </h2>
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {searchResult.audio && (
+              {/* {searchResult.audio && (
                 <button
                   className="icon-btn-minimal"
                   onClick={() => new Audio(searchResult.audio).play()}
@@ -1874,7 +1874,7 @@ function VocabTracker() {
                 >
                   <Volume2 size={18} />
                 </button>
-              )}
+              )} */}
               <button
                 className="btn"
                 style={{
@@ -4471,7 +4471,7 @@ function DailyPlan({ timeline }) {
                         >
                           {v.word}
                         </div>
-                        <div
+                        {/* <div
                           style={{
                             background: "rgba(99, 102, 241, 0.1)",
                             color: "#4f46e5",
@@ -4485,9 +4485,9 @@ function DailyPlan({ timeline }) {
                           }}
                         >
                           {v.type || "Vocabulary"}
-                        </div>
+                        </div> */}
                       </div>
-                      <div
+                      {/* <div
                         style={{
                           fontSize: "16px",
                           color: "#334155",
@@ -4496,7 +4496,7 @@ function DailyPlan({ timeline }) {
                         }}
                       >
                         {v.meaning}
-                      </div>
+                      </div> */}
 
                       {/* SYNONYMS AND ANTONYMS SECTION ADDED HERE */}
                       {(v.synonyms || v.antonyms) && (
@@ -5047,6 +5047,1674 @@ function MockTracker() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HabitTracker() {
+  const {
+    selectedDate,
+    habits,
+    baseHabits,
+    setAppData,
+    notify,
+    requestConfirm,
+  } = useAppStore();
+  const scrollRef = useRef(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const dateParts = (selectedDate || getFormattedDateStr()).split("-");
+  const year = parseInt(dateParts[0], 10),
+    month = parseInt(dateParts[1], 10) - 1;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthName = new Date(year, month, 1).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+
+  const currentHabits =
+    habits[monthKey] ||
+    (baseHabits || []).map((h) => ({
+      name: h,
+      days: Array(daysInMonth).fill(""),
+    }));
+  const updateHabits = (newHabits) =>
+    setAppData((state) => ({
+      ...state,
+      baseHabits: newHabits.map((h) => h.name),
+      habits: { ...state.habits, [monthKey]: newHabits },
+    }));
+
+  const toggleHabit = (hIndex, dIndex) => {
+    const newHabits = [...currentHabits];
+    const existingDays = newHabits[hIndex].days
+      ? [...newHabits[hIndex].days]
+      : Array(daysInMonth).fill("");
+    while (existingDays.length < daysInMonth) existingDays.push("");
+    const currentState = existingDays[dIndex];
+    let nextState = "";
+    if (currentState === "done" || currentState === true) nextState = "partial";
+    else if (currentState === "partial") nextState = "missed";
+    else if (currentState === "missed") nextState = "";
+    else nextState = "done";
+    existingDays[dIndex] = nextState;
+    newHabits[hIndex] = { ...newHabits[hIndex], days: existingDays };
+    updateHabits(newHabits);
+  };
+  const handleNameChange = (hIndex, val) => {
+    const newHabits = [...currentHabits];
+    newHabits[hIndex].name = val;
+    updateHabits(newHabits);
+  };
+  const deleteHabit = (hIndex) => {
+    requestConfirm("Remove this habit?", () => {
+      updateHabits(currentHabits.filter((_, i) => i !== hIndex));
+      notify("Habit deleted", "info");
+    });
+  };
+  const addHabit = () => {
+    updateHabits([
+      ...currentHabits,
+      { name: "New Habit", days: Array(daysInMonth).fill("") },
+    ]);
+    setIsEditing(true);
+    notify("New habit added", "success");
+  };
+  const handleScroll = (amount) => {
+    if (scrollRef.current)
+      scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
+  };
+  const leftColWidth = 200;
+  const cellSize = 34;
+  const cellGap = 8;
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 style={{ fontSize: "28px" }}>Habits Heatmap</h1>
+          <p style={{ color: "var(--text-muted)" }}>
+            Consistency calendar for <strong>{monthName}</strong> ({daysInMonth}{" "}
+            Days)
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            className={`btn ${isEditing ? "" : "btn-outline"}`}
+            onClick={() => setIsEditing(!isEditing)}
+          >
+            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}{" "}
+            <span>{isEditing ? "Done Editing" : "Edit Habits"}</span>
+          </button>
+          <button className="btn" onClick={addHabit}>
+            <Plus size={16} /> Add Habit
+          </button>
+        </div>
+      </div>
+      <div
+        className="card"
+        style={{ padding: "24px", overflow: "hidden", position: "relative" }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "8px",
+            marginBottom: "16px",
+          }}
+        >
+          <button
+            className="icon-btn-minimal"
+            onClick={() => handleScroll(-300)}
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            className="icon-btn-minimal"
+            onClick={() => handleScroll(300)}
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        <div style={{ display: "flex", width: "100%" }}>
+          <div
+            style={{
+              flex: `0 0 ${leftColWidth}px`,
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              borderRight: "1px solid var(--border)",
+              paddingRight: "16px",
+              zIndex: 2,
+            }}
+          >
+            <div style={{ height: "24px", marginBottom: "16px" }}></div>
+            {currentHabits.map((h, hIndex) => (
+              <div
+                key={hIndex}
+                style={{
+                  height: `${cellSize}px`,
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                {isEditing ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      width: "100%",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      className="custom-input"
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: "13px",
+                        width: "100%",
+                      }}
+                      value={h.name}
+                      onChange={(e) => handleNameChange(hIndex, e.target.value)}
+                    />
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => deleteHabit(hIndex)}
+                    >
+                      <Trash2 size={14} color="var(--danger)" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={h.name}
+                  >
+                    {h.name}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div
+            ref={scrollRef}
+            style={{
+              flex: 1,
+              overflowX: "auto",
+              paddingLeft: "16px",
+              scrollBehavior: "smooth",
+            }}
+          >
+            <div style={{ minWidth: "max-content", paddingRight: "16px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: `${cellGap}px`,
+                  marginBottom: "16px",
+                }}
+              >
+                {Array.from({ length: daysInMonth }, (_, i) => {
+                  const isToday =
+                    i + 1 === new Date().getDate() &&
+                    month === new Date().getMonth();
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        width: `${cellSize}px`,
+                        textAlign: "center",
+                        fontSize: "12px",
+                        fontWeight: isToday ? 800 : 600,
+                        color: isToday ? "var(--accent)" : "var(--text-muted)",
+                        background: isToday
+                          ? "rgba(99, 102, 241, 0.1)"
+                          : "transparent",
+                        borderRadius: "6px",
+                        height: "24px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {i + 1}
+                    </div>
+                  );
+                })}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
+                }}
+              >
+                {currentHabits.map((h, hIndex) => (
+                  <div
+                    key={hIndex}
+                    style={{ display: "flex", gap: `${cellGap}px` }}
+                  >
+                    {Array.from({ length: daysInMonth }, (_, dIndex) => {
+                      const state = h.days && h.days[dIndex];
+                      let cellBg = "var(--bg)";
+                      let cellBorder = "1px solid var(--border)";
+                      let content = null;
+                      if (state === "done" || state === true) {
+                        cellBg = "#10b981";
+                        cellBorder = "1px solid #10b981";
+                        content = <CheckCircle2 size={16} color="#fff" />;
+                      } else if (state === "partial") {
+                        cellBg = "#f59e0b";
+                        cellBorder = "1px solid #f59e0b";
+                        content = (
+                          <Minus size={16} color="#fff" strokeWidth={3} />
+                        );
+                      } else if (state === "missed") {
+                        cellBg = "#ef4444";
+                        cellBorder = "1px solid #ef4444";
+                        content = <X size={16} color="#fff" strokeWidth={3} />;
+                      }
+                      return (
+                        <motion.div
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          key={dIndex}
+                          onClick={() => toggleHabit(hIndex, dIndex)}
+                          style={{
+                            width: `${cellSize}px`,
+                            height: `${cellSize}px`,
+                            borderRadius: "8px",
+                            background: cellBg,
+                            border: cellBorder,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          {content}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsView() {
+  const {
+    user,
+    logout,
+    premiumData,
+    setPremiumData,
+    requestConfirm,
+    deleteAccount,
+  } = useAppStore();
+  const displayName = user?.user_metadata?.display_username || "Aspirant";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div className="card" style={{ maxWidth: 800 }}>
+        <h1 style={{ fontSize: "24px", marginBottom: "8px" }}>
+          Account & System Settings
+        </h1>
+        <p style={{ color: "var(--text-muted)", marginBottom: 32 }}>
+          Manage your profile credentials, notifications, and local data
+          preference.
+        </p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gap: "24px",
+          }}
+        >
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "24px" }}
+          >
+            <div
+              style={{
+                borderBottom: "1px solid var(--border)",
+                paddingBottom: 24,
+              }}
+            >
+              <label
+                style={{
+                  fontWeight: 700,
+                  display: "block",
+                  marginBottom: 12,
+                  fontSize: "15px",
+                  color: "var(--text-main)",
+                }}
+              >
+                Active Aspirant Account
+              </label>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "16px" }}
+              >
+                <div
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    background: "rgba(99, 102, 241, 0.1)",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--accent)",
+                  }}
+                >
+                  <ShieldCheck size={28} />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "22px",
+                      color: "var(--text-main)",
+                      fontWeight: 800,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {displayName}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "#10b981",
+                      fontWeight: 700,
+                      lineHeight: 1,
+                    }}
+                  >
+                    Cloud Real-Time Sync Active
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                borderBottom: "1px solid var(--border)",
+                paddingBottom: 24,
+              }}
+            >
+              <label
+                style={{ fontWeight: 600, display: "block", marginBottom: 8 }}
+              >
+                Target Exam Date
+              </label>
+              <input
+                type="date"
+                className="custom-input"
+                value={premiumData?.examDate || ""}
+                onChange={(e) =>
+                  setPremiumData((p) => ({ ...p, examDate: e.target.value }))
+                }
+                style={{ maxWidth: "300px" }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <button className="btn btn-outline" onClick={logout}>
+                <LogOut size={16} /> Sign Out Account
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: "32px",
+            paddingTop: "24px",
+            borderTop: "1px solid var(--border)",
+          }}
+        >
+          <h3
+            style={{
+              color: "var(--danger)",
+              fontSize: "16px",
+              marginBottom: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <ShieldAlert size={18} /> Danger Zone
+          </h3>
+          <p
+            style={{
+              fontSize: "13px",
+              color: "var(--text-muted)",
+              marginBottom: "16px",
+              lineHeight: "1.6",
+            }}
+          >
+            This will immediately and permanently delete your account, wipe all
+            your cloud dictionary entries, and clear your local storage.
+          </p>
+          <button
+            className="btn btn-danger"
+            style={{
+              background: "var(--danger)",
+              color: "white",
+              border: "none",
+            }}
+            onClick={() =>
+              requestConfirm(
+                "Delete your account and wipe ALL cloud data permanently? This CANNOT be undone.",
+                deleteAccount,
+              )
+            }
+          >
+            <Trash2 size={16} /> Delete Account & Data
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- REDESIGNED ALIGNED STUDY MATERIALS / PDF LIBRARY MODULE ---
+function StudyMaterialsModule() {
+  const { user, notify } = useAppStore();
+  const [documents, setDocuments] = useState([]);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [notes, setNotes] = useState([]);
+
+  const [uploading, setUploading] = useState(false);
+  const [uploadCategory, setUploadCategory] = useState("Current Affairs");
+  const [uploadMonth, setUploadMonth] = useState("July");
+  const [uploadSubCategory, setUploadSubCategory] = useState("Sports");
+  const [uploadTitleOverride, setUploadTitleOverride] = useState("");
+
+  const [newNote, setNewNote] = useState("");
+  const [pageNumber, setPageNumber] = useState(1);
+  const [showLibrary, setShowLibrary] = useState(true);
+  const [showNotes, setShowNotes] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeTab, setActiveTab] = useState("Current Affairs");
+  const [navPath, setNavPath] = useState([]);
+  const [isTimerEndedModalOpen, setIsTimerEndedModalOpen] = useState(false);
+
+  const [draggedDocId, setDraggedDocId] = useState(null);
+  const [dragOverDocId, setDragOverDocId] = useState(null);
+
+  const isAdmin =
+    user?.user_metadata?.display_username ===
+    import.meta.env.VITE_ADMIN_USERNAME;
+
+  useEffect(() => {
+    fetchDocuments();
+
+    const documentsSubscription = supabase
+      .channel("public:documents")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "documents" },
+        () => fetchDocuments(),
+      )
+      .subscribe();
+
+    const pollInterval = setInterval(() => {
+      fetchDocuments();
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(documentsSubscription);
+      clearInterval(pollInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectedDoc) fetchNotes(selectedDoc.id);
+  }, [selectedDoc]);
+
+  useEffect(() => {
+    setNavPath([]);
+  }, [activeTab]);
+
+  const fetchDocuments = async () => {
+    const { data, error } = await supabase.from("documents").select("*");
+    if (error) {
+      console.error("Failed to load PDFs.", error);
+    } else if (data) {
+      setDocuments(data);
+    }
+  };
+
+  const fetchNotes = async (docId) => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("document_notes")
+      .select("*")
+      .eq("document_id", docId)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    if (!error) setNotes(data || []);
+  };
+
+  const handleFileUpload = async (event) => {
+    if (!isAdmin) return notify("Only the admin can upload PDFs.", "error");
+    try {
+      setUploading(true);
+      const file = event.target.files[0];
+      if (!file || file.type !== "application/pdf")
+        return notify("Please select a valid PDF file.", "error");
+
+      const filePath = `${Date.now()}.${file.name.split(".").pop()}`;
+      const { error: uploadError } = await supabase.storage
+        .from("pdf-files")
+        .upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("pdf-files")
+        .getPublicUrl(filePath);
+
+      const finalCategory =
+        uploadCategory === "Current Affairs"
+          ? `Current Affairs::${uploadMonth}::${uploadSubCategory}`
+          : uploadCategory;
+      const finalTitle =
+        uploadTitleOverride.trim() || file.name.replace(".pdf", "");
+      const maxOrder = documents.reduce(
+        (max, d) => Math.max(max, d.order_index || 0),
+        0,
+      );
+
+      const { error: dbError } = await supabase.from("documents").insert([
+        {
+          title: finalTitle,
+          file_path: filePath,
+          file_url: urlData.publicUrl,
+          category: finalCategory,
+          order_index: maxOrder + 1,
+        },
+      ]);
+      if (dbError) throw dbError;
+
+      notify("PDF uploaded successfully!", "success");
+      setUploadTitleOverride("");
+      fetchDocuments();
+    } catch (error) {
+      notify("Upload failed: " + error.message, "error");
+    } finally {
+      setUploading(false);
+      event.target.value = null;
+    }
+  };
+
+  const handleDeleteDoc = async (id, filePath) => {
+    if (!isAdmin) return;
+    try {
+      await supabase.storage.from("pdf-files").remove([filePath]);
+      await supabase.from("documents").delete().eq("id", id);
+      notify("Document removed.", "info");
+      if (selectedDoc?.id === id) setSelectedDoc(null);
+      fetchDocuments();
+    } catch (err) {
+      notify("Failed to delete document.", "error");
+    }
+  };
+
+  const handleAddNote = async (e) => {
+    e.preventDefault();
+    if (!newNote.trim() || !selectedDoc || !user) return;
+    const { error } = await supabase.from("document_notes").insert([
+      {
+        document_id: selectedDoc.id,
+        user_id: user.id,
+        content: newNote,
+        page_number: parseInt(pageNumber) || 1,
+      },
+    ]);
+    if (error) notify("Failed to save note.", "error");
+    else {
+      setNewNote("");
+      fetchNotes(selectedDoc.id);
+      notify("Note saved!", "success");
+    }
+  };
+
+  const handleDeleteNote = async (id) => {
+    await supabase.from("document_notes").delete().eq("id", id);
+    fetchNotes(selectedDoc.id);
+  };
+
+  const handleDragStart = (e, doc) => {
+    if (!isAdmin) return;
+    e.stopPropagation();
+    setDraggedDocId(doc.id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e, doc) => {
+    if (!isAdmin) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverDocId !== doc.id) setDragOverDocId(doc.id);
+  };
+
+  const handleDragLeave = (e, doc) => {
+    if (!isAdmin) return;
+    e.stopPropagation();
+    if (dragOverDocId === doc.id) setDragOverDocId(null);
+  };
+
+  const handleDrop = async (e, targetDoc) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAdmin || !draggedDocId || draggedDocId === targetDoc.id) {
+      setDragOverDocId(null);
+      setDraggedDocId(null);
+      return;
+    }
+
+    const currentList = [...displayItems];
+    const draggedIndex = currentList.findIndex((d) => d.id === draggedDocId);
+    const targetIndex = currentList.findIndex((d) => d.id === targetDoc.id);
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDragOverDocId(null);
+      setDraggedDocId(null);
+      return;
+    }
+
+    const newList = [...currentList];
+    const [removed] = newList.splice(draggedIndex, 1);
+    newList.splice(targetIndex, 0, removed);
+
+    const updates = newList.map((doc, index) => ({
+      id: doc.id,
+      order_index: index + 1,
+    }));
+
+    setDocuments((prev) => {
+      const docMap = new Map(prev.map((d) => [d.id, d]));
+      updates.forEach((u) => docMap.set(u.id, { ...docMap.get(u.id), ...u }));
+      return Array.from(docMap.values());
+    });
+
+    setDragOverDocId(null);
+    setDraggedDocId(null);
+
+    try {
+      const results = await Promise.all(
+        updates.map((u) =>
+          supabase
+            .from("documents")
+            .update({ order_index: u.order_index })
+            .eq("id", u.id),
+        ),
+      );
+
+      const hasError = results.some((res) => res.error);
+      if (hasError) throw new Error("403 Forbidden Check RLS");
+    } catch (err) {
+      console.error(err);
+      notify(
+        "Failed to save new order to database. Check Supabase RLS.",
+        "error",
+      );
+      fetchDocuments();
+    }
+  };
+
+  const dynamicTabs = Array.from(
+    new Set([
+      "Grammar Rule",
+      "Editorial",
+      "English",
+      "Current Affairs",
+      "Other",
+      ...documents.map((d) => (d.category || "Other").split("::")[0]),
+    ]),
+  );
+
+  const mainCategoryDocs = useMemo(() => {
+    let filtered = documents.filter(
+      (doc) => (doc.category || "Other").split("::")[0] === activeTab,
+    );
+    filtered.sort((a, b) => {
+      const orderA = a.order_index ?? 0;
+      const orderB = b.order_index ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+      if (
+        activeTab === "Grammar Rule" ||
+        activeTab === "English" ||
+        activeTab === "Current Affairs"
+      )
+        return dateA - dateB;
+      else return dateB - dateA;
+    });
+    return filtered;
+  }, [documents, activeTab]);
+
+  let displayItems = [];
+  let viewMode = "docs";
+
+  if (activeTab === "Current Affairs") {
+    if (navPath.length === 0) {
+      viewMode = "folders";
+      displayItems = [
+        ...new Set(
+          mainCategoryDocs
+            .map((d) => d.category.split("::")[1] || "Uncategorized")
+            .filter(Boolean),
+        ),
+      ];
+    } else if (navPath.length === 1) {
+      viewMode = "folders";
+      const m = navPath[0];
+      displayItems = [
+        ...new Set(
+          mainCategoryDocs
+            .filter((d) => (d.category.split("::")[1] || "Uncategorized") === m)
+            .map((d) => d.category.split("::")[2] || "General")
+            .filter(Boolean),
+        ),
+      ];
+    } else if (navPath.length === 2) {
+      viewMode = "docs";
+      const m = navPath[0];
+      const sc = navPath[1];
+      displayItems = mainCategoryDocs.filter(
+        (d) =>
+          (d.category.split("::")[1] || "Uncategorized") === m &&
+          (d.category.split("::")[2] || "General") === sc,
+      );
+    }
+  } else {
+    viewMode = "docs";
+    displayItems = mainCategoryDocs;
+  }
+
+  return (
+    <div
+      style={
+        isFullscreen
+          ? {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 99999,
+              display: "flex",
+              background: "var(--bg)",
+              animation: "fadeIn 0.2s",
+            }
+          : {
+              display: "flex",
+              height: "calc(150vh - 0px)",
+              background: "var(--bg)",
+              borderRadius: "16px",
+              overflow: "hidden",
+              border: "1px solid var(--border)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
+              animation: "fadeIn 0.5s ease",
+            }
+      }
+    >
+      <ReadingTimerModal
+        isOpen={isTimerEndedModalOpen}
+        onClose={() => setIsTimerEndedModalOpen(false)}
+      />
+      {showLibrary && (
+        <div
+          style={{
+            width: "300px",
+            minWidth: "280px",
+            maxWidth: "320px",
+            borderRight: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            background: "var(--bg)",
+            flexShrink: 0,
+            zIndex: 2,
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "16px",
+                fontWeight: 800,
+                margin: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "var(--text-main)",
+              }}
+            >
+              <BookOpen size={18} color="var(--accent)" /> Study Library
+            </h2>
+            <button
+              className="icon-btn-minimal"
+              onClick={() => setShowLibrary(false)}
+              title="Close Library"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          {isAdmin && (
+            <div
+              style={{
+                padding: "14px 16px",
+                background: "rgba(99, 102, 241, 0.04)",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <h4
+                style={{
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  color: "var(--accent)",
+                  marginBottom: "10px",
+                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                <ShieldCheck size={14} /> Admin Tools
+              </h4>
+              <select
+                className="custom-input"
+                value={uploadCategory}
+                onChange={(e) => setUploadCategory(e.target.value)}
+                style={{
+                  width: "100%",
+                  marginBottom: "8px",
+                  fontSize: "12px",
+                  padding: "6px 8px",
+                  fontWeight: 600,
+                }}
+              >
+                <option value="Current Affairs">Current Affairs</option>
+                <option value="Grammar Rule">120 Rules of Grammar</option>
+                <option value="Editorial">Editorial</option>
+                <option value="English">English</option>
+                <option value="Other">Other</option>
+              </select>
+              {uploadCategory === "Current Affairs" && (
+                <div
+                  style={{ display: "flex", gap: "6px", marginBottom: "8px" }}
+                >
+                  <select
+                    className="custom-input"
+                    value={uploadMonth}
+                    onChange={(e) => setUploadMonth(e.target.value)}
+                    style={{
+                      width: "50%",
+                      fontSize: "12px",
+                      padding: "6px 8px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {MONTHS_LIST.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="custom-input"
+                    value={uploadSubCategory}
+                    onChange={(e) => setUploadSubCategory(e.target.value)}
+                    style={{
+                      width: "50%",
+                      fontSize: "12px",
+                      padding: "6px 8px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {CA_TOPICS_LIST.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <input
+                type="text"
+                className="custom-input"
+                placeholder="PDF Title Override (Optional)"
+                value={uploadTitleOverride}
+                onChange={(e) => setUploadTitleOverride(e.target.value)}
+                style={{
+                  width: "100%",
+                  marginBottom: "10px",
+                  fontSize: "12px",
+                  padding: "6px 8px",
+                  fontWeight: 600,
+                }}
+              />
+              <label
+                className="btn"
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  padding: "8px",
+                  fontSize: "12px",
+                  cursor: uploading ? "not-allowed" : "pointer",
+                }}
+              >
+                {uploading ? (
+                  <Loader2 size={14} className="spinner" />
+                ) : (
+                  <UploadCloud size={14} />
+                )}
+                {uploading ? "Uploading..." : "Upload PDF"}
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleFileUpload}
+                  style={{ display: "none" }}
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+          )}
+          <div
+            className="scroll-area"
+            style={{
+              display: "flex",
+              overflowX: "auto",
+              padding: "12px 14px",
+              flexWrap: "wrap",
+              gap: "6px",
+              borderBottom: "1px solid var(--border)",
+              background: "rgba(0,0,0,0.01)",
+            }}
+          >
+            {dynamicTabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "20px",
+                  background: activeTab === tab ? "var(--accent)" : "var(--bg)",
+                  border:
+                    activeTab === tab
+                      ? "1px solid var(--accent)"
+                      : "1px solid var(--border)",
+                  color: activeTab === tab ? "#fff" : "var(--text-muted)",
+                  fontWeight: activeTab === tab ? 700 : 500,
+                  fontSize: "11px",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  transition: "all 0.2s ease",
+                  boxShadow:
+                    activeTab === tab
+                      ? "0 4px 10px rgba(99, 102, 241, 0.2)"
+                      : "none",
+                }}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div
+            style={{
+              padding: "10px 16px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              background: "rgba(0,0,0,0.015)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              {displayItems.length}{" "}
+              {viewMode === "folders" ? "Folders" : "Documents"}
+            </span>
+          </div>
+          <div
+            className="scroll-area"
+            style={{
+              flex: 1,
+              padding: "12px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            {activeTab === "Current Affairs" && navPath.length > 0 && (
+              <button
+                onClick={() => setNavPath(navPath.slice(0, -1))}
+                className="btn btn-outline"
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  marginBottom: "8px",
+                  alignSelf: "flex-start",
+                  gap: "4px",
+                }}
+              >
+                <ChevronLeft size={14} /> Back
+              </button>
+            )}
+            {displayItems.length === 0 && !uploading && (
+              <p
+                style={{
+                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "var(--text-muted)",
+                  marginTop: "24px",
+                }}
+              >
+                No items found here.
+              </p>
+            )}
+            {viewMode === "folders"
+              ? displayItems.map((folderName) => (
+                  <div
+                    key={folderName}
+                    onClick={() => setNavPath([...navPath, folderName])}
+                    style={{
+                      cursor: "pointer",
+                      background: "rgba(99, 102, 241, 0.03)",
+                      border: "1px solid rgba(99, 102, 241, 0.15)",
+                      borderRadius: "10px",
+                      padding: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseOver={(e) =>
+                      (e.currentTarget.style.background =
+                        "rgba(99, 102, 241, 0.08)")
+                    }
+                    onMouseOut={(e) =>
+                      (e.currentTarget.style.background =
+                        "rgba(99, 102, 241, 0.03)")
+                    }
+                  >
+                    <div
+                      style={{
+                        background: "var(--accent)",
+                        color: "white",
+                        padding: "8px",
+                        borderRadius: "8px",
+                        display: "flex",
+                      }}
+                    >
+                      <Folder size={16} fill="currentColor" />
+                    </div>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "14px",
+                        color: "var(--text-main)",
+                      }}
+                    >
+                      {folderName}
+                    </span>
+                  </div>
+                ))
+              : displayItems.map((doc) => (
+                  <div
+                    key={doc.id}
+                    draggable={isAdmin && viewMode === "docs"}
+                    onDragStart={(e) => handleDragStart(e, doc)}
+                    onDragOver={(e) => handleDragOver(e, doc)}
+                    onDragLeave={(e) => handleDragLeave(e, doc)}
+                    onDrop={(e) => handleDrop(e, doc)}
+                    onClick={() => setSelectedDoc(doc)}
+                    style={{
+                      cursor: isAdmin ? "grab" : "pointer",
+                      background:
+                        selectedDoc?.id === doc.id
+                          ? "rgba(99,102,241,0.08)"
+                          : "var(--bg)",
+                      border:
+                        dragOverDocId === doc.id
+                          ? "2px dashed var(--accent)"
+                          : selectedDoc?.id === doc.id
+                            ? "1px solid var(--accent)"
+                            : "1px solid var(--border)",
+                      opacity: draggedDocId === doc.id ? 0.5 : 1,
+                      borderRadius: "10px",
+                      padding: "10px 12px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "8px",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        overflow: "hidden",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      {isAdmin && (
+                        <div
+                          style={{
+                            color: "var(--text-muted)",
+                            opacity: 0.5,
+                            cursor: "grab",
+                          }}
+                        >
+                          <GripVertical size={16} />
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "8px",
+                          background:
+                            selectedDoc?.id === doc.id
+                              ? "var(--accent)"
+                              : "rgba(0,0,0,0.04)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <FileText
+                          size={16}
+                          color={
+                            selectedDoc?.id === doc.id
+                              ? "white"
+                              : "var(--text-muted)"
+                          }
+                        />
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: selectedDoc?.id === doc.id ? 700 : 600,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            color:
+                              selectedDoc?.id === doc.id
+                                ? "var(--accent)"
+                                : "var(--text-main)",
+                          }}
+                        >
+                          {doc.title}
+                        </span>
+                      </div>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        className="icon-btn-minimal"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteDoc(doc.id, doc.file_path);
+                        }}
+                        style={{ color: "var(--danger)", padding: "4px" }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+          </div>
+        </div>
+      )}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+          height: "100%",
+          background: "var(--bg)",
+        }}
+      >
+        {selectedDoc ? (
+          <>
+            <div
+              style={{
+                padding: "10px 16px",
+                borderBottom: "1px solid var(--border)",
+                background: "var(--bg)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+                flexWrap: "wrap",
+                minHeight: "56px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  flex: 1,
+                  minWidth: "180px",
+                  overflow: "hidden",
+                }}
+              >
+                {!showLibrary && (
+                  <button
+                    className="icon-btn-minimal"
+                    onClick={() => setShowLibrary(true)}
+                    title="Open Library"
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
+                      padding: "6px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <BookOpen size={16} />
+                  </button>
+                )}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      fontSize: "14px",
+                      color: "var(--text-main)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {selectedDoc.title}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--text-muted)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {(selectedDoc.category || "Other").split("::").join(" • ")}
+                  </span>
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexShrink: 0,
+                }}
+              >
+                <FastReadingTimer
+                  onTimerEnded={() => setIsTimerEndedModalOpen(true)}
+                />
+                <span
+                  style={{
+                    fontSize: "11px",
+                    padding: "4px 8px",
+                    background: "rgba(245,158,11,0.1)",
+                    color: "var(--warning)",
+                    borderRadius: "8px",
+                    fontWeight: 800,
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  READ ONLY
+                </span>
+                <button
+                  className="icon-btn-minimal"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Viewer"}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    padding: "6px",
+                  }}
+                >
+                  {isFullscreen ? (
+                    <Minimize size={16} />
+                  ) : (
+                    <Maximize size={16} />
+                  )}
+                </button>
+                {!showNotes && (
+                  <button
+                    className="icon-btn-minimal"
+                    onClick={() => setShowNotes(true)}
+                    title="Show Notes"
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: "8px",
+                      padding: "6px",
+                    }}
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div
+              style={{
+                flex: 1,
+                padding: isFullscreen ? "0" : "12px",
+                background: "rgba(0,0,0,0.04)",
+                overflow: "hidden",
+              }}
+            >
+              <object
+                data={`${selectedDoc.file_url}#toolbar=0&navpanes=0`}
+                type="application/pdf"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: isFullscreen ? "0" : "10px",
+                  border: isFullscreen ? "none" : "1px solid var(--border)",
+                  boxShadow: isFullscreen
+                    ? "none"
+                    : "0 8px 24px rgba(0,0,0,0.06)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                    color: "var(--text-muted)",
+                    padding: "20px",
+                  }}
+                >
+                  <p>Unable to render PDF preview directly.</p>
+                  <a
+                    href={selectedDoc.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      color: "var(--accent)",
+                      textDecoration: "underline",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Open PDF in new tab
+                  </a>
+                </div>
+              </object>
+            </div>
+          </>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              color: "var(--text-muted)",
+            }}
+          >
+            <Layers size={48} style={{ opacity: 0.2, marginBottom: "16px" }} />
+            <p style={{ fontSize: "14px", fontWeight: 500 }}>
+              Select a document from the library to start reading.
+            </p>
+            {!showLibrary && (
+              <button
+                className="btn btn-outline"
+                style={{ marginTop: "16px" }}
+                onClick={() => setShowLibrary(true)}
+              >
+                <BookOpen size={16} /> Open Library
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showNotes && (
+        <div
+          style={{
+            width: "300px",
+            minWidth: "280px",
+            maxWidth: "320px",
+            borderLeft: "1px solid var(--border)",
+            display: "flex",
+            flexDirection: "column",
+            background: "var(--bg)",
+            flexShrink: 0,
+            zIndex: 2,
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <Edit3 size={18} color="var(--accent)" />
+              <h3 style={{ fontSize: "16px", fontWeight: 800, margin: 0 }}>
+                My Notes
+              </h3>
+            </div>
+            <button
+              className="icon-btn-minimal"
+              onClick={() => setShowNotes(false)}
+              title="Close Notes"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <form
+            onSubmit={handleAddNote}
+            style={{
+              padding: "14px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+              background: "rgba(0,0,0,0.01)",
+            }}
+          >
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--text-muted)",
+                }}
+              >
+                Page
+              </span>
+              <input
+                type="number"
+                min="1"
+                value={pageNumber}
+                onChange={(e) => setPageNumber(e.target.value)}
+                className="custom-input"
+                style={{
+                  width: "60px",
+                  padding: "6px",
+                  textAlign: "center",
+                  fontWeight: 700,
+                }}
+              />
+            </div>
+            <textarea
+              rows="3"
+              placeholder="Write personal takeaways here..."
+              className="custom-input"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              style={{ resize: "none", fontSize: "13px" }}
+            />
+            <button
+              type="submit"
+              className="btn"
+              disabled={!selectedDoc || !newNote.trim()}
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                padding: "8px",
+                fontSize: "13px",
+              }}
+            >
+              <Plus size={14} /> Save Note
+            </button>
+          </form>
+          <div
+            className="scroll-area"
+            style={{
+              flex: 1,
+              padding: "14px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
+            {notes.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  color: "var(--text-muted)",
+                  marginTop: "20px",
+                  padding: "10px",
+                }}
+              >
+                <MessageSquare
+                  size={32}
+                  style={{ opacity: 0.2, margin: "0 auto 8px auto" }}
+                />
+                <p style={{ fontSize: "12px" }}>
+                  No notes saved for this document.
+                </p>
+              </div>
+            ) : (
+              notes.map((note) => (
+                <div
+                  key={note.id}
+                  className="card"
+                  style={{
+                    padding: "12px",
+                    background: "rgba(0,0,0,0.015)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: 800,
+                        color: "var(--accent)",
+                        background: "rgba(99,102,241,0.1)",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      PAGE {note.page_number}
+                    </span>
+                    <button
+                      className="icon-btn-minimal"
+                      onClick={() => handleDeleteNote(note.id)}
+                      style={{ color: "var(--text-muted)", padding: 0 }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      margin: 0,
+                      lineHeight: 1.5,
+                      color: "var(--text-main)",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {note.content}
+                  </p>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      color: "var(--text-muted)",
+                      marginTop: "2px",
+                    }}
+                  >
+                    {new Date(note.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>

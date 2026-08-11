@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { create } from "zustand";
 import * as htmlToImage from "html-to-image";
 import { persist } from "zustand/middleware";
+
+import MockTestModule from "./MockTestModule";
 import "./App.css";
 import {
   Target,
@@ -354,6 +356,271 @@ const CA_TOPICS_LIST = [
   "Science & Tech",
   "Important Days",
   "Miscellaneous",
+];
+
+// --- SIMULATED MOCK TEST BACKEND DATABASE ---
+const SIMULATED_MOCK_API = [
+  {
+    id: "sbi_po_pre_01",
+    name: "SBI PO Prelims Full Mock 1",
+    category: "SBI",
+    duration: 60,
+    totalQuestions: 15,
+    questions: [
+      {
+        id: "q1",
+        section: "English",
+        text: "Choose the correct synonym for 'AMELIORATE'.",
+        options: ["Worsen", "Improve", "Stagnate", "Complicate", "Ignore"],
+        correctAnswer: "Improve",
+      },
+      {
+        id: "q2",
+        section: "English",
+        text: "Identify the grammatical error: 'Neither of the boys have returned.'",
+        options: ["Neither of", "the boys", "have", "returned", "No error"],
+        correctAnswer: "have",
+      },
+      {
+        id: "q3",
+        section: "English",
+        text: "Fill in the blank: The manager was _______ with the employee's performance.",
+        options: ["pleased", "pleasing", "pleasingly", "please", "pleases"],
+        correctAnswer: "pleased",
+      },
+      {
+        id: "q4",
+        section: "English",
+        text: "What is the antonym of 'EPHEMERAL'?",
+        options: ["Transient", "Permanent", "Fugitive", "Short-lived", "Brief"],
+        correctAnswer: "Permanent",
+      },
+      {
+        id: "q5",
+        section: "English",
+        text: "Rearrange the sentence: (A) of the world (B) the largest (C) economy (D) is",
+        options: ["B C D A", "C B D A", "B D C A", "D B C A", "C A D B"],
+        correctAnswer: "B C D A",
+      },
+      {
+        id: "q6",
+        section: "Quant",
+        text: "If 20% of X = 40, what is 30% of X?",
+        options: ["50", "60", "70", "80", "90"],
+        correctAnswer: "60",
+      },
+      {
+        id: "q7",
+        section: "Quant",
+        text: "A train running at 72 km/hr crosses a 200m platform in 20 seconds. Find the length of the train.",
+        options: ["150m", "200m", "250m", "300m", "350m"],
+        correctAnswer: "200m",
+      },
+      {
+        id: "q8",
+        section: "Quant",
+        text: "Find the next number in the series: 2, 6, 12, 20, ?",
+        options: ["28", "30", "32", "36", "42"],
+        correctAnswer: "30",
+      },
+      {
+        id: "q9",
+        section: "Quant",
+        text: "The ratio of present ages of A and B is 4:5. After 5 years, the ratio becomes 5:6. What is A's present age?",
+        options: ["15", "20", "25", "30", "35"],
+        correctAnswer: "20",
+      },
+      {
+        id: "q10",
+        section: "Quant",
+        text: "Solve: √144 + √169 = ?",
+        options: ["23", "24", "25", "26", "27"],
+        correctAnswer: "25",
+      },
+      {
+        id: "q11",
+        section: "Reasoning",
+        text: "If 'APPLE' is coded as 'EQQPI', how is 'MANGO' coded?",
+        options: ["QERKS", "QERIR", "REQKS", "REQIR", "PERKS"],
+        correctAnswer: "QERKS",
+      },
+      {
+        id: "q12",
+        section: "Reasoning",
+        text: "A is the brother of B. C is the father of A. D is the brother of E. E is the daughter of B. How is D related to A?",
+        options: ["Nephew", "Niece", "Uncle", "Cousin", "Brother"],
+        correctAnswer: "Nephew",
+      },
+      {
+        id: "q13",
+        section: "Reasoning",
+        text: "Statements: All cats are dogs. Some dogs are rats. \nConclusion I: Some cats are rats.\nConclusion II: Some rats are dogs.",
+        options: [
+          "Only I follows",
+          "Only II follows",
+          "Both I and II follow",
+          "Neither follows",
+          "Either I or II",
+        ],
+        correctAnswer: "Only II follows",
+      },
+      {
+        id: "q14",
+        section: "Reasoning",
+        text: "In a row of 40 students, R is 15th from the left. What is his position from the right?",
+        options: ["24th", "25th", "26th", "27th", "28th"],
+        correctAnswer: "26th",
+      },
+      {
+        id: "q15",
+        section: "Reasoning",
+        text: "Find the odd one out.",
+        options: ["Circle", "Square", "Rectangle", "Triangle", "Cube"],
+        correctAnswer: "Cube",
+      },
+    ],
+  },
+  {
+    id: "ibps_clerk_pre_01",
+    name: "IBPS Clerk Prelims Mock 1",
+    category: "IBPS",
+    duration: 60,
+    totalQuestions: 9,
+    questions: [
+      {
+        id: "q1",
+        section: "English",
+        text: "Find the correctly spelt word.",
+        options: [
+          "Accomodate",
+          "Acomodate",
+          "Accommodate",
+          "Acommodate",
+          "Acommadate",
+        ],
+        correctAnswer: "Accommodate",
+      },
+      {
+        id: "q2",
+        section: "English",
+        text: "Synonym of 'ABUNDANT'.",
+        options: ["Plentiful", "Scarce", "Rare", "Meager", "Little"],
+        correctAnswer: "Plentiful",
+      },
+      {
+        id: "q3",
+        section: "English",
+        text: "Meaning of idiom: 'Break the ice'.",
+        options: [
+          "To start a fight",
+          "To start a conversation",
+          "To break rules",
+          "To fail",
+          "To succeed",
+        ],
+        correctAnswer: "To start a conversation",
+      },
+      {
+        id: "q4",
+        section: "Quant",
+        text: "15% of 400 + 20% of 300 = ?",
+        options: ["100", "110", "120", "130", "140"],
+        correctAnswer: "120",
+      },
+      {
+        id: "q5",
+        section: "Quant",
+        text: "Cost price is 400. Selling price is 500. Profit percentage is?",
+        options: ["20%", "25%", "30%", "33.33%", "15%"],
+        correctAnswer: "25%",
+      },
+      {
+        id: "q6",
+        section: "Quant",
+        text: "Average of 5 consecutive odd numbers is 25. Find the smallest number.",
+        options: ["19", "21", "23", "25", "27"],
+        correctAnswer: "21",
+      },
+      {
+        id: "q7",
+        section: "Reasoning",
+        text: "Which direction is opposite to South-West?",
+        options: ["North-West", "South-East", "North-East", "East", "West"],
+        correctAnswer: "North-East",
+      },
+      {
+        id: "q8",
+        section: "Reasoning",
+        text: "If A > B > C = D < E, which is true?",
+        options: ["A < C", "B > D", "A = E", "C > E", "B < E"],
+        correctAnswer: "B > D",
+      },
+      {
+        id: "q9",
+        section: "Reasoning",
+        text: "Odd one out: 4, 9, 16, 25, 35",
+        options: ["4", "9", "16", "25", "35"],
+        correctAnswer: "35",
+      },
+    ],
+  },
+  {
+    id: "rrb_po_pre_01",
+    name: "RRB PO Prelims Mock 1 (Quant & Reasoning Only)",
+    category: "RRB",
+    duration: 45,
+    totalQuestions: 6,
+    questions: [
+      {
+        id: "q1",
+        section: "Reasoning",
+        text: "In a certain code, '123' means 'hot filtered coffee'. '356' means 'very hot day'. Which digit means 'hot'?",
+        options: ["1", "2", "3", "5", "6"],
+        correctAnswer: "3",
+      },
+      {
+        id: "q2",
+        section: "Reasoning",
+        text: "If today is Monday, what will be the day after 65 days?",
+        options: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        correctAnswer: "Wednesday",
+      },
+      {
+        id: "q3",
+        section: "Reasoning",
+        text: "Statement: A ≥ B > C. Conclusion: A > C.",
+        options: [
+          "True",
+          "False",
+          "Cannot be determined",
+          "Data Inadequate",
+          "None",
+        ],
+        correctAnswer: "True",
+      },
+      {
+        id: "q4",
+        section: "Quant",
+        text: "A can do a work in 10 days, B in 15 days. Together they complete it in?",
+        options: ["4 days", "5 days", "6 days", "7 days", "8 days"],
+        correctAnswer: "6 days",
+      },
+      {
+        id: "q5",
+        section: "Quant",
+        text: "Simple interest on 1000 at 5% for 2 years?",
+        options: ["50", "100", "150", "200", "250"],
+        correctAnswer: "100",
+      },
+      {
+        id: "q6",
+        section: "Quant",
+        text: "Solve: 45 / 5 + 3 * 2 = ?",
+        options: ["15", "16", "17", "18", "24"],
+        correctAnswer: "15",
+      },
+    ],
+  },
 ];
 
 const getFormattedDateStr = (d = new Date()) =>
@@ -2830,13 +3097,13 @@ function AuthModal() {
                   never leave your browser memory. They will not sync across
                   devices.
                 </li>
-                {/* <li>
+                <li>
                   <strong style={{ color: "var(--text-main)" }}>
                     Session Limits:
                   </strong>{" "}
                   To protect integrity, multiple simultaneous logins are
                   prohibited. New logins automatically terminate older sessions.
-                </li> */}
+                </li>
               </ul>
               <div
                 style={{
@@ -2849,7 +3116,7 @@ function AuthModal() {
               >
                 <input
                   type="checkbox"
-                  className="custom-checkbox-check"
+                  className="custom-checkbox"
                   checked={privacyAccepted}
                   onChange={(e) => setPrivacyAccepted(e.target.checked)}
                 />
@@ -7107,6 +7374,7 @@ export default function App() {
             { id: "mocks", icon: LineChart, label: "Mock Tracker" },
             { id: "habits", icon: CheckCircle, label: "Habit Tracker" },
             { id: "settings", icon: Settings, label: "Settings" },
+            { id: "mock_simulator", icon: Play, label: "Live Mock Simulator" },
           ].map((item) => (
             <button
               key={item.id}
@@ -7129,6 +7397,32 @@ export default function App() {
         />
         <div className="content-area">
           {activeView === "dashboard" && <Dashboard history={currentHistory} />}
+          {activeView === "mock_simulator" && (
+            <MockTestModule
+              onSaveScore={(result) => {
+                // Auto-add it to your existing Mock Tracker
+                const { mocks, setMocks, selectedDate, notify } =
+                  useAppStore.getState();
+                setMocks([
+                  {
+                    id: Date.now().toString(),
+                    date: selectedDate,
+                    name: result.name,
+                    score: result.score.toString(),
+                    remarks: result.remarks,
+                  },
+                  ...mocks,
+                ]);
+                notify(
+                  `Score for ${result.name} saved to Mock Tracker!`,
+                  "success",
+                );
+              }}
+            />
+          )}
+          {/* END ADDITION */}
+
+          {activeView === "mocks" && <MockTracker />}
           {activeView === "today" && (
             <DailyPlan timeline={currentHistory.timeline} />
           )}

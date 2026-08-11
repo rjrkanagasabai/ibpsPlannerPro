@@ -2830,13 +2830,13 @@ function AuthModal() {
                   never leave your browser memory. They will not sync across
                   devices.
                 </li>
-                {/* <li>
+                <li>
                   <strong style={{ color: "var(--text-main)" }}>
                     Session Limits:
                   </strong>{" "}
                   To protect integrity, multiple simultaneous logins are
                   prohibited. New logins automatically terminate older sessions.
-                </li> */}
+                </li>
               </ul>
               <div
                 style={{
@@ -2849,7 +2849,7 @@ function AuthModal() {
               >
                 <input
                   type="checkbox"
-                  className="custom-checkbox-check"
+                  className="custom-checkbox"
                   checked={privacyAccepted}
                   onChange={(e) => setPrivacyAccepted(e.target.checked)}
                 />
