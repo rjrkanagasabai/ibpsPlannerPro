@@ -78,7 +78,6 @@ import {
 
 // --- SUPABASE CLIENT IMPORT ---
 import { supabase } from "./supabase";
-let syncTimeout = null;
 
 // --- AUDIO NOTIFICATION ENGINE ---
 const playBeep = () => {
@@ -410,408 +409,327 @@ const shuffleArray = (array) => {
 };
 
 // --- ZUSTAND STORE ---
-export const useAppStore = create((set, get) => ({
-  user: null,
-  session: null,
-  authLoading: true,
-  theme: "light",
-  activeView: "dashboard",
-  selectedDate: getFormattedDateStr(),
-  toasts: [],
-  confirmDialog: { isOpen: false, message: "", onConfirm: null },
-  settings: { notifications: true, audio: false },
-  baseTimeline: defaultTimeline,
-  baseHabits: defaultHabitList,
-  history: {},
-  mocks: [],
-  habits: {},
-  vocab: [],
-  digitalNotes: [],
-  isSyncing: false,
-  premiumData: {
-    currentStreak: 0,
-    longestStreak: 0,
-    lastStudyDate: null,
-    totalStudyMinutes: 0,
-    bookmarks: [],
-    revisions: {},
-    examDate: "2026-10-01",
-    lastMonthlyQuizMonth: new Date().toISOString().substring(0, 7),
-  },
+export const useAppStore = create(
+  persist(
+    (set, get) => ({
+      user: null,
+      session: null,
+      authLoading: true,
+      theme: "light",
+      activeView: "dashboard",
+      selectedDate: getFormattedDateStr(),
+      toasts: [],
+      confirmDialog: { isOpen: false, message: "", onConfirm: null },
+      settings: { notifications: true, audio: false },
+      baseTimeline: defaultTimeline,
+      baseHabits: defaultHabitList,
+      history: {},
+      mocks: [],
+      habits: {},
+      vocab: [],
+      digitalNotes: [],
+      isSyncing: false,
+      premiumData: {
+        currentStreak: 0,
+        longestStreak: 0,
+        lastStudyDate: null,
+        totalStudyMinutes: 0,
+        bookmarks: [],
+        revisions: {},
+        examDate: "2026-10-01",
+        lastMonthlyQuizMonth: new Date().toISOString().substring(0, 7),
+      },
 
-  // --- NEW SUPABASE SYNC ENGINE ---
-  fetchUserDataFromCloud: async () => {
-    const user = get().user;
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from("user_data")
-        .select("app_state")
-        .eq("user_id", user.id)
-        .single();
+      setTheme: (theme) => {
+        document.body.setAttribute("data-theme", theme);
+        set({ theme });
+      },
+      setActiveView: (view) => set({ activeView: view }),
+      setSelectedDate: (date) => set({ selectedDate: date }),
+      updateSettings: (newSettings) =>
+        set((state) => ({ settings: { ...state.settings, ...newSettings } })),
+      notify: (message, type = "success") => {
+        const id = Date.now() + Math.random();
+        set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
+        setTimeout(
+          () =>
+            set((state) => ({
+              toasts: state.toasts.filter((t) => t.id !== id),
+            })),
+          3000,
+        );
+      },
+      requestConfirm: (message, onConfirm) =>
+        set({ confirmDialog: { isOpen: true, message, onConfirm } }),
+      closeConfirm: () =>
+        set({ confirmDialog: { isOpen: false, message: "", onConfirm: null } }),
 
-      if (data && data.app_state) {
-        const cloudState = data.app_state;
-        set({
-          theme: cloudState.theme || "light",
-          history: cloudState.history || {},
-          mocks: cloudState.mocks || [],
-          habits: cloudState.habits || {},
-          baseTimeline: cloudState.baseTimeline || defaultTimeline,
-          baseHabits: cloudState.baseHabits || defaultHabitList,
-          premiumData: cloudState.premiumData || get().premiumData,
-          settings: cloudState.settings || {
-            notifications: true,
-            audio: false,
-          },
+      initAuth: async () => {
+        set({ authLoading: true });
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        set({ session, user: session?.user || null, authLoading: false });
+        if (session?.user) {
+          get().fetchVocabFromCloud();
+          get().fetchDigitalNotesFromCloud();
+        }
+        supabase.auth.onAuthStateChange((_event, session) => {
+          const currentUser = get().user;
+          set({ session, user: session?.user || null, authLoading: false });
+          if (session?.user && session.user.id !== currentUser?.id) {
+            get().fetchVocabFromCloud();
+            get().fetchDigitalNotesFromCloud();
+          } else if (!session?.user) {
+            set({ vocab: [], digitalNotes: [] });
+          }
         });
-        document.body.setAttribute("data-theme", cloudState.theme || "light");
-      }
-    } catch (err) {
-      console.error("Failed to load user state from cloud:", err);
-    }
-  },
+      },
+      generateInternalEmail: (username) =>
+        `${username
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "")}@ibpsplanner.internal`,
+      loginWithUsername: async (username, password) => {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: get().generateInternalEmail(username),
+          password,
+        });
+        if (error) throw error;
+        set({ user: data.user, session: data.session });
+        get().fetchVocabFromCloud();
+        get().fetchDigitalNotesFromCloud();
+        return data;
+      },
+      signUpWithUsername: async (username, password) => {
+        const { data, error } = await supabase.auth.signUp({
+          email: get().generateInternalEmail(username),
+          password,
+          options: { data: { display_username: username.trim() } },
+        });
+        if (error) throw error;
+        return data;
+      },
+      logout: async () => {
+        await supabase.auth.signOut();
+        set({ user: null, session: null, vocab: [], digitalNotes: [] });
+        get().notify("Logged out successfully.", "info");
+      },
+      deleteAccount: async () => {
+        const user = get().user;
+        if (user) {
+          try {
+            const { error } = await supabase.rpc("delete_user");
+            if (error) {
+              await supabase.from("dictionary").delete().eq("user_id", user.id);
+              await supabase
+                .from("digital_notes")
+                .delete()
+                .eq("user_id", user.id);
+            }
+            await supabase.auth.signOut();
+          } catch (err) {}
+        }
+        window.localStorage.clear();
+        set({
+          user: null,
+          session: null,
+          vocab: [],
+          history: {},
+          mocks: [],
+          habits: {},
+          digitalNotes: [],
+          premiumData: { bookmarks: [] },
+        });
+        get().notify(
+          "Your account and all cloud data have been permanently deleted.",
+          "info",
+        );
+      },
 
-  syncStateToCloud: () => {
-    const state = get();
-    if (!state.user) return;
+      fetchVocabFromCloud: async () => {
+        const user = get().user;
+        if (!user) return;
+        set({ isSyncing: true });
+        try {
+          const { data, error } = await supabase
+            .from("dictionary")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("dateAdded", { ascending: false });
+          if (error) throw error;
+          if (data) set({ vocab: data });
+        } catch (err) {
+        } finally {
+          set({ isSyncing: false });
+        }
+      },
+      addVocabNote: async (newNote) => {
+        const user = get().user;
+        if (!user) return;
+        const noteWithUser = { ...newNote, user_id: user.id };
+        set((state) => ({ vocab: [noteWithUser, ...state.vocab] }));
+        get().notify(`Saved "${newNote.word}" to Cloud!`, "success");
+        try {
+          const { error } = await supabase
+            .from("dictionary")
+            .insert([noteWithUser]);
+          if (error) {
+            set((state) => ({
+              vocab: state.vocab.filter((v) => v.id !== newNote.id),
+            }));
+            throw error;
+          }
+        } catch (err) {
+          get().notify("Failed to save entry.", "error");
+        }
+      },
+      updateVocabNote: async (noteObj) => {
+        const user = get().user;
+        if (!user) return;
+        const noteWithUser = { ...noteObj, user_id: user.id };
+        set((state) => ({
+          vocab: state.vocab.map((v) =>
+            v.id === noteObj.id ? noteWithUser : v,
+          ),
+        }));
+        get().notify("Note updated instantly!", "success");
+        try {
+          const { error } = await supabase
+            .from("dictionary")
+            .upsert([noteWithUser]);
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to sync update to cloud.", "error");
+        }
+      },
+      deleteVocabNote: async (id) => {
+        const user = get().user;
+        if (!user) return;
+        set((state) => ({ vocab: state.vocab.filter((v) => v.id !== id) }));
+        get().notify("Entry removed.", "info");
+        try {
+          const { error } = await supabase
+            .from("dictionary")
+            .delete()
+            .match({ id: id, user_id: user.id });
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to delete entry from cloud.", "error");
+        }
+      },
 
-    // Debounce the API call so rapid typing doesn't spam Supabase
-    if (syncTimeout) clearTimeout(syncTimeout);
+      fetchDigitalNotesFromCloud: async () => {
+        const user = get().user;
+        if (!user) return;
+        try {
+          const { data, error } = await supabase
+            .from("digital_notes")
+            .select("*")
+            .eq("user_id", user.id);
+          if (error) throw error;
+          if (data) set({ digitalNotes: data });
+        } catch (err) {}
+      },
+      addDigitalNote: async (note) => {
+        const user = get().user;
+        if (!user) return;
+        const noteWithUser = { ...note, user_id: user.id };
+        set((state) => ({
+          digitalNotes: [...(state.digitalNotes || []), noteWithUser],
+        }));
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .insert([noteWithUser]);
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to save canvas note to cloud.", "error");
+        }
+      },
+      updateDigitalNote: async (id, updates) => {
+        const user = get().user;
+        if (!user) return;
+        set((state) => ({
+          digitalNotes: state.digitalNotes.map((n) =>
+            n.id === id ? { ...n, ...updates } : n,
+          ),
+        }));
+        try {
+          const updatedNote = get().digitalNotes.find((n) => n.id === id);
+          if (updatedNote) {
+            const { error } = await supabase
+              .from("digital_notes")
+              .upsert([updatedNote]);
+            if (error) throw error;
+          }
+        } catch (err) {
+          get().notify("Failed to sync canvas update.", "error");
+        }
+      },
+      deleteDigitalNote: async (id) => {
+        const user = get().user;
+        if (!user) return;
+        set((state) => ({
+          digitalNotes: state.digitalNotes.filter((n) => n.id !== id),
+        }));
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .delete()
+            .match({ id, user_id: user.id });
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to delete canvas note from cloud.", "error");
+        }
+      },
+      clearDigitalNotes: async () => {
+        const user = get().user;
+        if (!user) return;
+        set({ digitalNotes: [] });
+        get().notify("Canvas cleared.", "info");
+        try {
+          const { error } = await supabase
+            .from("digital_notes")
+            .delete()
+            .eq("user_id", user.id);
+          if (error) throw error;
+        } catch (err) {
+          get().notify("Failed to clear cloud notes.", "error");
+        }
+      },
 
-    syncTimeout = setTimeout(async () => {
-      const app_state = {
+      updateHistory: (newHistoryData) => {
+        const date = get().selectedDate;
+        set((state) => ({
+          history: {
+            ...state.history,
+            [date]: { ...state.history[date], ...newHistoryData },
+          },
+        }));
+      },
+
+      setMocks: (mocks) => set({ mocks }),
+      setPremiumData: (fn) =>
+        set((state) => ({ premiumData: fn(state.premiumData) })),
+      setAppData: (fn) => set((state) => fn(state)),
+    }),
+    {
+      name: "ibps_planner_auth_store",
+      partialize: (state) => ({
         theme: state.theme,
         history: state.history,
         mocks: state.mocks,
         habits: state.habits,
         baseTimeline: state.baseTimeline,
+        digitalNotes: state.digitalNotes,
         baseHabits: state.baseHabits,
         premiumData: state.premiumData,
-        settings: state.settings,
-      };
-
-      await supabase
-        .from("user_data")
-        .upsert(
-          { user_id: state.user.id, app_state },
-          { onConflict: "user_id" },
-        );
-    }, 1500); // 1.5 second delay after the last state change
-  },
-
-  // --- STATE MUTATORS (Now with Cloud Sync) ---
-  setTheme: (theme) => {
-    document.body.setAttribute("data-theme", theme);
-    set({ theme });
-    get().syncStateToCloud();
-  },
-  setActiveView: (view) => set({ activeView: view }),
-  setSelectedDate: (date) => set({ selectedDate: date }),
-
-  updateSettings: (newSettings) => {
-    set((state) => ({ settings: { ...state.settings, ...newSettings } }));
-    get().syncStateToCloud();
-  },
-
-  notify: (message, type = "success") => {
-    const id = Date.now() + Math.random();
-    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
-    setTimeout(
-      () =>
-        set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
-      3000,
-    );
-  },
-
-  requestConfirm: (message, onConfirm) =>
-    set({ confirmDialog: { isOpen: true, message, onConfirm } }),
-  closeConfirm: () =>
-    set({ confirmDialog: { isOpen: false, message: "", onConfirm: null } }),
-
-  initAuth: async () => {
-    set({ authLoading: true });
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    set({ session, user: session?.user || null, authLoading: false });
-
-    if (session?.user) {
-      get().fetchUserDataFromCloud();
-      get().fetchVocabFromCloud();
-      get().fetchDigitalNotesFromCloud();
-    }
-
-    supabase.auth.onAuthStateChange((_event, session) => {
-      const currentUser = get().user;
-      set({ session, user: session?.user || null, authLoading: false });
-      if (session?.user && session.user.id !== currentUser?.id) {
-        get().fetchUserDataFromCloud();
-        get().fetchVocabFromCloud();
-        get().fetchDigitalNotesFromCloud();
-      } else if (!session?.user) {
-        // Reset state on logout
-        set({
-          vocab: [],
-          digitalNotes: [],
-          history: {},
-          mocks: {},
-          habits: {},
-        });
-      }
-    });
-  },
-
-  generateInternalEmail: (username) =>
-    `${username
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "")}@ibpsplanner.internal`,
-
-  loginWithUsername: async (username, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: get().generateInternalEmail(username),
-      password,
-    });
-    if (error) throw error;
-    set({ user: data.user, session: data.session });
-
-    get().fetchUserDataFromCloud();
-    get().fetchVocabFromCloud();
-    get().fetchDigitalNotesFromCloud();
-    return data;
-  },
-
-  signUpWithUsername: async (username, password) => {
-    const { data, error } = await supabase.auth.signUp({
-      email: get().generateInternalEmail(username),
-      password,
-      options: { data: { display_username: username.trim() } },
-    });
-    if (error) throw error;
-    return data;
-  },
-
-  logout: async () => {
-    await supabase.auth.signOut();
-    set({
-      user: null,
-      session: null,
-      vocab: [],
-      digitalNotes: [],
-      history: {},
-      mocks: [],
-      habits: {},
-    });
-    get().notify("Logged out successfully.", "info");
-  },
-
-  deleteAccount: async () => {
-    const user = get().user;
-    if (user) {
-      try {
-        const { error } = await supabase.rpc("delete_user");
-        if (error) {
-          await supabase.from("dictionary").delete().eq("user_id", user.id);
-          await supabase.from("digital_notes").delete().eq("user_id", user.id);
-          await supabase.from("user_data").delete().eq("user_id", user.id);
-        }
-        await supabase.auth.signOut();
-      } catch (err) {}
-    }
-    set({
-      user: null,
-      session: null,
-      vocab: [],
-      history: {},
-      mocks: [],
-      habits: {},
-      digitalNotes: [],
-      premiumData: { bookmarks: [] },
-    });
-    get().notify(
-      "Your account and all cloud data have been permanently deleted.",
-      "info",
-    );
-  },
-
-  /* ... Keep existing fetchVocabFromCloud to clearDigitalNotes methods here exactly as they are ... */
-  fetchVocabFromCloud: async () => {
-    const user = get().user;
-    if (!user) return;
-    set({ isSyncing: true });
-    try {
-      const { data, error } = await supabase
-        .from("dictionary")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("dateAdded", { ascending: false });
-      if (error) throw error;
-      if (data) set({ vocab: data });
-    } catch (err) {
-    } finally {
-      set({ isSyncing: false });
-    }
-  },
-  addVocabNote: async (newNote) => {
-    const user = get().user;
-    if (!user) return;
-    const noteWithUser = { ...newNote, user_id: user.id };
-    set((state) => ({ vocab: [noteWithUser, ...state.vocab] }));
-    get().notify(`Saved "${newNote.word}" to Cloud!`, "success");
-    try {
-      const { error } = await supabase
-        .from("dictionary")
-        .insert([noteWithUser]);
-      if (error) {
-        set((state) => ({
-          vocab: state.vocab.filter((v) => v.id !== newNote.id),
-        }));
-        throw error;
-      }
-    } catch (err) {
-      get().notify("Failed to save entry.", "error");
-    }
-  },
-  updateVocabNote: async (noteObj) => {
-    const user = get().user;
-    if (!user) return;
-    const noteWithUser = { ...noteObj, user_id: user.id };
-    set((state) => ({
-      vocab: state.vocab.map((v) => (v.id === noteObj.id ? noteWithUser : v)),
-    }));
-    get().notify("Note updated instantly!", "success");
-    try {
-      const { error } = await supabase
-        .from("dictionary")
-        .upsert([noteWithUser]);
-      if (error) throw error;
-    } catch (err) {
-      get().notify("Failed to sync update to cloud.", "error");
-    }
-  },
-  deleteVocabNote: async (id) => {
-    const user = get().user;
-    if (!user) return;
-    set((state) => ({ vocab: state.vocab.filter((v) => v.id !== id) }));
-    get().notify("Entry removed.", "info");
-    try {
-      const { error } = await supabase
-        .from("dictionary")
-        .delete()
-        .match({ id: id, user_id: user.id });
-      if (error) throw error;
-    } catch (err) {
-      get().notify("Failed to delete entry from cloud.", "error");
-    }
-  },
-  fetchDigitalNotesFromCloud: async () => {
-    const user = get().user;
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from("digital_notes")
-        .select("*")
-        .eq("user_id", user.id);
-      if (error) throw error;
-      if (data) set({ digitalNotes: data });
-    } catch (err) {}
-  },
-  addDigitalNote: async (note) => {
-    const user = get().user;
-    if (!user) return;
-    const noteWithUser = { ...note, user_id: user.id };
-    set((state) => ({
-      digitalNotes: [...(state.digitalNotes || []), noteWithUser],
-    }));
-    try {
-      const { error } = await supabase
-        .from("digital_notes")
-        .insert([noteWithUser]);
-      if (error) throw error;
-    } catch (err) {
-      get().notify("Failed to save canvas note to cloud.", "error");
-    }
-  },
-  updateDigitalNote: async (id, updates) => {
-    const user = get().user;
-    if (!user) return;
-    set((state) => ({
-      digitalNotes: state.digitalNotes.map((n) =>
-        n.id === id ? { ...n, ...updates } : n,
-      ),
-    }));
-    try {
-      const updatedNote = get().digitalNotes.find((n) => n.id === id);
-      if (updatedNote) {
-        const { error } = await supabase
-          .from("digital_notes")
-          .upsert([updatedNote]);
-        if (error) throw error;
-      }
-    } catch (err) {
-      get().notify("Failed to sync canvas update.", "error");
-    }
-  },
-  deleteDigitalNote: async (id) => {
-    const user = get().user;
-    if (!user) return;
-    set((state) => ({
-      digitalNotes: state.digitalNotes.filter((n) => n.id !== id),
-    }));
-    try {
-      const { error } = await supabase
-        .from("digital_notes")
-        .delete()
-        .match({ id, user_id: user.id });
-      if (error) throw error;
-    } catch (err) {
-      get().notify("Failed to delete canvas note from cloud.", "error");
-    }
-  },
-  clearDigitalNotes: async () => {
-    const user = get().user;
-    if (!user) return;
-    set({ digitalNotes: [] });
-    get().notify("Canvas cleared.", "info");
-    try {
-      const { error } = await supabase
-        .from("digital_notes")
-        .delete()
-        .eq("user_id", user.id);
-      if (error) throw error;
-    } catch (err) {
-      get().notify("Failed to clear cloud notes.", "error");
-    }
-  },
-
-  // --- CORE APP STATE WITH AUTO-SYNC ---
-  updateHistory: (newHistoryData) => {
-    const date = get().selectedDate;
-    set((state) => ({
-      history: {
-        ...state.history,
-        [date]: { ...state.history[date], ...newHistoryData },
-      },
-    }));
-    get().syncStateToCloud();
-  },
-
-  setMocks: (mocks) => {
-    set({ mocks });
-    get().syncStateToCloud();
-  },
-
-  setPremiumData: (fn) => {
-    set((state) => ({ premiumData: fn(state.premiumData) }));
-    get().syncStateToCloud();
-  },
-
-  setAppData: (fn) => {
-    set((state) => fn(state));
-    get().syncStateToCloud();
-  },
-}));
+        settings: state.settings || { notifications: true, audio: false },
+      }),
+    },
+  ),
+);
 
 function DigitalNotesBoard() {
   const {
@@ -4870,7 +4788,7 @@ function DailyPlan({ timeline }) {
                         </div>
                       )}
 
-                      {/* {v.notes && (
+                      {v.notes && (
                         <div
                           style={{
                             background: "rgba(0,0,0,0.02)",
@@ -4887,7 +4805,7 @@ function DailyPlan({ timeline }) {
                         >
                           "{v.notes}"
                         </div>
-                      )} */}
+                      )}
                     </div>
                   ))}
                 </div>
