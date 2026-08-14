@@ -445,7 +445,7 @@ export default function MockTestModule({ onSaveScore }) {
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "calc(200vh - 90px)",
+          height: "calc(120vh - 0px)",
           background: "var(--bg)",
           borderRadius: "16px",
           border: "1px solid var(--border)",

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { create } from "zustand";
 import * as htmlToImage from "html-to-image";
-import { persist } from "zustand/middleware";
+import { ClipboardCheck } from "lucide-react";
 import "./App.css";
 import {
   Target,
@@ -78,6 +78,7 @@ import {
 
 // --- SUPABASE CLIENT IMPORT ---
 import { supabase } from "./supabase";
+import MockTestModule from "./MockTestModule";
 let syncTimeout = null;
 
 // --- AUDIO NOTIFICATION ENGINE ---
@@ -7238,10 +7239,12 @@ export default function App() {
               icon: BookOpen,
               label: "Study Materials / PDFs",
             },
+            { id: "mockTest", icon: ClipboardCheck, label: "Mock Test" },
             { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
             { id: "quant", icon: Calculator, label: "Quant Rotation" },
             { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
             { id: "mocks", icon: LineChart, label: "Mock Tracker" },
+
             { id: "habits", icon: CheckCircle, label: "Habit Tracker" },
             { id: "settings", icon: Settings, label: "Settings" },
           ].map((item) => (
@@ -7269,6 +7272,7 @@ export default function App() {
           {activeView === "today" && (
             <DailyPlan timeline={currentHistory.timeline} />
           )}
+          {activeView === "mockTest" && <MockTestModule />}
           {activeView === "digital_notes" &&
             (typeof DigitalNotesBoard !== "undefined" ? (
               <DigitalNotesBoard />

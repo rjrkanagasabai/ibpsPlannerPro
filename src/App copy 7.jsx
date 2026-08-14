@@ -5847,6 +5847,7 @@ function SettingsView() {
 }
 
 // --- REDESIGNED ALIGNED STUDY MATERIALS / PDF LIBRARY MODULE ---
+// --- REDESIGNED ALIGNED STUDY MATERIALS / PDF & IMAGE LIBRARY MODULE ---
 function StudyMaterialsModule() {
   const { user, notify } = useAppStore();
   const [documents, setDocuments] = useState([]);
@@ -5908,7 +5909,7 @@ function StudyMaterialsModule() {
   const fetchDocuments = async () => {
     const { data, error } = await supabase.from("documents").select("*");
     if (error) {
-      console.error("Failed to load PDFs.", error);
+      console.error("Failed to load documents.", error);
     } else if (data) {
       setDocuments(data);
     }
@@ -5926,16 +5927,25 @@ function StudyMaterialsModule() {
   };
 
   const handleFileUpload = async (event) => {
-    if (!isAdmin) return notify("Only the admin can upload PDFs.", "error");
+    if (!isAdmin) return notify("Only the admin can upload files.", "error");
     try {
       setUploading(true);
       const file = event.target.files[0];
-      if (!file || file.type !== "application/pdf")
-        return notify("Please select a valid PDF file.", "error");
 
-      const filePath = `${Date.now()}.${file.name.split(".").pop()}`;
+      if (!file) return;
+
+      const isPdf = file.type === "application/pdf";
+      const isImage = file.type.startsWith("image/");
+
+      if (!isPdf && !isImage) {
+        return notify("Please select a valid PDF or Image file.", "error");
+      }
+
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${Date.now()}.${fileExt}`;
+
       const { error: uploadError } = await supabase.storage
-        .from("pdf-files")
+        .from("pdf-files") // Keep using the same bucket or change if you have a general one
         .upload(filePath, file);
       if (uploadError) throw uploadError;
 
@@ -5948,7 +5958,7 @@ function StudyMaterialsModule() {
           ? `Current Affairs::${uploadMonth}::${uploadSubCategory}`
           : uploadCategory;
       const finalTitle =
-        uploadTitleOverride.trim() || file.name.replace(".pdf", "");
+        uploadTitleOverride.trim() || file.name.replace(`.${fileExt}`, "");
       const maxOrder = documents.reduce(
         (max, d) => Math.max(max, d.order_index || 0),
         0,
@@ -5965,7 +5975,7 @@ function StudyMaterialsModule() {
       ]);
       if (dbError) throw dbError;
 
-      notify("PDF uploaded successfully!", "success");
+      notify("File uploaded successfully!", "success");
       setUploadTitleOverride("");
       fetchDocuments();
     } catch (error) {
@@ -6099,14 +6109,17 @@ function StudyMaterialsModule() {
       "Editorial",
       "English",
       "Current Affairs",
-      "Other",
-      ...documents.map((d) => (d.category || "Other").split("::")[0]),
+      "Government Schemes",
+      ...documents.map(
+        (d) => (d.category || "Government Schemes").split("::")[0],
+      ),
     ]),
   );
 
   const mainCategoryDocs = useMemo(() => {
     let filtered = documents.filter(
-      (doc) => (doc.category || "Other").split("::")[0] === activeTab,
+      (doc) =>
+        (doc.category || "Government Schemes").split("::")[0] === activeTab,
     );
     filtered.sort((a, b) => {
       const orderA = a.order_index ?? 0;
@@ -6163,6 +6176,11 @@ function StudyMaterialsModule() {
     viewMode = "docs";
     displayItems = mainCategoryDocs;
   }
+
+  // Check if the selected document is an image format
+  const isSelectedDocImage = selectedDoc?.file_url?.match(
+    /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i,
+  );
 
   return (
     <div
@@ -6278,7 +6296,7 @@ function StudyMaterialsModule() {
                 <option value="Grammar Rule">120 Rules of Grammar</option>
                 <option value="Editorial">Editorial</option>
                 <option value="English">English</option>
-                <option value="Other">Other</option>
+                <option value="Government Schemes">Government Schemes</option>
               </select>
               {uploadCategory === "Current Affairs" && (
                 <div
@@ -6323,7 +6341,7 @@ function StudyMaterialsModule() {
               <input
                 type="text"
                 className="custom-input"
-                placeholder="PDF Title Override (Optional)"
+                placeholder="Title Override (Optional)"
                 value={uploadTitleOverride}
                 onChange={(e) => setUploadTitleOverride(e.target.value)}
                 style={{
@@ -6349,10 +6367,10 @@ function StudyMaterialsModule() {
                 ) : (
                   <UploadCloud size={14} />
                 )}
-                {uploading ? "Uploading..." : "Upload PDF"}
+                {uploading ? "Uploading..." : "Upload File (PDF/Image)"}
                 <input
                   type="file"
-                  accept="application/pdf"
+                  accept="application/pdf, image/*"
                   onChange={handleFileUpload}
                   style={{ display: "none" }}
                   disabled={uploading}
@@ -6761,53 +6779,90 @@ function StudyMaterialsModule() {
                 )}
               </div>
             </div>
+
+            {/* Viewer Area (Protected from Downloads) */}
             <div
+              onContextMenu={(e) => e.preventDefault()} // Block Right Clicks Globally on Content
               style={{
                 flex: 1,
                 padding: isFullscreen ? "0" : "12px",
                 background: "rgba(0,0,0,0.04)",
                 overflow: "hidden",
+                position: "relative",
               }}
             >
-              <object
-                data={`${selectedDoc.file_url}#toolbar=0&navpanes=0`}
-                type="application/pdf"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  borderRadius: isFullscreen ? "0" : "10px",
-                  border: isFullscreen ? "none" : "1px solid var(--border)",
-                  boxShadow: isFullscreen
-                    ? "none"
-                    : "0 8px 24px rgba(0,0,0,0.06)",
-                }}
-              >
+              {isSelectedDocImage ? (
                 <div
                   style={{
+                    width: "100%",
+                    height: "100%",
+                    overflowY: "auto",
+                    overflowX: "hidden",
+                    borderRadius: isFullscreen ? "0" : "10px",
+                    border: isFullscreen ? "none" : "1px solid var(--border)",
+                    boxShadow: isFullscreen
+                      ? "none"
+                      : "0 8px 24px rgba(0,0,0,0.06)",
+                    background: "#fff",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                    color: "var(--text-muted)",
-                    padding: "20px",
                   }}
                 >
-                  <p>Unable to render PDF preview directly.</p>
-                  <a
-                    href={selectedDoc.file_url}
-                    target="_blank"
-                    rel="noreferrer"
+                  <img
+                    src={selectedDoc.file_url}
+                    alt={selectedDoc.title}
+                    draggable="false" // Disable Drag to Desktop
                     style={{
-                      color: "var(--accent)",
-                      textDecoration: "underline",
-                      fontWeight: 600,
+                      maxWidth: "100%",
+                      height: "auto",
+                      userSelect: "none",
+                      WebkitUserSelect: "none",
+                      pointerEvents: "none", // Neutralizes "Save Image As" actions on touch devices
+                      display: "block",
+                    }}
+                  />
+                </div>
+              ) : (
+                <object
+                  data={`${selectedDoc.file_url}#toolbar=0&navpanes=0`}
+                  type="application/pdf"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: isFullscreen ? "0" : "10px",
+                    border: isFullscreen ? "none" : "1px solid var(--border)",
+                    boxShadow: isFullscreen
+                      ? "none"
+                      : "0 8px 24px rgba(0,0,0,0.06)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "100%",
+                      color: "var(--text-muted)",
+                      padding: "20px",
+                      background: "var(--bg)",
                     }}
                   >
-                    Open PDF in new tab
-                  </a>
-                </div>
-              </object>
+                    <p>Unable to render PDF preview directly.</p>
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        fontStyle: "italic",
+                        marginTop: "8px",
+                      }}
+                    >
+                      Direct downloads are disabled for this document due to
+                      security settings.
+                    </p>
+                  </div>
+                </object>
+              )}
             </div>
           </>
         ) : (
