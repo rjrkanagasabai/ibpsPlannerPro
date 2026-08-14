@@ -78,7 +78,7 @@ import {
 
 // --- SUPABASE CLIENT IMPORT ---
 import { supabase } from "./supabase";
-import MockTestModule from "./MockTestModule";
+import MockTestModule, { MockTracker } from "./MockTestModule";
 let syncTimeout = null;
 
 // --- AUDIO NOTIFICATION ENGINE ---
@@ -5119,251 +5119,281 @@ function ReasoningRotation({ reasoning = [] }) {
   );
 }
 
-function MockTracker() {
-  const { mocks, setMocks, selectedDate, notify } = useAppStore();
-  const addMock = () => {
-    setMocks([
-      {
-        id: Date.now().toString(),
-        date: selectedDate,
-        name: "",
-        score: "",
-        remarks: "",
-      },
-      ...mocks,
-    ]);
-    notify("New Mock Test card added.", "info");
-  };
-  const updateMock = (id, field, value) =>
-    setMocks(mocks.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
-  const deleteMock = (id) => {
-    setMocks(mocks.filter((m) => m.id !== id));
-    notify("Mock Test deleted.", "info");
-  };
+// export function MockTracker() {
+//   // Replace these with your actual store hooks/methods.
+//   // const { mocks, setMocks, selectedDate, notify } = useAppStore();
 
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Mock Test Analytics</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Log mock tests to analyze your performance growth.
-          </p>
-        </div>
-        <button className="btn" onClick={addMock}>
-          <Plus size={16} /> Log New Test
-        </button>
-      </div>
-      {mocks.length === 0 ? (
-        <div
-          className="card"
-          style={{
-            textAlign: "center",
-            padding: "60px 20px",
-            color: "var(--text-muted)",
-          }}
-        >
-          <LineChart
-            size={48}
-            style={{
-              opacity: 0.2,
-              margin: "0 auto 16px auto",
-              display: "block",
-            }}
-          />
-          No mock tests logged yet. Click "Log New Test" to begin tracking.
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {mocks.map((m) => (
-            <div
-              key={m.id}
-              className="card"
-              style={{
-                padding: 0,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <div
-                style={{
-                  padding: "16px 24px",
-                  background: "rgba(0,0,0,0.02)",
-                  borderBottom: "1px solid var(--border)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: "16px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "16px",
-                    flex: 1,
-                    minWidth: "300px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      width: "140px",
-                    }}
-                  >
-                    <label
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-muted)",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      Date Taken
-                    </label>
-                    <input
-                      type="date"
-                      className="custom-input"
-                      value={m.date}
-                      onChange={(e) => updateMock(m.id, "date", e.target.value)}
-                      style={{ padding: "8px", fontSize: "13px" }}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      flex: 1,
-                    }}
-                  >
-                    <label
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-muted)",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      Test Name / Provider
-                    </label>
-                    <input
-                      type="text"
-                      className="custom-input"
-                      placeholder="e.g. IBPS PO Prelims Mock 1"
-                      value={m.name}
-                      onChange={(e) => updateMock(m.id, "name", e.target.value)}
-                      style={{
-                        padding: "8px",
-                        fontSize: "15px",
-                        fontWeight: 600,
-                        border: "none",
-                        background: "transparent",
-                      }}
-                    />
-                  </div>
-                </div>
-                <button
-                  className="icon-btn-minimal"
-                  onClick={() => deleteMock(m.id)}
-                  style={{
-                    color: "var(--danger)",
-                    background: "rgba(239,68,68,0.1)",
-                    borderRadius: "8px",
-                    width: "36px",
-                    height: "36px",
-                  }}
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "24px",
-                  padding: "24px",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    width: "150px",
-                  }}
-                >
-                  <label
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      fontWeight: 600,
-                      marginBottom: "8px",
-                    }}
-                  >
-                    Score / Marks
-                  </label>
-                  <input
-                    type="number"
-                    className="custom-input"
-                    placeholder="00.00"
-                    value={m.score}
-                    onChange={(e) => updateMock(m.id, "score", e.target.value)}
-                    style={{
-                      fontSize: "24px",
-                      fontWeight: 800,
-                      padding: "12px",
-                      color: "var(--text-main)",
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    flex: 1,
-                    minWidth: "250px",
-                  }}
-                >
-                  <label
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      fontWeight: 600,
-                      marginBottom: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <Edit3 size={14} /> Mistakes & Learnings
-                  </label>
-                  <textarea
-                    className="custom-input"
-                    placeholder="What went wrong? e.g. Silly mistake in Syllogism..."
-                    value={m.remarks}
-                    onChange={(e) =>
-                      updateMock(m.id, "remarks", e.target.value)
-                    }
-                    rows="2"
-                    style={{
-                      background: "rgba(99, 102, 241, 0.03)",
-                      border: "1px dashed var(--border)",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+//   // Local state for demonstration (remove if using useAppStore)
+//   const [mocks, setMocks] = useState([]);
+//   const selectedDate = new Date().toISOString().split("T")[0];
+//   const notify = (msg, type) => console.log(`[${type}] ${msg}`);
+
+//   const addMock = () => {
+//     setMocks([
+//       {
+//         id: Date.now().toString(),
+//         date: selectedDate,
+//         name: "",
+//         score: "",
+//         remarks: "",
+//       },
+//       ...mocks,
+//     ]);
+//     notify("New Mock Test card added.", "info");
+//   };
+
+//   const updateMock = (id, field, value) =>
+//     setMocks(mocks.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
+
+//   const deleteMock = (id) => {
+//     setMocks(mocks.filter((m) => m.id !== id));
+//     notify("Mock Test deleted.", "info");
+//   };
+
+//   return (
+//     <div style={{ marginTop: "40px" }}>
+//       <div className="page-header" style={{ marginBottom: "24px" }}>
+//         <div>
+//           <h2 style={{ fontSize: "24px", fontWeight: 800 }}>
+//             Mock Test Analytics
+//           </h2>
+//           <p style={{ color: "var(--text-muted)" }}>
+//             Log mock tests to analyze your performance growth.
+//           </p>
+//         </div>
+//         <button className="btn" onClick={addMock}>
+//           <Plus size={16} /> Log New Test
+//         </button>
+//       </div>
+
+//       {mocks.length === 0 ? (
+//         <div
+//           className="card"
+//           style={{
+//             textAlign: "center",
+//             padding: "60px 20px",
+//             color: "var(--text-muted)",
+//             borderRadius: "16px",
+//           }}
+//         >
+//           <LineChart
+//             size={48}
+//             style={{
+//               opacity: 0.2,
+//               margin: "0 auto 16px auto",
+//               display: "block",
+//             }}
+//           />
+//           No mock tests logged yet. Click "Log New Test" to begin tracking.
+//         </div>
+//       ) : (
+//         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+//           {mocks.map((m) => (
+//             <div
+//               key={m.id}
+//               className="card"
+//               style={{
+//                 padding: 0,
+//                 overflow: "hidden",
+//                 display: "flex",
+//                 flexDirection: "column",
+//                 borderRadius: "16px",
+//               }}
+//             >
+//               <div
+//                 style={{
+//                   padding: "16px 24px",
+//                   background: "rgba(0,0,0,0.02)",
+//                   borderBottom: "1px solid var(--border)",
+//                   display: "flex",
+//                   justifyContent: "space-between",
+//                   alignItems: "center",
+//                   flexWrap: "wrap",
+//                   gap: "16px",
+//                 }}
+//               >
+//                 <div
+//                   style={{
+//                     display: "flex",
+//                     alignItems: "center",
+//                     gap: "16px",
+//                     flex: 1,
+//                     minWidth: "300px",
+//                   }}
+//                 >
+//                   <div
+//                     style={{
+//                       display: "flex",
+//                       flexDirection: "column",
+//                       width: "140px",
+//                     }}
+//                   >
+//                     <label
+//                       style={{
+//                         fontSize: "11px",
+//                         color: "var(--text-muted)",
+//                         fontWeight: 700,
+//                         textTransform: "uppercase",
+//                         marginBottom: "4px",
+//                       }}
+//                     >
+//                       Date Taken
+//                     </label>
+//                     <input
+//                       type="date"
+//                       className="custom-input"
+//                       value={m.date}
+//                       onChange={(e) => updateMock(m.id, "date", e.target.value)}
+//                       style={{
+//                         padding: "8px",
+//                         fontSize: "13px",
+//                         borderRadius: "6px",
+//                         border: "1px solid var(--border)",
+//                       }}
+//                     />
+//                   </div>
+//                   <div
+//                     style={{
+//                       display: "flex",
+//                       flexDirection: "column",
+//                       flex: 1,
+//                     }}
+//                   >
+//                     <label
+//                       style={{
+//                         fontSize: "11px",
+//                         color: "var(--text-muted)",
+//                         fontWeight: 700,
+//                         textTransform: "uppercase",
+//                         marginBottom: "4px",
+//                       }}
+//                     >
+//                       Test Name / Provider
+//                     </label>
+//                     <input
+//                       type="text"
+//                       className="custom-input"
+//                       placeholder="e.g. IBPS PO Prelims Mock 1"
+//                       value={m.name}
+//                       onChange={(e) => updateMock(m.id, "name", e.target.value)}
+//                       style={{
+//                         padding: "8px",
+//                         fontSize: "15px",
+//                         fontWeight: 600,
+//                         border: "none",
+//                         background: "transparent",
+//                         outline: "none",
+//                       }}
+//                     />
+//                   </div>
+//                 </div>
+//                 <button
+//                   onClick={() => deleteMock(m.id)}
+//                   style={{
+//                     color: "var(--danger)",
+//                     background: "rgba(239,68,68,0.1)",
+//                     border: "none",
+//                     borderRadius: "8px",
+//                     width: "36px",
+//                     height: "36px",
+//                     display: "flex",
+//                     alignItems: "center",
+//                     justifyContent: "center",
+//                     cursor: "pointer",
+//                   }}
+//                 >
+//                   <Trash2 size={16} />
+//                 </button>
+//               </div>
+
+//               <div
+//                 style={{
+//                   display: "flex",
+//                   gap: "24px",
+//                   padding: "24px",
+//                   alignItems: "center",
+//                   flexWrap: "wrap",
+//                 }}
+//               >
+//                 <div
+//                   style={{
+//                     display: "flex",
+//                     flexDirection: "column",
+//                     width: "150px",
+//                   }}
+//                 >
+//                   <label
+//                     style={{
+//                       fontSize: "12px",
+//                       color: "var(--text-muted)",
+//                       fontWeight: 600,
+//                       marginBottom: "8px",
+//                     }}
+//                   >
+//                     Score / Marks
+//                   </label>
+//                   <input
+//                     type="number"
+//                     className="custom-input"
+//                     placeholder="00.00"
+//                     value={m.score}
+//                     onChange={(e) => updateMock(m.id, "score", e.target.value)}
+//                     style={{
+//                       fontSize: "24px",
+//                       fontWeight: 800,
+//                       padding: "12px",
+//                       color: "var(--text-main)",
+//                       borderRadius: "8px",
+//                       border: "1px solid var(--border)",
+//                     }}
+//                   />
+//                 </div>
+//                 <div
+//                   style={{
+//                     display: "flex",
+//                     flexDirection: "column",
+//                     flex: 1,
+//                     minWidth: "250px",
+//                   }}
+//                 >
+//                   <label
+//                     style={{
+//                       fontSize: "12px",
+//                       color: "var(--text-muted)",
+//                       fontWeight: 600,
+//                       marginBottom: "8px",
+//                       display: "flex",
+//                       alignItems: "center",
+//                       gap: "6px",
+//                     }}
+//                   >
+//                     <Edit3 size={14} /> Mistakes & Learnings
+//                   </label>
+//                   <textarea
+//                     className="custom-input"
+//                     placeholder="What went wrong? e.g. Silly mistake in Syllogism..."
+//                     value={m.remarks}
+//                     onChange={(e) =>
+//                       updateMock(m.id, "remarks", e.target.value)
+//                     }
+//                     rows="2"
+//                     style={{
+//                       background: "rgba(99, 102, 241, 0.03)",
+//                       border: "1px dashed var(--border)",
+//                       borderRadius: "8px",
+//                       padding: "12px",
+//                       resize: "vertical",
+//                     }}
+//                   />
+//                 </div>
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
 
 function HabitTracker() {
   const {
@@ -7288,7 +7318,7 @@ export default function App() {
           {activeView === "reasoning" && (
             <ReasoningRotation reasoning={currentHistory.reasoning} />
           )}
-          {activeView === "mocks" && <MockTracker />}
+          {/* {activeView === "mocks" && <MockTracker />} */}
           {activeView === "habits" && <HabitTracker />}
           {activeView === "settings" && <SettingsView />}
         </div>

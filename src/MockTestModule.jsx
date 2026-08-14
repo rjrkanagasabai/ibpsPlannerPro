@@ -16,20 +16,76 @@ import {
   Check,
   Loader2,
   Filter,
+  Eye,
+  ArrowLeft,
+  Info,
+  Plus,
+  LineChart,
+  Edit3,
+  Trash2,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
 import { supabase } from "./supabase";
 
-export default function MockTestModule({ onSaveScore }) {
-  // --- STATES ---
+// =========================================================================
+// 1. PARENT DASHBOARD (Manages shared state between Test & Tracker)
+// =========================================================================
+export default function MockTestDashboard() {
+  // Shared state for the Mock Tracker
+  const [mocks, setMocks] = useState([]);
+
+  // Callback passed to MockTestModule
+  const handleSaveScore = (result) => {
+    const newMockLog = {
+      id: Date.now().toString(),
+      date: new Date().toISOString().split("T")[0],
+      name: result.name,
+      score: result.score,
+      remarks: result.remarks,
+    };
+    // Prepend the new mock test to the tracker list
+    setMocks((prev) => [newMockLog, ...prev]);
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "40px",
+        paddingBottom: "40px",
+      }}
+    >
+      {/* EXAM MODULE */}
+      <MockTestModule onSaveScore={handleSaveScore} />
+
+      {/* DIVIDER */}
+      <hr
+        style={{
+          border: "none",
+          borderTop: "1px dashed var(--border)",
+          margin: 0,
+        }}
+      />
+
+      {/* TRACKER MODULE */}
+      <MockTracker mocks={mocks} setMocks={setMocks} />
+    </div>
+  );
+}
+
+// =========================================================================
+// 2. MOCK TEST MODULE
+// =========================================================================
+export function MockTestModule({ onSaveScore }) {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
 
   // Exam States
-  const [view, setView] = useState("list"); // 'list' | 'exam' | 'result'
+  const [view, setView] = useState("list"); // 'list' | 'exam' | 'result' | 'solution'
   const [activeTest, setActiveTest] = useState(null);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentIndex] = useState(0);
@@ -38,7 +94,9 @@ export default function MockTestModule({ onSaveScore }) {
   const [sectionTimeLeft, setSectionTimeLeft] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- FETCH MOCK TESTS STRICTLY FROM SUPABASE BACKEND ---
+  // Track attempted tests for "Reattempt" feature
+  const [attemptedTests, setAttemptedTests] = useState(new Set());
+
   useEffect(() => {
     fetchMockTestsFromBackend();
   }, []);
@@ -52,12 +110,7 @@ export default function MockTestModule({ onSaveScore }) {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-
-      if (data && data.length > 0) {
-        setTests(data);
-      } else {
-        setTests([]);
-      }
+      setTests(data && data.length > 0 ? data : []);
     } catch (err) {
       console.error("Error fetching mock tests from Supabase:", err);
       setTests([]);
@@ -66,7 +119,6 @@ export default function MockTestModule({ onSaveScore }) {
     }
   };
 
-  // --- SECTIONAL TIMER ENGINE ---
   useEffect(() => {
     let timer = null;
     if (view === "exam" && sectionTimeLeft > 0) {
@@ -79,28 +131,23 @@ export default function MockTestModule({ onSaveScore }) {
     return () => clearInterval(timer);
   }, [view, sectionTimeLeft]);
 
-  // Section Time Expired / Auto-Advance Logic
   const handleSectionTimeout = () => {
     if (!activeTest) return;
-
     if (activeSectionIndex < activeTest.sections.length - 1) {
-      // Advance to next section automatically
       const nextSectionIdx = activeSectionIndex + 1;
       setActiveSectionIndex(nextSectionIdx);
       setCurrentIndex(0);
       setSectionTimeLeft(activeTest.sections[nextSectionIdx].duration * 60);
     } else {
-      // Final section completed -> Submit Exam
       submitExam();
     }
   };
 
-  // --- ACTIONS ---
   const startExam = (test) => {
     setActiveTest(test);
     setActiveSectionIndex(0);
     setCurrentIndex(0);
-    setAnswers({});
+    setAnswers({}); // Reset answers for reattempt
     setMarkedForReview({});
     setSectionTimeLeft(test.sections[0].duration * 60);
     setView("exam");
@@ -137,8 +184,16 @@ export default function MockTestModule({ onSaveScore }) {
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
+      // Mark this test ID as attempted to trigger "Reattempt" button
+      setAttemptedTests((prev) => new Set(prev).add(activeTest.id));
       setView("result");
     }, 800);
+  };
+
+  const openSolutions = () => {
+    setActiveSectionIndex(0);
+    setCurrentIndex(0);
+    setView("solution");
   };
 
   const formatTime = (seconds) => {
@@ -147,35 +202,35 @@ export default function MockTestModule({ onSaveScore }) {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // --- FILTERED TEST LIST ---
   const filteredTests = tests.filter((t) => {
     if (categoryFilter !== "ALL" && t.category !== categoryFilter) return false;
     if (typeFilter !== "ALL" && t.exam_type !== typeFilter) return false;
     return true;
   });
 
-  // =========================================================================
-  // VIEW 1: TEST SELECTION SCREEN
-  // =========================================================================
+  // --- VIEW 1: TEST LIST ---
   if (view === "list") {
     return (
       <div style={{ animation: "fadeIn 0.4s ease" }}>
-        <div className="page-header">
+        <div className="page-header" style={{ marginBottom: "24px" }}>
           <div>
-            <h1 style={{ fontSize: "28px" }}>Mock Test</h1>
-            {/* <p style={{ color: "var(--text-muted)" }}>
-              Take exam-pattern tests with strict sectional timings for IBPS,
-              SBI, and RRB.
-            </p> */}
+            <h1
+              style={{
+                fontSize: "28px",
+                fontWeight: "800",
+                color: "var(--text-main)",
+              }}
+            >
+              Mock Tests
+            </h1>
           </div>
         </div>
 
-        {/* FILTERS */}
         <div
           style={{
             display: "flex",
             gap: "12px",
-            marginBottom: "24px",
+            marginBottom: "32px",
             flexWrap: "wrap",
             alignItems: "center",
           }}
@@ -230,7 +285,6 @@ export default function MockTestModule({ onSaveScore }) {
           ))}
         </div>
 
-        {/* LOADING & EMPTY STATES */}
         {loading ? (
           <div
             style={{
@@ -242,7 +296,10 @@ export default function MockTestModule({ onSaveScore }) {
             <Loader2
               size={36}
               className="spinner"
-              style={{ margin: "0 auto 12px auto" }}
+              style={{
+                margin: "0 auto 12px auto",
+                animation: "spin 1s linear infinite",
+              }}
             />
             <p>Loading backend test modules...</p>
           </div>
@@ -253,6 +310,9 @@ export default function MockTestModule({ onSaveScore }) {
               padding: "40px",
               textAlign: "center",
               color: "var(--text-muted)",
+              background: "var(--bg)",
+              border: "1px dashed var(--border)",
+              borderRadius: "16px",
             }}
           >
             <AlertCircle
@@ -265,9 +325,6 @@ export default function MockTestModule({ onSaveScore }) {
             />
             <p style={{ fontWeight: 600, fontSize: "16px" }}>
               No tests available right now.
-            </p>
-            <p style={{ fontSize: "13px" }}>
-              Please add mock tests to your Supabase database to see them here.
             </p>
           </div>
         ) : (
@@ -287,10 +344,14 @@ export default function MockTestModule({ onSaveScore }) {
                 (acc, s) => acc + (s.questions?.length || 0),
                 0,
               );
+              const hasAttempted = attemptedTests.has(test.id);
 
               return (
                 <motion.div
-                  whileHover={{ y: -4 }}
+                  whileHover={{
+                    y: -4,
+                    boxShadow: "0 12px 32px rgba(0,0,0,0.08)",
+                  }}
                   key={test.id}
                   className="card"
                   style={{
@@ -299,7 +360,8 @@ export default function MockTestModule({ onSaveScore }) {
                     padding: "24px",
                     borderRadius: "16px",
                     border: "1px solid var(--border)",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.04)",
+                    background: "var(--bg)",
+                    transition: "all 0.2s ease",
                   }}
                 >
                   <div
@@ -316,6 +378,7 @@ export default function MockTestModule({ onSaveScore }) {
                         margin: 0,
                         fontWeight: 800,
                         color: "var(--text-main)",
+                        lineHeight: 1.3,
                       }}
                     >
                       {test.name}
@@ -367,13 +430,12 @@ export default function MockTestModule({ onSaveScore }) {
                     </span>
                   </div>
 
-                  {/* Sectional Breakdown Preview */}
                   <div
                     style={{
                       background: "rgba(0,0,0,0.02)",
                       padding: "10px 12px",
                       borderRadius: "8px",
-                      marginBottom: "20px",
+                      marginBottom: "24px",
                     }}
                   >
                     <span
@@ -411,16 +473,26 @@ export default function MockTestModule({ onSaveScore }) {
                   </div>
 
                   <button
-                    className="btn"
+                    className={`btn ${hasAttempted ? "btn-outline" : ""}`}
                     style={{
                       width: "100%",
                       justifyContent: "center",
                       marginTop: "auto",
-                      padding: "10px",
+                      padding: "12px",
+                      fontWeight: 700,
+                      borderRadius: "10px",
                     }}
                     onClick={() => startExam(test)}
                   >
-                    <Play size={16} /> Start Test
+                    {hasAttempted ? (
+                      <>
+                        <RotateCcw size={16} /> Reattempt Test
+                      </>
+                    ) : (
+                      <>
+                        <Play size={16} /> Start Test
+                      </>
+                    )}
                   </button>
                 </motion.div>
               );
@@ -431,9 +503,7 @@ export default function MockTestModule({ onSaveScore }) {
     );
   }
 
-  // =========================================================================
-  // VIEW 2: LIVE EXAM INTERFACE (STRICT SECTIONAL TIMING)
-  // =========================================================================
+  // --- VIEW 2: LIVE EXAM ---
   if (view === "exam" && activeTest) {
     const activeSection = activeTest.sections[activeSectionIndex];
     const currentQuestion = activeSection.questions[currentQuestionIndex];
@@ -441,26 +511,29 @@ export default function MockTestModule({ onSaveScore }) {
     const isMarked = !!markedForReview[currentQuestion.id];
 
     return (
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "calc(120vh - 0px)",
+          height: "calc(100vh - 40px)",
+          minHeight: "600px",
           background: "var(--bg)",
           borderRadius: "16px",
           border: "1px solid var(--border)",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.05)",
           overflow: "hidden",
         }}
       >
-        {/* TOP BAR: EXAM INFO & SECTION TIMER */}
         <div
           style={{
-            padding: "12px 24px",
+            padding: "16px 28px",
             borderBottom: "1px solid var(--border)",
             display: "flex",
-            justify: "space-between",
+            justifyContent: "space-between",
             alignItems: "center",
-            background: "rgba(0,0,0,0.02)",
+            background: "#ffffff",
             gap: "16px",
             flexWrap: "wrap",
           }}
@@ -468,7 +541,7 @@ export default function MockTestModule({ onSaveScore }) {
           <div>
             <h2
               style={{
-                fontSize: "16px",
+                fontSize: "18px",
                 fontWeight: 800,
                 margin: 0,
                 color: "var(--text-main)",
@@ -478,7 +551,7 @@ export default function MockTestModule({ onSaveScore }) {
             </h2>
             <span
               style={{
-                fontSize: "12px",
+                fontSize: "13px",
                 color: "var(--accent)",
                 fontWeight: 700,
               }}
@@ -487,65 +560,63 @@ export default function MockTestModule({ onSaveScore }) {
               {activeSection.name}
             </span>
           </div>
-
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {/* Section Timer */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                background: "rgba(239, 68, 68, 0.1)",
+                background: "rgba(239, 68, 68, 0.08)",
                 color: "var(--danger)",
-                padding: "6px 14px",
-                borderRadius: "8px",
+                padding: "8px 16px",
+                borderRadius: "10px",
                 fontWeight: 800,
                 fontFamily: "monospace",
-                fontSize: "16px",
+                fontSize: "18px",
                 border: "1px solid rgba(239, 68, 68, 0.2)",
               }}
             >
-              <Clock size={16} /> {formatTime(sectionTimeLeft)}
+              <Clock size={18} /> {formatTime(sectionTimeLeft)}
             </div>
-
             <button
               className="btn btn-outline"
               style={{
                 borderColor: "var(--danger)",
                 color: "var(--danger)",
-                fontSize: "12px",
-                padding: "6px 12px",
+                fontSize: "13px",
+                padding: "8px 16px",
+                borderRadius: "10px",
               }}
               onClick={submitExam}
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Submitting..." : "Submit Entire Test"}
+              {isSubmitting ? "Submitting..." : "Submit Test"}
             </button>
           </div>
         </div>
 
-        {/* SECTION TABS (LOCKED REGARDING REAL IBPS RULES) */}
         <div
           style={{
             display: "flex",
             borderBottom: "1px solid var(--border)",
-            background: "rgba(0,0,0,0.01)",
-            padding: "0 16px",
+            background: "rgba(0,0,0,0.02)",
+            // padding: "0 20px",
             overflowX: "auto",
           }}
         >
           {activeTest.sections.map((sec, idx) => {
             const isActive = idx === activeSectionIndex;
             const isCompleted = idx < activeSectionIndex;
-
             return (
               <div
                 key={idx}
                 style={{
-                  padding: "12px 20px",
+                  padding: "14px 24px",
                   fontSize: "13px",
                   fontWeight: 700,
-                  borderBottom: isActive ? "3px solid var(--accent)" : "none",
+                  borderBottom: isActive
+                    ? "3px solid var(--accent)"
+                    : "3px solid transparent",
                   color: isActive
                     ? "var(--accent)"
                     : isCompleted
@@ -553,10 +624,11 @@ export default function MockTestModule({ onSaveScore }) {
                       : "var(--text-muted)",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
-                  background: "transparent",
+                  gap: "8px",
+                  background: isActive ? "#ffffff" : "transparent",
                   cursor: "default",
                   whiteSpace: "nowrap",
+                  transition: "all 0.2s",
                 }}
               >
                 {isCompleted ? (
@@ -570,13 +642,18 @@ export default function MockTestModule({ onSaveScore }) {
           })}
         </div>
 
-        {/* MAIN BODY: QUESTION & PALETTE */}
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          {/* QUESTION CONTAINER */}
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            overflow: "hidden",
+            background: "#ffffff",
+          }}
+        >
           <div
             style={{
               flex: 1,
-              padding: "28px",
+              padding: "32px",
               overflowY: "auto",
               display: "flex",
               flexDirection: "column",
@@ -584,7 +661,7 @@ export default function MockTestModule({ onSaveScore }) {
           >
             <div
               style={{
-                marginBottom: "20px",
+                marginBottom: "24px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -592,22 +669,25 @@ export default function MockTestModule({ onSaveScore }) {
             >
               <span
                 style={{
-                  fontSize: "13px",
-                  fontWeight: 700,
+                  fontSize: "14px",
+                  fontWeight: 800,
                   color: "var(--text-muted)",
                   textTransform: "uppercase",
+                  letterSpacing: "0.5px",
                 }}
               >
-                Question {currentQuestionIndex + 1} of{" "}
-                {activeSection.questions.length}
+                Question {currentQuestionIndex + 1}{" "}
+                <span style={{ opacity: 0.5 }}>
+                  / {activeSection.questions.length}
+                </span>
               </span>
               <span
                 style={{
                   fontSize: "12px",
                   background: "rgba(99, 102, 241, 0.08)",
                   color: "var(--accent)",
-                  padding: "2px 8px",
-                  borderRadius: "4px",
+                  padding: "4px 10px",
+                  borderRadius: "6px",
                   fontWeight: 700,
                 }}
               >
@@ -617,24 +697,23 @@ export default function MockTestModule({ onSaveScore }) {
 
             <h3
               style={{
-                fontSize: "17px",
-                lineHeight: 1.6,
+                fontSize: "18px",
+                lineHeight: 1.7,
                 fontWeight: 600,
                 color: "var(--text-main)",
-                marginBottom: "28px",
+                marginBottom: "32px",
                 whiteSpace: "pre-wrap",
               }}
             >
               {currentQuestion.text}
             </h3>
 
-            {/* OPTIONS */}
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: "12px",
-                marginBottom: "28px",
+                gap: "14px",
+                marginBottom: "32px",
               }}
             >
               {currentQuestion.options.map((opt, i) => {
@@ -646,34 +725,37 @@ export default function MockTestModule({ onSaveScore }) {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "12px",
-                      padding: "14px 18px",
+                      gap: "16px",
+                      padding: "16px 20px",
                       border: isSelected
                         ? "2px solid var(--accent)"
                         : "1px solid var(--border)",
                       background: isSelected
-                        ? "rgba(99,102,241,0.06)"
-                        : "var(--bg)",
-                      borderRadius: "10px",
+                        ? "rgba(99,102,241,0.04)"
+                        : "#ffffff",
+                      borderRadius: "12px",
                       cursor: "pointer",
-                      transition: "all 0.15s ease",
+                      transition: "all 0.2s ease",
+                      boxShadow: isSelected
+                        ? "0 4px 12px rgba(99,102,241,0.1)"
+                        : "none",
                     }}
                   >
-                    <input
-                      type="radio"
-                      name={`q-${currentQuestion.id}`}
-                      value={opt}
-                      checked={isSelected}
-                      onChange={() => {}}
+                    <div
                       style={{
-                        width: "16px",
-                        height: "16px",
-                        accentColor: "var(--accent)",
+                        width: "20px",
+                        height: "20px",
+                        borderRadius: "50%",
+                        border: isSelected
+                          ? "6px solid var(--accent)"
+                          : "2px solid var(--border)",
+                        background: "#fff",
+                        transition: "all 0.2s ease",
                       }}
                     />
                     <span
                       style={{
-                        fontSize: "14px",
+                        fontSize: "15px",
                         fontWeight: 500,
                         color: "var(--text-main)",
                       }}
@@ -685,11 +767,10 @@ export default function MockTestModule({ onSaveScore }) {
               })}
             </div>
 
-            {/* ACTION FOOTER */}
             <div
               style={{
                 marginTop: "auto",
-                paddingTop: "20px",
+                paddingTop: "24px",
                 borderTop: "1px dashed var(--border)",
                 display: "flex",
                 justifyContent: "space-between",
@@ -698,44 +779,62 @@ export default function MockTestModule({ onSaveScore }) {
                 gap: "12px",
               }}
             >
-              <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "12px" }}>
                 <button
                   className="btn btn-outline"
-                  style={{ fontSize: "12px", padding: "8px 14px" }}
+                  style={{
+                    fontSize: "13px",
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                  }}
                   onClick={() => toggleMarkForReview(currentQuestion.id)}
                 >
-                  <Bookmark size={14} />{" "}
+                  <Bookmark
+                    size={16}
+                    fill={isMarked ? "currentColor" : "none"}
+                  />{" "}
                   {isMarked ? "Unmark Review" : "Mark for Review"}
                 </button>
                 <button
                   className="btn btn-outline"
-                  style={{ fontSize: "12px", padding: "8px 14px" }}
+                  style={{
+                    fontSize: "13px",
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    opacity: isAnswered ? 1 : 0.5,
+                  }}
                   onClick={() => clearResponse(currentQuestion.id)}
                   disabled={!isAnswered}
                 >
                   Clear Response
                 </button>
               </div>
-
-              <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "12px" }}>
                 <button
                   className="btn btn-outline"
                   onClick={() =>
                     setCurrentIndex((prev) => Math.max(0, prev - 1))
                   }
                   disabled={currentQuestionIndex === 0}
-                  style={{ padding: "8px 14px", fontSize: "13px" }}
+                  style={{
+                    padding: "10px 16px",
+                    fontSize: "14px",
+                    borderRadius: "8px",
+                  }}
                 >
-                  <ChevronLeft size={16} /> Prev
+                  <ChevronLeft size={18} /> Prev
                 </button>
-
                 {currentQuestionIndex < activeSection.questions.length - 1 ? (
                   <button
                     className="btn"
                     onClick={() => setCurrentIndex((prev) => prev + 1)}
-                    style={{ padding: "8px 16px", fontSize: "13px" }}
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      borderRadius: "8px",
+                    }}
                   >
-                    Save & Next <ChevronRight size={16} />
+                    Save & Next <ChevronRight size={18} />
                   </button>
                 ) : (
                   <button
@@ -744,24 +843,24 @@ export default function MockTestModule({ onSaveScore }) {
                     style={{
                       background: "var(--secondary)",
                       color: "white",
-                      padding: "8px 16px",
-                      fontSize: "13px",
+                      padding: "10px 20px",
+                      fontSize: "14px",
                       border: "none",
+                      borderRadius: "8px",
                     }}
                   >
                     {activeSectionIndex < activeTest.sections.length - 1
                       ? "Submit Section & Proceed"
-                      : "Submit Test"}
+                      : "Final Submit Test"}
                   </button>
                 )}
               </div>
             </div>
           </div>
 
-          {/* PALETTE SIDEBAR */}
           <div
             style={{
-              width: "260px",
+              width: "280px",
               borderLeft: "1px solid var(--border)",
               background: "rgba(0,0,0,0.015)",
               display: "flex",
@@ -771,25 +870,24 @@ export default function MockTestModule({ onSaveScore }) {
           >
             <div
               style={{
-                padding: "14px 16px",
+                padding: "18px 20px",
                 borderBottom: "1px solid var(--border)",
                 fontWeight: 800,
-                fontSize: "13px",
+                fontSize: "14px",
                 color: "var(--text-main)",
               }}
             >
               {activeSection.name} Palette
             </div>
-
             <div
               style={{
-                padding: "16px",
+                padding: "20px",
                 flex: 1,
                 overflowY: "auto",
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "8px",
-                alignContent: "flex-start",
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: "10px",
+                alignContent: "start",
               }}
             >
               {activeSection.questions.map((q, idx) => {
@@ -797,10 +895,9 @@ export default function MockTestModule({ onSaveScore }) {
                 const isAns = !!answers[q.id];
                 const isMrk = !!markedForReview[q.id];
 
-                let bg = "var(--bg)";
-                let color = "var(--text-main)";
-                let border = "1px solid var(--border)";
-
+                let bg = "#ffffff",
+                  color = "var(--text-main)",
+                  border = "1px solid var(--border)";
                 if (isAns && isMrk) {
                   bg = "#8b5cf6";
                   color = "white";
@@ -815,16 +912,21 @@ export default function MockTestModule({ onSaveScore }) {
                   border = "1px solid #f59e0b";
                 }
 
-                if (isCurrent) border = "2px solid var(--accent)";
+                if (isCurrent) {
+                  border = "2px solid var(--accent)";
+                  if (!isAns && !isMrk) {
+                    bg = "rgba(99,102,241,0.1)";
+                    color = "var(--accent)";
+                  }
+                }
 
                 return (
                   <button
                     key={q.id}
                     onClick={() => setCurrentIndex(idx)}
                     style={{
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "6px",
+                      aspectRatio: "1/1",
+                      borderRadius: "8px",
                       background: bg,
                       color: color,
                       border: border,
@@ -834,6 +936,10 @@ export default function MockTestModule({ onSaveScore }) {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      transition: "all 0.15s ease",
+                      boxShadow: isCurrent
+                        ? "0 4px 8px rgba(0,0,0,0.1)"
+                        : "none",
                     }}
                   >
                     {idx + 1}
@@ -841,94 +947,87 @@ export default function MockTestModule({ onSaveScore }) {
                 );
               })}
             </div>
-
-            {/* LEGEND */}
             <div
               style={{
-                padding: "14px",
+                padding: "16px 20px",
                 borderTop: "1px solid var(--border)",
                 display: "flex",
                 flexDirection: "column",
-                gap: "6px",
-                fontSize: "11px",
+                gap: "10px",
+                fontSize: "12px",
                 fontWeight: 600,
+                background: "#ffffff",
               }}
             >
               <div
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
               >
                 <div
                   style={{
-                    width: "12px",
-                    height: "12px",
+                    width: "14px",
+                    height: "14px",
                     background: "#10b981",
-                    borderRadius: "3px",
+                    borderRadius: "4px",
                   }}
                 ></div>{" "}
                 Answered
               </div>
               <div
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
               >
                 <div
                   style={{
-                    width: "12px",
-                    height: "12px",
+                    width: "14px",
+                    height: "14px",
                     background: "#f59e0b",
-                    borderRadius: "3px",
+                    borderRadius: "4px",
                   }}
                 ></div>{" "}
                 Marked for Review
               </div>
               <div
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
               >
                 <div
                   style={{
-                    width: "12px",
-                    height: "12px",
-                    background: "var(--bg)",
+                    width: "14px",
+                    height: "14px",
+                    background: "#ffffff",
                     border: "1px solid var(--border)",
-                    borderRadius: "3px",
+                    borderRadius: "4px",
                   }}
                 ></div>{" "}
-                Unanswered
+                Unattempted
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
-  // =========================================================================
-  // VIEW 3: RESULT & SECTIONAL ANALYTICS
-  // =========================================================================
+  // --- VIEW 3: RESULT ---
   if (view === "result" && activeTest) {
-    let totalScore = 0;
-    let totalCorrect = 0;
-    let totalIncorrect = 0;
-    let totalUnattempted = 0;
+    let totalScore = 0,
+      totalCorrect = 0,
+      totalIncorrect = 0,
+      totalUnattempted = 0;
 
     const sectionStats = activeTest.sections.map((sec) => {
-      let secCorrect = 0;
-      let secIncorrect = 0;
-      let secUnattempted = 0;
-
+      let secCorrect = 0,
+        secIncorrect = 0,
+        secUnattempted = 0;
       sec.questions.forEach((q) => {
         const uAns = answers[q.id];
         if (!uAns) secUnattempted++;
         else if (uAns === q.correctAnswer) secCorrect++;
         else secIncorrect++;
       });
-
       const secScore = secCorrect * 1 - secIncorrect * 0.25;
-
       totalCorrect += secCorrect;
       totalIncorrect += secIncorrect;
       totalUnattempted += secUnattempted;
       totalScore += secScore;
-
       return {
         name: sec.name,
         totalQ: sec.questions.length,
@@ -941,20 +1040,32 @@ export default function MockTestModule({ onSaveScore }) {
 
     return (
       <div style={{ animation: "fadeIn 0.4s ease" }}>
-        <div className="page-header">
+        <div className="page-header" style={{ marginBottom: "32px" }}>
           <div>
-            <h1 style={{ fontSize: "28px" }}>Sectional Performance Report</h1>
-            <p style={{ color: "var(--text-muted)" }}>
+            <h1 style={{ fontSize: "28px", fontWeight: "800" }}>
+              Performance Report
+            </h1>
+            <p style={{ color: "var(--text-muted)", marginTop: "4px" }}>
               Detailed scorecard for {activeTest.name}
             </p>
           </div>
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <button className="btn btn-outline" onClick={() => setView("list")}>
-              <RotateCcw size={16} /> Back to Test List
+              <ArrowLeft size={16} /> Back to Tests
             </button>
+            <button
+              className="btn"
+              style={{ background: "var(--accent)" }}
+              onClick={openSolutions}
+            >
+              <Eye size={16} /> View Solutions
+            </button>
+
+            {/* THIS BUTTON PASSES DATA BACK TO THE PARENT DASHBOARD */}
             {onSaveScore && (
               <button
                 className="btn"
+                style={{ background: "var(--secondary)" }}
                 onClick={() => {
                   onSaveScore({
                     name: activeTest.name,
@@ -964,13 +1075,12 @@ export default function MockTestModule({ onSaveScore }) {
                   setView("list");
                 }}
               >
-                <Save size={16} /> Save Score to Log
+                <Save size={16} /> Save to Tracker
               </button>
             )}
           </div>
         </div>
 
-        {/* OVERALL STATS */}
         <div
           style={{
             display: "grid",
@@ -981,11 +1091,15 @@ export default function MockTestModule({ onSaveScore }) {
         >
           <div
             className="card"
-            style={{ textAlign: "center", padding: "24px" }}
+            style={{
+              textAlign: "center",
+              padding: "32px",
+              borderRadius: "16px",
+            }}
           >
             <span
               style={{
-                fontSize: "12px",
+                fontSize: "13px",
                 fontWeight: 700,
                 color: "var(--text-muted)",
                 textTransform: "uppercase",
@@ -995,10 +1109,10 @@ export default function MockTestModule({ onSaveScore }) {
             </span>
             <h2
               style={{
-                fontSize: "40px",
+                fontSize: "48px",
                 fontWeight: 800,
                 color: "var(--accent)",
-                margin: "8px 0",
+                margin: "12px 0 0 0",
               }}
             >
               {totalScore.toFixed(2)}
@@ -1006,11 +1120,15 @@ export default function MockTestModule({ onSaveScore }) {
           </div>
           <div
             className="card"
-            style={{ textAlign: "center", padding: "24px" }}
+            style={{
+              textAlign: "center",
+              padding: "32px",
+              borderRadius: "16px",
+            }}
           >
             <span
               style={{
-                fontSize: "12px",
+                fontSize: "13px",
                 fontWeight: 700,
                 color: "var(--text-muted)",
                 textTransform: "uppercase",
@@ -1020,10 +1138,10 @@ export default function MockTestModule({ onSaveScore }) {
             </span>
             <h2
               style={{
-                fontSize: "40px",
+                fontSize: "48px",
                 fontWeight: 800,
                 color: "var(--secondary)",
-                margin: "8px 0",
+                margin: "12px 0 0 0",
               }}
             >
               {(
@@ -1035,11 +1153,15 @@ export default function MockTestModule({ onSaveScore }) {
           </div>
           <div
             className="card"
-            style={{ textAlign: "center", padding: "24px" }}
+            style={{
+              textAlign: "center",
+              padding: "32px",
+              borderRadius: "16px",
+            }}
           >
             <span
               style={{
-                fontSize: "12px",
+                fontSize: "13px",
                 fontWeight: 700,
                 color: "var(--text-muted)",
                 textTransform: "uppercase",
@@ -1049,24 +1171,37 @@ export default function MockTestModule({ onSaveScore }) {
             </span>
             <h2
               style={{
-                fontSize: "40px",
+                fontSize: "48px",
                 fontWeight: 800,
                 color: "var(--text-main)",
-                margin: "8px 0",
+                margin: "12px 0 0 0",
               }}
             >
-              {totalCorrect + totalIncorrect}
+              {totalCorrect + totalIncorrect}{" "}
+              <span
+                style={{
+                  fontSize: "20px",
+                  color: "var(--text-muted)",
+                  fontWeight: 600,
+                }}
+              >
+                / {totalCorrect + totalIncorrect + totalUnattempted}
+              </span>
             </h2>
           </div>
         </div>
 
-        {/* SECTIONAL BREAKDOWN TABLE */}
         <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "16px" }}>
-          Section-Wise Score Card
+          Section-Wise Breakdown
         </h3>
         <div
           className="card"
-          style={{ padding: 0, overflow: "hidden", marginBottom: "32px" }}
+          style={{
+            padding: 0,
+            overflow: "hidden",
+            marginBottom: "32px",
+            borderRadius: "16px",
+          }}
         >
           <div style={{ overflowX: "auto" }}>
             <table
@@ -1087,12 +1222,12 @@ export default function MockTestModule({ onSaveScore }) {
                     textTransform: "uppercase",
                   }}
                 >
-                  <th style={{ padding: "14px 20px" }}>Section Name</th>
-                  <th style={{ padding: "14px 20px" }}>Questions</th>
-                  <th style={{ padding: "14px 20px" }}>Correct</th>
-                  <th style={{ padding: "14px 20px" }}>Incorrect</th>
-                  <th style={{ padding: "14px 20px" }}>Unattempted</th>
-                  <th style={{ padding: "14px 20px" }}>Score</th>
+                  <th style={{ padding: "16px 24px" }}>Section Name</th>
+                  <th style={{ padding: "16px 24px" }}>Questions</th>
+                  <th style={{ padding: "16px 24px" }}>Correct</th>
+                  <th style={{ padding: "16px 24px" }}>Incorrect</th>
+                  <th style={{ padding: "16px 24px" }}>Unattempted</th>
+                  <th style={{ padding: "16px 24px" }}>Score</th>
                 </tr>
               </thead>
               <tbody>
@@ -1103,7 +1238,7 @@ export default function MockTestModule({ onSaveScore }) {
                   >
                     <td
                       style={{
-                        padding: "16px 20px",
+                        padding: "16px 24px",
                         fontWeight: 700,
                         color: "var(--text-main)",
                         whiteSpace: "nowrap",
@@ -1111,10 +1246,10 @@ export default function MockTestModule({ onSaveScore }) {
                     >
                       {sec.name}
                     </td>
-                    <td style={{ padding: "16px 20px" }}>{sec.totalQ}</td>
+                    <td style={{ padding: "16px 24px" }}>{sec.totalQ}</td>
                     <td
                       style={{
-                        padding: "16px 20px",
+                        padding: "16px 24px",
                         color: "var(--secondary)",
                         fontWeight: 700,
                       }}
@@ -1123,7 +1258,7 @@ export default function MockTestModule({ onSaveScore }) {
                     </td>
                     <td
                       style={{
-                        padding: "16px 20px",
+                        padding: "16px 24px",
                         color: "var(--danger)",
                         fontWeight: 700,
                       }}
@@ -1132,7 +1267,7 @@ export default function MockTestModule({ onSaveScore }) {
                     </td>
                     <td
                       style={{
-                        padding: "16px 20px",
+                        padding: "16px 24px",
                         color: "var(--text-muted)",
                       }}
                     >
@@ -1140,9 +1275,10 @@ export default function MockTestModule({ onSaveScore }) {
                     </td>
                     <td
                       style={{
-                        padding: "16px 20px",
+                        padding: "16px 24px",
                         fontWeight: 800,
                         color: "var(--accent)",
+                        fontSize: "16px",
                       }}
                     >
                       {sec.score.toFixed(2)}
@@ -1157,5 +1293,738 @@ export default function MockTestModule({ onSaveScore }) {
     );
   }
 
+  // --- VIEW 4: SOLUTIONS ---
+  if (view === "solution" && activeTest) {
+    const activeSection = activeTest.sections[activeSectionIndex];
+    const currentQuestion = activeSection.questions[currentQuestionIndex];
+    const userAnswer = answers[currentQuestion.id];
+    const isCorrect = userAnswer === currentQuestion.correctAnswer;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "calc(100vh - 40px)",
+          minHeight: "600px",
+          background: "var(--bg)",
+          borderRadius: "16px",
+          border: "1px solid var(--border)",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.05)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px 28px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#ffffff",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "18px",
+              fontWeight: 800,
+              margin: 0,
+              color: "var(--text-main)",
+            }}
+          >
+            Review Solutions: {activeTest.name}
+          </h2>
+          <button
+            className="btn btn-outline"
+            onClick={() => setView("result")}
+            style={{
+              fontSize: "13px",
+              padding: "8px 16px",
+              borderRadius: "10px",
+            }}
+          >
+            <ArrowLeft size={16} /> Back to Results
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid var(--border)",
+            background: "rgba(0,0,0,0.02)",
+            padding: "0 20px",
+            overflowX: "auto",
+          }}
+        >
+          {activeTest.sections.map((sec, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                setActiveSectionIndex(idx);
+                setCurrentIndex(0);
+              }}
+              style={{
+                padding: "14px 24px",
+                fontSize: "13px",
+                fontWeight: 700,
+                borderBottom:
+                  idx === activeSectionIndex
+                    ? "3px solid var(--accent)"
+                    : "3px solid transparent",
+                color:
+                  idx === activeSectionIndex
+                    ? "var(--accent)"
+                    : "var(--text-muted)",
+                background:
+                  idx === activeSectionIndex ? "#ffffff" : "transparent",
+                borderTop: "none",
+                borderLeft: "none",
+                borderRight: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "all 0.2s",
+              }}
+            >
+              {sec.name}
+            </button>
+          ))}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            overflow: "hidden",
+            background: "#ffffff",
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              padding: "32px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                marginBottom: "20px",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 800,
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Question {currentQuestionIndex + 1}
+              </span>
+              <span
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  padding: "6px 12px",
+                  borderRadius: "8px",
+                  background: !userAnswer
+                    ? "rgba(0,0,0,0.05)"
+                    : isCorrect
+                      ? "rgba(16, 185, 129, 0.1)"
+                      : "rgba(239, 68, 68, 0.1)",
+                  color: !userAnswer
+                    ? "var(--text-muted)"
+                    : isCorrect
+                      ? "#10b981"
+                      : "#ef4444",
+                }}
+              >
+                {!userAnswer
+                  ? "Unattempted"
+                  : isCorrect
+                    ? "Correct (+1.00)"
+                    : "Incorrect (-0.25)"}
+              </span>
+            </div>
+
+            <h3
+              style={{
+                fontSize: "18px",
+                lineHeight: 1.7,
+                fontWeight: 600,
+                color: "var(--text-main)",
+                marginBottom: "24px",
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {currentQuestion.text}
+            </h3>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "14px",
+                marginBottom: "32px",
+              }}
+            >
+              {currentQuestion.options.map((opt, i) => {
+                const isUsersChoice = userAnswer === opt;
+                const isActualCorrect = currentQuestion.correctAnswer === opt;
+                let borderColor = "var(--border)",
+                  bgColor = "#ffffff",
+                  icon = null;
+
+                if (isActualCorrect) {
+                  borderColor = "#10b981";
+                  bgColor = "rgba(16, 185, 129, 0.05)";
+                  icon = <CheckCircle2 size={20} color="#10b981" />;
+                } else if (isUsersChoice && !isActualCorrect) {
+                  borderColor = "#ef4444";
+                  bgColor = "rgba(239, 68, 68, 0.05)";
+                  icon = <XCircle size={20} color="#ef4444" />;
+                }
+
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "16px",
+                      padding: "16px 20px",
+                      border: `2px solid ${borderColor}`,
+                      background: bgColor,
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: isActualCorrect ? 600 : 500,
+                        color: isActualCorrect ? "#10b981" : "var(--text-main)",
+                      }}
+                    >
+                      {opt}
+                    </span>
+                    {icon}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                padding: "20px",
+                background: "rgba(99, 102, 241, 0.05)",
+                borderLeft: "4px solid var(--accent)",
+                borderRadius: "8px",
+                marginTop: "auto",
+              }}
+            >
+              <h4
+                style={{
+                  margin: "0 0 12px 0",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  color: "var(--accent)",
+                  fontSize: "15px",
+                }}
+              >
+                <Info size={18} /> Explanation
+              </h4>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                  color: "var(--text-main)",
+                }}
+              >
+                {currentQuestion.explanation ||
+                  `The correct answer is "${currentQuestion.correctAnswer}". No detailed explanation provided for this question.`}
+              </p>
+            </div>
+
+            <div
+              style={{
+                paddingTop: "24px",
+                marginTop: "24px",
+                borderTop: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <button
+                className="btn btn-outline"
+                onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                disabled={currentQuestionIndex === 0}
+                style={{ padding: "10px 16px", borderRadius: "8px" }}
+              >
+                <ChevronLeft size={16} /> Previous
+              </button>
+              <button
+                className="btn btn-outline"
+                onClick={() =>
+                  setCurrentIndex((prev) =>
+                    Math.min(activeSection.questions.length - 1, prev + 1),
+                  )
+                }
+                disabled={
+                  currentQuestionIndex === activeSection.questions.length - 1
+                }
+                style={{ padding: "10px 16px", borderRadius: "8px" }}
+              >
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              width: "280px",
+              borderLeft: "1px solid var(--border)",
+              background: "rgba(0,0,0,0.015)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                padding: "18px 20px",
+                borderBottom: "1px solid var(--border)",
+                fontWeight: 800,
+                fontSize: "14px",
+              }}
+            >
+              Question Map
+            </div>
+            <div
+              style={{
+                padding: "20px",
+                flex: 1,
+                overflowY: "auto",
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: "10px",
+                alignContent: "start",
+              }}
+            >
+              {activeSection.questions.map((q, idx) => {
+                const uAns = answers[q.id];
+                const isCurr = idx === currentQuestionIndex;
+                let bg = "#ffffff",
+                  color = "var(--text-main)",
+                  border = "1px solid var(--border)";
+
+                if (!uAns) {
+                  bg = "#f3f4f6";
+                  border = "1px solid var(--border)";
+                } else if (uAns === q.correctAnswer) {
+                  bg = "#10b981";
+                  color = "white";
+                  border = "1px solid #10b981";
+                } else {
+                  bg = "#ef4444";
+                  color = "white";
+                  border = "1px solid #ef4444";
+                }
+                if (isCurr) border = "2px solid #000";
+
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => setCurrentIndex(idx)}
+                    style={{
+                      aspectRatio: "1/1",
+                      borderRadius: "8px",
+                      background: bg,
+                      color: color,
+                      border: border,
+                      fontWeight: 700,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
   return null;
+}
+
+// =========================================================================
+// 3. MOCK TRACKER COMPONENT (Receives State from Parent)
+// =========================================================================
+export function MockTracker({ mocks, setMocks, isLoadingLogs }) {
+  // Create a new blank record in Database
+  const addMock = async () => {
+    const newMock = {
+      date: new Date().toISOString().split("T")[0],
+      name: "",
+      score: "",
+      remarks: "",
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from("mock_logs")
+        .insert([newMock])
+        .select();
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setMocks((prev) => [data[0], ...prev]);
+      }
+    } catch (err) {
+      console.error("Error creating new manual log:", err);
+    }
+  };
+
+  // Update local state instantly so typing is smooth
+  const handleLocalUpdate = (id, field, value) => {
+    setMocks((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)),
+    );
+  };
+
+  // Push update to DB only when user clicks outside the input (onBlur)
+  const handleDatabaseUpdate = async (id, field, value) => {
+    try {
+      const { error } = await supabase
+        .from("mock_logs")
+        .update({ [field]: value })
+        .eq("id", id);
+
+      if (error) throw error;
+      console.log(`Successfully updated ${field} in DB.`);
+    } catch (err) {
+      console.error("Error updating database:", err);
+    }
+  };
+
+  // Delete record from Database
+  const deleteMock = async (id) => {
+    // Optimistic UI update
+    setMocks((prev) => prev.filter((m) => m.id !== id));
+
+    try {
+      const { error } = await supabase.from("mock_logs").delete().eq("id", id);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error deleting log:", err);
+      // Revert optimistic delete ideally, or alert user
+    }
+  };
+
+  return (
+    <div>
+      <div className="page-header" style={{ marginBottom: "24px" }}>
+        <div>
+          <h2 style={{ fontSize: "24px", fontWeight: 800 }}>
+            Mock Test Analytics
+          </h2>
+          <p style={{ color: "var(--text-muted)" }}>
+            Log mock tests to analyze your performance growth.
+          </p>
+        </div>
+        <button className="btn" onClick={addMock}>
+          <Plus size={16} /> Log Manual Test
+        </button>
+      </div>
+
+      {isLoadingLogs ? (
+        <div
+          style={{
+            padding: "40px",
+            textAlign: "center",
+            color: "var(--text-muted)",
+          }}
+        >
+          <Loader2
+            size={36}
+            className="spinner"
+            style={{
+              margin: "0 auto 12px auto",
+              animation: "spin 1s linear infinite",
+            }}
+          />
+          <p>Loading your logs...</p>
+        </div>
+      ) : mocks.length === 0 ? (
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "60px 20px",
+            color: "var(--text-muted)",
+            borderRadius: "16px",
+          }}
+        >
+          <LineChart
+            size={48}
+            style={{
+              opacity: 0.2,
+              margin: "0 auto 16px auto",
+              display: "block",
+            }}
+          />
+          No mock tests logged yet. Take a test above or click "Log Manual
+          Test".
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {mocks.map((m) => (
+            <div
+              key={m.id}
+              className="card"
+              style={{
+                padding: 0,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: "16px",
+              }}
+            >
+              {/* TOP HEADER ROW */}
+              <div
+                style={{
+                  padding: "16px 24px",
+                  background: "rgba(0,0,0,0.02)",
+                  borderBottom: "1px solid var(--border)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "16px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    flex: 1,
+                    minWidth: "300px",
+                  }}
+                >
+                  {/* DATE */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      width: "140px",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Date Taken
+                    </label>
+                    <input
+                      type="date"
+                      className="custom-input"
+                      value={m.date || ""}
+                      onChange={(e) =>
+                        handleLocalUpdate(m.id, "date", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleDatabaseUpdate(m.id, "date", e.target.value)
+                      }
+                      style={{
+                        padding: "8px",
+                        fontSize: "13px",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border)",
+                      }}
+                    />
+                  </div>
+
+                  {/* NAME */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      flex: 1,
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Test Name / Provider
+                    </label>
+                    <input
+                      type="text"
+                      className="custom-input"
+                      placeholder="e.g. IBPS PO Prelims Mock 1"
+                      value={m.name || ""}
+                      onChange={(e) =>
+                        handleLocalUpdate(m.id, "name", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleDatabaseUpdate(m.id, "name", e.target.value)
+                      }
+                      style={{
+                        padding: "8px",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        border: "none",
+                        background: "transparent",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* DELETE BUTTON */}
+                <button
+                  onClick={() => deleteMock(m.id)}
+                  style={{
+                    color: "var(--danger)",
+                    background: "rgba(239,68,68,0.1)",
+                    border: "none",
+                    borderRadius: "8px",
+                    width: "36px",
+                    height: "36px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+              {/* BOTTOM CONTENT ROW */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "24px",
+                  padding: "24px",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                {/* SCORE */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    width: "150px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Score / Marks
+                  </label>
+                  <input
+                    type="number"
+                    className="custom-input"
+                    placeholder="00.00"
+                    value={m.score || ""}
+                    onChange={(e) =>
+                      handleLocalUpdate(m.id, "score", e.target.value)
+                    }
+                    onBlur={(e) =>
+                      handleDatabaseUpdate(m.id, "score", e.target.value)
+                    }
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: 800,
+                      padding: "12px",
+                      color: "var(--text-main)",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
+                    }}
+                  />
+                </div>
+
+                {/* REMARKS */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minWidth: "250px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                      marginBottom: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <Edit3 size={14} /> Mistakes & Learnings
+                  </label>
+                  <textarea
+                    className="custom-input"
+                    placeholder="What went wrong? e.g. Silly mistake in Syllogism..."
+                    value={m.remarks || ""}
+                    onChange={(e) =>
+                      handleLocalUpdate(m.id, "remarks", e.target.value)
+                    }
+                    onBlur={(e) =>
+                      handleDatabaseUpdate(m.id, "remarks", e.target.value)
+                    }
+                    rows="2"
+                    style={{
+                      background: "rgba(99, 102, 241, 0.03)",
+                      border: "1px dashed var(--border)",
+                      borderRadius: "8px",
+                      padding: "12px",
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
