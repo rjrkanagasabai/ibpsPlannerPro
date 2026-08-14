@@ -7273,7 +7273,6 @@ export default function App() {
             { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
             { id: "quant", icon: Calculator, label: "Quant Rotation" },
             { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
-            {/* { id: "mocks", icon: LineChart, label: "Mock Tracker" }, */}
 
             { id: "habits", icon: CheckCircle, label: "Habit Tracker" },
             { id: "settings", icon: Settings, label: "Settings" },
@@ -7318,7 +7317,7 @@ export default function App() {
           {activeView === "reasoning" && (
             <ReasoningRotation reasoning={currentHistory.reasoning} />
           )}
-          {/* {activeView === "mocks" && <MockTracker />} */}
+
           {activeView === "habits" && <HabitTracker />}
           {activeView === "settings" && <SettingsView />}
         </div>
