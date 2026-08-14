@@ -29,42 +29,88 @@ import {
 import { supabase } from "./supabase";
 
 // =========================================================================
-// 1. PARENT DASHBOARD (Manages shared state between Test & Tracker)
-// =========================================================================
-// =========================================================================
-// 1. PARENT DASHBOARD (Manages shared state between Test & Tracker)
+// 1. PARENT DASHBOARD (Manages shared state scoped to the logged-in user)
 // =========================================================================
 export default function MockTestDashboard() {
-  // Shared state for the Mock Tracker
+  const [user, setUser] = useState(null);
   const [mocks, setMocks] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
 
-  // Fetch mock logs from Supabase on initial load
+  // Initialize authenticated user and load their logs
   useEffect(() => {
-    fetchMockLogs();
+    const initializeAuthAndData = async () => {
+      setIsLoadingLogs(true);
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError) throw authError;
+
+        setUser(user);
+
+        if (user) {
+          await fetchMockLogs(user.id);
+        } else {
+          setMocks([]);
+        }
+      } catch (err) {
+        console.error("Authentication or fetch error:", err);
+      } finally {
+        setIsLoadingLogs(false);
+      }
+    };
+
+    initializeAuthAndData();
+
+    // Listen for auth state changes (login, logout)
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+          fetchMockLogs(currentUser.id);
+        } else {
+          setMocks([]);
+        }
+      },
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  const fetchMockLogs = async () => {
+  // Fetch only logs belonging to the active user ID
+  const fetchMockLogs = async (userId) => {
+    if (!userId) return;
     setIsLoadingLogs(true);
     try {
       const { data, error } = await supabase
         .from("mock_logs")
         .select("*")
-        .order("date", { ascending: false }); // Sort by newest first
+        .eq("user_id", userId)
+        .order("date", { ascending: false });
 
       if (error) throw error;
-      setMocks(data && data.length > 0 ? data : []);
+      setMocks(data || []);
     } catch (err) {
-      console.error("Error fetching mock logs from Supabase:", err);
+      console.error("Error fetching user mock logs:", err);
       setMocks([]);
     } finally {
       setIsLoadingLogs(false);
     }
   };
 
-  // Callback passed to MockTestModule
+  // Callback passed to MockTestModule with user_id attached
   const handleSaveScore = async (result) => {
+    if (!user) {
+      alert("Please sign in to save your test scores.");
+      return;
+    }
+
     const newMockLog = {
+      user_id: user.id, // Scope log to current user
       date: new Date().toISOString().split("T")[0],
       name: result.name,
       score: result.score,
@@ -72,7 +118,6 @@ export default function MockTestDashboard() {
     };
 
     try {
-      // Insert the new exam score directly into the Supabase database
       const { data, error } = await supabase
         .from("mock_logs")
         .insert([newMockLog])
@@ -80,14 +125,11 @@ export default function MockTestDashboard() {
 
       if (error) throw error;
 
-      // Prepend the successfully saved test to the tracker list UI
       if (data && data.length > 0) {
         setMocks((prev) => [data[0], ...prev]);
       }
     } catch (err) {
-      console.error("Error saving exam score to database:", err);
-
-      // Fallback: If DB fails, still show it in the UI temporarily
+      console.error("Error saving score to database:", err);
       setMocks((prev) => [
         { ...newMockLog, id: Date.now().toString() },
         ...prev,
@@ -116,8 +158,9 @@ export default function MockTestDashboard() {
         }}
       />
 
-      {/* TRACKER MODULE */}
+      {/* TRACKER MODULE (Scoped to current user) */}
       <MockTracker
+        user={user}
         mocks={mocks}
         setMocks={setMocks}
         isLoadingLogs={isLoadingLogs}
@@ -135,8 +178,7 @@ export function MockTestModule({ onSaveScore }) {
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
 
-  // Exam States
-  const [view, setView] = useState("list"); // 'list' | 'exam' | 'result' | 'solution'
+  const [view, setView] = useState("list");
   const [activeTest, setActiveTest] = useState(null);
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentIndex] = useState(0);
@@ -144,8 +186,6 @@ export function MockTestModule({ onSaveScore }) {
   const [markedForReview, setMarkedForReview] = useState({});
   const [sectionTimeLeft, setSectionTimeLeft] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Track attempted tests for "Reattempt" feature
   const [attemptedTests, setAttemptedTests] = useState(new Set());
 
   useEffect(() => {
@@ -163,7 +203,7 @@ export function MockTestModule({ onSaveScore }) {
       if (error) throw error;
       setTests(data && data.length > 0 ? data : []);
     } catch (err) {
-      console.error("Error fetching mock tests from Supabase:", err);
+      console.error("Error fetching mock tests:", err);
       setTests([]);
     } finally {
       setLoading(false);
@@ -198,7 +238,7 @@ export function MockTestModule({ onSaveScore }) {
     setActiveTest(test);
     setActiveSectionIndex(0);
     setCurrentIndex(0);
-    setAnswers({}); // Reset answers for reattempt
+    setAnswers({});
     setMarkedForReview({});
     setSectionTimeLeft(test.sections[0].duration * 60);
     setView("exam");
@@ -235,7 +275,6 @@ export function MockTestModule({ onSaveScore }) {
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
-      // Mark this test ID as attempted to trigger "Reattempt" button
       setAttemptedTests((prev) => new Set(prev).add(activeTest.id));
       setView("result");
     }, 800);
@@ -319,7 +358,7 @@ export function MockTestModule({ onSaveScore }) {
               background: "var(--border)",
               margin: "0 4px",
             }}
-          ></div>
+          />
           {["ALL", "PO", "Clerk"].map((type) => (
             <button
               key={type}
@@ -651,7 +690,6 @@ export function MockTestModule({ onSaveScore }) {
             display: "flex",
             borderBottom: "1px solid var(--border)",
             background: "rgba(0,0,0,0.02)",
-            // padding: "0 20px",
             overflowX: "auto",
           }}
         >
@@ -1020,7 +1058,7 @@ export function MockTestModule({ onSaveScore }) {
                     background: "#10b981",
                     borderRadius: "4px",
                   }}
-                ></div>{" "}
+                />{" "}
                 Answered
               </div>
               <div
@@ -1033,7 +1071,7 @@ export function MockTestModule({ onSaveScore }) {
                     background: "#f59e0b",
                     borderRadius: "4px",
                   }}
-                ></div>{" "}
+                />{" "}
                 Marked for Review
               </div>
               <div
@@ -1047,7 +1085,7 @@ export function MockTestModule({ onSaveScore }) {
                     border: "1px solid var(--border)",
                     borderRadius: "4px",
                   }}
-                ></div>{" "}
+                />{" "}
                 Unattempted
               </div>
             </div>
@@ -1112,7 +1150,6 @@ export function MockTestModule({ onSaveScore }) {
               <Eye size={16} /> View Solutions
             </button>
 
-            {/* THIS BUTTON PASSES DATA BACK TO THE PARENT DASHBOARD */}
             {onSaveScore && (
               <button
                 className="btn"
@@ -1571,33 +1608,38 @@ export function MockTestModule({ onSaveScore }) {
               })}
             </div>
 
+            {/* MODERN EXPLANATION BLOCK */}
             <div
               style={{
-                padding: "20px",
-                background: "rgba(99, 102, 241, 0.05)",
-                borderLeft: "4px solid var(--accent)",
+                padding: "24px",
+                background: "#F8F9FE",
+                borderLeft: "6px solid #6366f1",
                 borderRadius: "8px",
-                marginTop: "auto",
+                marginTop: "32px",
+                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.04)",
               }}
             >
               <h4
                 style={{
-                  margin: "0 0 12px 0",
+                  margin: "0 0 16px 0",
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
-                  color: "var(--accent)",
-                  fontSize: "15px",
+                  color: "#6366f1",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  letterSpacing: "0.3px",
                 }}
               >
-                <Info size={18} /> Explanation
+                <Info size={20} strokeWidth={2.5} /> Explanation
               </h4>
               <p
                 style={{
                   margin: 0,
-                  fontSize: "14px",
-                  lineHeight: 1.6,
-                  color: "var(--text-main)",
+                  fontSize: "15px",
+                  lineHeight: 1.8,
+                  color: "#374151",
+                  whiteSpace: "pre-wrap",
                 }}
               >
                 {currentQuestion.explanation ||
@@ -1723,12 +1765,18 @@ export function MockTestModule({ onSaveScore }) {
 }
 
 // =========================================================================
-// 3. MOCK TRACKER COMPONENT (Receives State from Parent)
+// 3. MOCK TRACKER COMPONENT (Scoped to `user`)
 // =========================================================================
-export function MockTracker({ mocks, setMocks, isLoadingLogs }) {
-  // Create a new blank record in Database
+export function MockTracker({ user, mocks, setMocks, isLoadingLogs }) {
+  // Create a record scoped to the logged-in user
   const addMock = async () => {
+    if (!user) {
+      alert("Please sign in to add custom mock records.");
+      return;
+    }
+
     const newMock = {
+      user_id: user.id, // Associate record with user
       date: new Date().toISOString().split("T")[0],
       name: "",
       score: "",
@@ -1751,40 +1799,44 @@ export function MockTracker({ mocks, setMocks, isLoadingLogs }) {
     }
   };
 
-  // Update local state instantly so typing is smooth
+  // Update local state instantly for smooth typing
   const handleLocalUpdate = (id, field, value) => {
     setMocks((prev) =>
       prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)),
     );
   };
 
-  // Push update to DB only when user clicks outside the input (onBlur)
+  // Push update to DB only for user's record
   const handleDatabaseUpdate = async (id, field, value) => {
+    if (!user) return;
     try {
       const { error } = await supabase
         .from("mock_logs")
         .update({ [field]: value })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user.id); // Guard query by user_id
 
       if (error) throw error;
-      console.log(`Successfully updated ${field} in DB.`);
     } catch (err) {
       console.error("Error updating database:", err);
     }
   };
 
-  // Delete record from Database
+  // Delete record from DB
   const deleteMock = async (id) => {
-    // Optimistic UI update
+    if (!user) return;
     setMocks((prev) => prev.filter((m) => m.id !== id));
 
     try {
-      const { error } = await supabase.from("mock_logs").delete().eq("id", id);
+      const { error } = await supabase
+        .from("mock_logs")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id); // Guard query by user_id
 
       if (error) throw error;
     } catch (err) {
       console.error("Error deleting log:", err);
-      // Revert optimistic delete ideally, or alert user
     }
   };
 
@@ -1799,12 +1851,28 @@ export function MockTracker({ mocks, setMocks, isLoadingLogs }) {
             Log mock tests to analyze your performance growth.
           </p>
         </div>
-        <button className="btn" onClick={addMock}>
+        <button className="btn" onClick={addMock} disabled={!user}>
           <Plus size={16} /> Log Manual Test
         </button>
       </div>
 
-      {isLoadingLogs ? (
+      {!user ? (
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "40px 20px",
+            color: "var(--text-muted)",
+            borderRadius: "16px",
+          }}
+        >
+          <AlertCircle
+            size={36}
+            style={{ margin: "0 auto 12px auto", opacity: 0.5 }}
+          />
+          Please log in to view and manage your mock test analytics.
+        </div>
+      ) : isLoadingLogs ? (
         <div
           style={{
             padding: "40px",
