@@ -31,21 +31,68 @@ import { supabase } from "./supabase";
 // =========================================================================
 // 1. PARENT DASHBOARD (Manages shared state between Test & Tracker)
 // =========================================================================
+// =========================================================================
+// 1. PARENT DASHBOARD (Manages shared state between Test & Tracker)
+// =========================================================================
 export default function MockTestDashboard() {
   // Shared state for the Mock Tracker
   const [mocks, setMocks] = useState([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(true);
+
+  // Fetch mock logs from Supabase on initial load
+  useEffect(() => {
+    fetchMockLogs();
+  }, []);
+
+  const fetchMockLogs = async () => {
+    setIsLoadingLogs(true);
+    try {
+      const { data, error } = await supabase
+        .from("mock_logs")
+        .select("*")
+        .order("date", { ascending: false }); // Sort by newest first
+
+      if (error) throw error;
+      setMocks(data && data.length > 0 ? data : []);
+    } catch (err) {
+      console.error("Error fetching mock logs from Supabase:", err);
+      setMocks([]);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
 
   // Callback passed to MockTestModule
-  const handleSaveScore = (result) => {
+  const handleSaveScore = async (result) => {
     const newMockLog = {
-      id: Date.now().toString(),
       date: new Date().toISOString().split("T")[0],
       name: result.name,
       score: result.score,
       remarks: result.remarks,
     };
-    // Prepend the new mock test to the tracker list
-    setMocks((prev) => [newMockLog, ...prev]);
+
+    try {
+      // Insert the new exam score directly into the Supabase database
+      const { data, error } = await supabase
+        .from("mock_logs")
+        .insert([newMockLog])
+        .select();
+
+      if (error) throw error;
+
+      // Prepend the successfully saved test to the tracker list UI
+      if (data && data.length > 0) {
+        setMocks((prev) => [data[0], ...prev]);
+      }
+    } catch (err) {
+      console.error("Error saving exam score to database:", err);
+
+      // Fallback: If DB fails, still show it in the UI temporarily
+      setMocks((prev) => [
+        { ...newMockLog, id: Date.now().toString() },
+        ...prev,
+      ]);
+    }
   };
 
   return (
@@ -70,7 +117,11 @@ export default function MockTestDashboard() {
       />
 
       {/* TRACKER MODULE */}
-      <MockTracker mocks={mocks} setMocks={setMocks} />
+      <MockTracker
+        mocks={mocks}
+        setMocks={setMocks}
+        isLoadingLogs={isLoadingLogs}
+      />
     </div>
   );
 }
