@@ -175,6 +175,8 @@ export default function MockTestDashboard() {
 export function MockTestModule({ onSaveScore }) {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Update state names for clarity
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
 
@@ -292,6 +294,17 @@ export function MockTestModule({ onSaveScore }) {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  // 1. EXTRACT UNIQUE FILTERS FROM REAL-TIME DATABASE VALUES
+  const uniqueExamTypes = [
+    "ALL",
+    ...new Set(tests.map((t) => t.exam_type).filter(Boolean)),
+  ];
+  const uniqueCategories = [
+    "ALL",
+    ...new Set(tests.map((t) => t.category).filter(Boolean)),
+  ];
+
+  // 2. APPLY DYNAMIC FILTERS
   const filteredTests = tests.filter((t) => {
     if (categoryFilter !== "ALL" && t.category !== categoryFilter) return false;
     if (typeFilter !== "ALL" && t.exam_type !== typeFilter) return false;
@@ -316,6 +329,7 @@ export function MockTestModule({ onSaveScore }) {
           </div>
         </div>
 
+        {/* --- DYNAMIC FILTER SECTION --- */}
         <div
           style={{
             display: "flex",
@@ -325,6 +339,7 @@ export function MockTestModule({ onSaveScore }) {
             alignItems: "center",
           }}
         >
+          {/* Exam Type Filter */}
           <div
             style={{
               display: "flex",
@@ -335,31 +350,9 @@ export function MockTestModule({ onSaveScore }) {
               fontWeight: 700,
             }}
           >
-            <Filter size={16} /> Filters:
+            <Filter size={16} /> Exam:
           </div>
-          {["ALL", "IBPS", "SBI", "RRB"].map((cat) => (
-            <button
-              key={cat}
-              className={`btn ${categoryFilter === cat ? "" : "btn-outline"}`}
-              style={{
-                padding: "6px 16px",
-                fontSize: "12px",
-                borderRadius: "20px",
-              }}
-              onClick={() => setCategoryFilter(cat)}
-            >
-              {cat}
-            </button>
-          ))}
-          <div
-            style={{
-              width: "1px",
-              height: "20px",
-              background: "var(--border)",
-              margin: "0 4px",
-            }}
-          />
-          {["ALL", "PO", "Clerk"].map((type) => (
+          {uniqueExamTypes.map((type) => (
             <button
               key={type}
               className={`btn ${typeFilter === type ? "" : "btn-outline"}`}
@@ -371,6 +364,43 @@ export function MockTestModule({ onSaveScore }) {
               onClick={() => setTypeFilter(type)}
             >
               {type}
+            </button>
+          ))}
+
+          <div
+            style={{
+              width: "1px",
+              height: "20px",
+              background: "var(--border)",
+              margin: "0 4px",
+            }}
+          />
+
+          {/* Topic/Category Filter */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              color: "var(--text-muted)",
+              fontSize: "13px",
+              fontWeight: 700,
+            }}
+          >
+            Topic:
+          </div>
+          {uniqueCategories.map((cat) => (
+            <button
+              key={cat}
+              className={`btn ${categoryFilter === cat ? "" : "btn-outline"}`}
+              style={{
+                padding: "6px 16px",
+                fontSize: "12px",
+                borderRadius: "20px",
+              }}
+              onClick={() => setCategoryFilter(cat)}
+            >
+              {cat}
             </button>
           ))}
         </div>
@@ -414,7 +444,7 @@ export function MockTestModule({ onSaveScore }) {
               }}
             />
             <p style={{ fontWeight: 600, fontSize: "16px" }}>
-              No tests available right now.
+              No tests available for these filters.
             </p>
           </div>
         ) : (
@@ -473,7 +503,7 @@ export function MockTestModule({ onSaveScore }) {
                     >
                       {test.name}
                     </h3>
-                    <span
+                    {/* <span
                       style={{
                         background: "rgba(99, 102, 241, 0.1)",
                         color: "var(--accent)",
@@ -482,10 +512,12 @@ export function MockTestModule({ onSaveScore }) {
                         fontSize: "11px",
                         fontWeight: 800,
                         textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                        marginLeft: "12px",
                       }}
                     >
-                      {test.category} {test.exam_type}
-                    </span>
+                      {test.category} - {test.exam_type}
+                    </span> */}
                   </div>
 
                   <div

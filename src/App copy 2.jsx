@@ -1,3401 +1,1903 @@
-/* eslint-disable react/prop-types */
-import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import "./App.css";
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import {
-  Target,
-  LayoutDashboard,
-  CalendarCheck,
-  Calculator,
-  CheckCircle,
-  Settings,
-  Moon,
-  Sun,
-  Calendar,
-  Clock,
-  CheckSquare,
-  Crosshair,
-  CheckCircle2,
-  Circle,
-  X,
-  Plus,
-  Trash,
-  Download,
-  Trash2,
-  ArrowRight,
-  ChevronLeft,
-  ChevronRight,
-  Sparkles,
-  Brain,
-  User,
-  Lightbulb,
-  BookOpen,
-  Save,
-  Edit3,
-  AlertCircle,
-  Menu,
-  Minus,
-  FileText,
-  Image as ImageIcon,
-  UploadCloud,
-  BookText,
-  Search,
-  Volume2,
-  Trophy,
-  Award,
-  Zap,
-  Loader2,
   Play,
-  Pause,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  ChevronRight,
+  ChevronLeft,
+  Save,
+  AlertCircle,
+  FileText,
   RotateCcw,
-  Bookmark,
-  Timer,
-  LineChart,
-  CalendarDays,
-  BellRing,
-  Coffee,
-  LogOut,
   Lock,
-  Key,
-  ShieldCheck,
-  BookMarked,
-  ShieldAlert,
-  MessageSquare,
-  Maximize,
-  Minimize,
-  PenTool,
-  MousePointer2,
-  Tag,
-  Layers,
+  Bookmark,
+  Check,
+  Loader2,
   Filter,
-  Move,
-  GripHorizontal,
-  LayoutGrid,
+  Eye,
+  ArrowLeft,
+  Info,
+  Plus,
+  LineChart,
+  Edit3,
+  Trash2,
 } from "lucide-react";
 
 // --- SUPABASE CLIENT IMPORT ---
 import { supabase } from "./supabase";
 
-// --- DEFAULT CONFIG DATA ---
-const defaultTimeline = [
-  {
-    time: "05:00",
-    activity: "Wake Up & Hydrate",
-    checked: false,
-    notes: "",
-    isStudy: false,
-  },
-  {
-    time: "05:20",
-    activity: "Quant Video / Concept",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "07:20",
-    activity: "Quant PDF Practice",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "07:50",
-    activity: "Breakfast & Break",
-    checked: false,
-    notes: "",
-    isStudy: false,
-  },
-  {
-    time: "08:20",
-    activity: "Quant Video 2",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "09:00",
-    activity: "Quant Questions",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "10:30",
-    activity: "English Video",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "11:30",
-    activity: "English Practice",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "13:00",
-    activity: "Lunch & Walk",
-    checked: false,
-    notes: "",
-    isStudy: false,
-  },
-  {
-    time: "13:45",
-    activity: "Reasoning Puzzles",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "16:45",
-    activity: "Current Affairs",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "17:45",
-    activity: "Full Mock Test",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "18:45",
-    activity: "Mock Analysis",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "20:00",
-    activity: "General Revision",
-    checked: false,
-    notes: "",
-    isStudy: true,
-  },
-  {
-    time: "22:15",
-    activity: "Tomorrow Planning & Sleep",
-    checked: false,
-    notes: "",
-    isStudy: false,
-  },
-];
+// =========================================================================
+// 1. PARENT DASHBOARD (Manages shared state scoped to the logged-in user)
+// =========================================================================
+export default function MockTestDashboard() {
+  const [user, setUser] = useState(null);
+  const [mocks, setMocks] = useState([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(true);
 
-const quantTopics = [
-  "Simplification",
-  "Quadratic Eq",
-  "Number Series",
-  "Percentage",
-  "Profit Loss",
-  "Ratio",
-  "Mixture",
-  "Time & Work",
-  "Pipes",
-  "Speed Dist",
-  "SI & CI",
-  "Probability",
-];
-
-const reasoningTopics = [
-  { topic: "Floor-Based Puzzle", tier: "Tier 1" },
-  { topic: "Seating Arrangement", tier: "Tier 1" },
-  { topic: "Box Puzzle", tier: "Tier 1" },
-  { topic: "Scheduling Puzzle", tier: "Tier 1" },
-  { topic: "Comparison Puzzle", tier: "Tier 1" },
-  { topic: "Input-Output", tier: "Tier 2" },
-  { topic: "Critical Reasoning", tier: "Tier 2" },
-  { topic: "Data Sufficiency", tier: "Tier 2" },
-  { topic: "Logical Reasoning Sets", tier: "Tier 2" },
-  { topic: "Blood Relations", tier: "Tier 3" },
-  { topic: "Direction Sense", tier: "Tier 3" },
-  { topic: "Order & Ranking", tier: "Tier 3" },
-  { topic: "Coding-Decoding", tier: "Tier 3" },
-  { topic: "Syllogism", tier: "Tier 3" },
-  { topic: "Inequality", tier: "Tier 3" },
-  { topic: "Machine Input", tier: "Tier 4" },
-  { topic: "Statement & Assumption", tier: "Tier 4" },
-  { topic: "Statement & Conclusion", tier: "Tier 4" },
-  { topic: "Statement & Argument", tier: "Tier 4" },
-  { topic: "Course of Action", tier: "Tier 4" },
-  { topic: "Decision Making", tier: "Tier 4" },
-  { topic: "Analytical Reasoning", tier: "Tier 4" },
-];
-
-const defaultHabitList = [
-  "Wake Up 5 AM",
-  "Study 10 Hours",
-  "Quant Practice",
-  "English Read",
-  "Reasoning",
-  "Current Affairs",
-  "Exercise",
-  "Sleep 10:30",
-];
-
-const upcomingExamsList = [
-  { name: "IBPS PO Pre", date: "22/23 AUG", category: "IBPS" },
-  { name: "IBPS PO Mains", date: "4 OCT", category: "IBPS" },
-  { name: "IBPS Clerk Pre", date: "10/11 OCT", category: "IBPS" },
-  { name: "IBPS Clerk Mains", date: "27 DEC", category: "IBPS" },
-  { name: "RRB PO Pre", date: "21/22 NOV", category: "RRB" },
-  { name: "RRB PO Mains", date: "20 DEC", category: "RRB" },
-  { name: "RRB Clerk Pre", date: "6/12/13 DEC", category: "RRB" },
-  { name: "RRB Clerk Mains", date: "30 JAN", category: "RRB" },
-  { name: "SBI PO Pre", date: "1/2 AUG (Exp)", category: "SBI" },
-  { name: "SBI PO Mains", date: "12 SEP (Exp)", category: "SBI" },
-  { name: "SBI Clerk Pre", date: "27 SEP (Exp)", category: "SBI" },
-  { name: "SBI Clerk Mains", date: "7 NOV (Exp)", category: "SBI" },
-];
-
-const expectedNotifications = [
-  "FCI",
-  "NIACL/NICL Assistant",
-  "LIC Assistant",
-  "UIICL AO",
-];
-
-const NOTE_TOPICS = [
-  "Quants",
-  "Reasoning",
-  "English",
-  "Current Affairs",
-  "Static GK",
-  "Banking Awareness",
-  "General",
-];
-
-const getFormattedDateStr = (d = new Date()) => {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-
-const calculateStudyMinutes = (timeline) => {
-  if (!timeline || timeline.length === 0)
-    return { completedMins: 0, targetMins: 0 };
-  const sortedTimeline = [...timeline].sort((a, b) => {
-    const aMins =
-      parseInt((a.time || "00:00").split(":")[0]) * 60 +
-      parseInt((a.time || "00:00").split(":")[1]);
-    const bMins =
-      parseInt((b.time || "00:00").split(":")[0]) * 60 +
-      parseInt((b.time || "00:00").split(":")[1]);
-    return aMins - bMins;
-  });
-
-  let completedMins = 0;
-  let targetMins = 0;
-
-  for (let i = 0; i < sortedTimeline.length; i++) {
-    const current = sortedTimeline[i];
-    const isStudyTask =
-      current.isStudy !== undefined
-        ? current.isStudy
-        : !/(wake|break|lunch|sleep|walk|hydrate|breakfast|dinner)/i.test(
-            current.activity,
-          );
-
-    if (isStudyTask) {
-      let durationMins = 60;
-      if (i < sortedTimeline.length - 1) {
-        const nextParts = (sortedTimeline[i + 1].time || "00:00").split(":");
-        const currParts = (current.time || "00:00").split(":");
-        const nextTime = parseInt(nextParts[0]) * 60 + parseInt(nextParts[1]);
-        const currTime = parseInt(currParts[0]) * 60 + parseInt(currParts[1]);
-        durationMins = nextTime - currTime;
-        if (durationMins < 0) durationMins += 24 * 60;
-      }
-      targetMins += durationMins;
-      if (current.checked) completedMins += durationMins;
-    }
-  }
-  return { completedMins, targetMins };
-};
-
-const shuffleArray = (array) => {
-  const newArr = [...array];
-  for (let i = newArr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
-  }
-  return newArr;
-};
-
-// --- ZUSTAND STORE FOR COMPLETE STATE & REALTIME SUPABASE ---
-export const useAppStore = create(
-  persist(
-    (set, get) => ({
-      // Auth State
-      user: null,
-      session: null,
-      authLoading: true,
-
-      // UI State
-      theme: "light",
-      activeView: "dashboard",
-      selectedDate: getFormattedDateStr(),
-      toasts: [],
-      confirmDialog: { isOpen: false, message: "", onConfirm: null },
-
-      // App Data
-      baseTimeline: defaultTimeline,
-      baseHabits: defaultHabitList,
-      history: {},
-      mocks: [],
-      habits: {},
-      vocab: [],
-      digitalNotes: [],
-      isSyncing: false,
-
-      premiumData: {
-        currentStreak: 0,
-        longestStreak: 0,
-        lastStudyDate: null,
-        totalStudyMinutes: 0,
-        bookmarks: [],
-        revisions: {},
-        examDate: "2026-10-01",
-        lastMonthlyQuizMonth: new Date().toISOString().substring(0, 7),
-      },
-
-      setTheme: (theme) => {
-        document.body.setAttribute("data-theme", theme);
-        set({ theme });
-      },
-      setActiveView: (view) => set({ activeView: view }),
-      setSelectedDate: (date) => set({ selectedDate: date }),
-
-      notify: (message, type = "success") => {
-        const id = Date.now() + Math.random();
-        set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
-        setTimeout(() => {
-          set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
-        }, 3000);
-      },
-
-      requestConfirm: (message, onConfirm) => {
-        set({ confirmDialog: { isOpen: true, message, onConfirm } });
-      },
-      closeConfirm: () => {
-        set({ confirmDialog: { isOpen: false, message: "", onConfirm: null } });
-      },
-
-      // --- SUPABASE AUTHENTICATION ACTIONS ---
-      initAuth: async () => {
-        set({ authLoading: true });
+  // Initialize authenticated user and load their logs
+  useEffect(() => {
+    const initializeAuthAndData = async () => {
+      setIsLoadingLogs(true);
+      try {
         const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        set({ session, user: session?.user || null, authLoading: false });
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+        if (authError) throw authError;
 
-        if (session?.user) {
-          get().fetchVocabFromCloud();
-          get().fetchDigitalNotesFromCloud();
-        }
+        setUser(user);
 
-        supabase.auth.onAuthStateChange((_event, session) => {
-          const currentUser = get().user;
-          set({ session, user: session?.user || null, authLoading: false });
-          if (session?.user && session.user.id !== currentUser?.id) {
-            get().fetchVocabFromCloud();
-            get().fetchDigitalNotesFromCloud();
-          } else if (!session?.user) {
-            set({ vocab: [], digitalNotes: [] });
-          }
-        });
-      },
-
-      generateInternalEmail: (username) => {
-        return `${username
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g, "")}@ibpsplanner.internal`;
-      },
-
-      loginWithUsername: async (username, password) => {
-        const internalEmail = get().generateInternalEmail(username);
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: internalEmail,
-          password,
-        });
-        if (error) throw error;
-        set({ user: data.user, session: data.session });
-        get().fetchVocabFromCloud();
-        get().fetchDigitalNotesFromCloud();
-        return data;
-      },
-
-      signUpWithUsername: async (username, password) => {
-        const internalEmail = get().generateInternalEmail(username);
-        const { data, error } = await supabase.auth.signUp({
-          email: internalEmail,
-          password,
-          options: { data: { display_username: username.trim() } },
-        });
-        if (error) throw error;
-        return data;
-      },
-
-      logout: async () => {
-        await supabase.auth.signOut();
-        set({ user: null, session: null, vocab: [], digitalNotes: [] });
-        get().notify("Logged out successfully.", "info");
-      },
-
-      deleteAccount: async () => {
-        const user = get().user;
         if (user) {
-          try {
-            const { error } = await supabase.rpc("delete_user");
-            if (error) {
-              await supabase.from("dictionary").delete().eq("user_id", user.id);
-              await supabase
-                .from("digital_notes")
-                .delete()
-                .eq("user_id", user.id);
-            }
-            await supabase.auth.signOut();
-          } catch (err) {}
+          await fetchMockLogs(user.id);
+        } else {
+          setMocks([]);
         }
-        window.localStorage.clear();
-        set({
-          user: null,
-          session: null,
-          vocab: [],
-          history: {},
-          mocks: [],
-          habits: {},
-          digitalNotes: [],
-          premiumData: { bookmarks: [] },
-        });
-        get().notify(
-          "Your account and all cloud data have been permanently deleted.",
-          "info",
-        );
-      },
-
-      fetchVocabFromCloud: async () => {
-        const user = get().user;
-        if (!user) return;
-        set({ isSyncing: true });
-        try {
-          const { data, error } = await supabase
-            .from("dictionary")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("dateAdded", { ascending: false });
-          if (error) throw error;
-          if (data) set({ vocab: data });
-        } catch (err) {
-        } finally {
-          set({ isSyncing: false });
-        }
-      },
-
-      addVocabNote: async (newNote) => {
-        const user = get().user;
-        if (!user) return;
-        const noteWithUser = { ...newNote, user_id: user.id };
-        set((state) => ({ vocab: [noteWithUser, ...state.vocab] }));
-        get().notify(`Saved "${newNote.word}" to Cloud!`, "success");
-        try {
-          const { error } = await supabase
-            .from("dictionary")
-            .insert([noteWithUser]);
-          if (error) {
-            set((state) => ({
-              vocab: state.vocab.filter((v) => v.id !== newNote.id),
-            }));
-            throw error;
-          }
-        } catch (err) {
-          get().notify("Failed to save entry.", "error");
-        }
-      },
-
-      updateVocabNote: async (noteObj) => {
-        const user = get().user;
-        if (!user) return;
-        const noteWithUser = { ...noteObj, user_id: user.id };
-        set((state) => ({
-          vocab: state.vocab.map((v) =>
-            v.id === noteObj.id ? noteWithUser : v,
-          ),
-        }));
-        get().notify("Note updated instantly!", "success");
-        try {
-          const { error } = await supabase
-            .from("dictionary")
-            .upsert([noteWithUser]);
-          if (error) throw error;
-        } catch (err) {
-          get().notify("Failed to sync update to cloud.", "error");
-        }
-      },
-
-      deleteVocabNote: async (id) => {
-        const user = get().user;
-        if (!user) return;
-        set((state) => ({ vocab: state.vocab.filter((v) => v.id !== id) }));
-        get().notify("Entry removed.", "info");
-        try {
-          const { error } = await supabase
-            .from("dictionary")
-            .delete()
-            .match({ id: id, user_id: user.id });
-          if (error) throw error;
-        } catch (err) {
-          get().notify("Failed to delete entry from cloud.", "error");
-        }
-      },
-
-      // --- DIGITAL NOTES BOARD CLOUD ACTIONS ---
-      fetchDigitalNotesFromCloud: async () => {
-        const user = get().user;
-        if (!user) return;
-        try {
-          const { data, error } = await supabase
-            .from("digital_notes")
-            .select("*")
-            .eq("user_id", user.id);
-          if (error) throw error;
-          if (data) set({ digitalNotes: data });
-        } catch (err) {
-          console.error("Failed to fetch digital notes:", err);
-        }
-      },
-
-      addDigitalNote: async (note) => {
-        const user = get().user;
-        if (!user) return;
-
-        const noteWithUser = { ...note, user_id: user.id };
-
-        // Optimistic UI Update
-        set((state) => ({
-          digitalNotes: [...(state.digitalNotes || []), noteWithUser],
-        }));
-
-        try {
-          const { error } = await supabase
-            .from("digital_notes")
-            .insert([noteWithUser]);
-          if (error) throw error;
-        } catch (err) {
-          get().notify("Failed to save canvas note to cloud.", "error");
-        }
-      },
-
-      updateDigitalNote: async (id, updates) => {
-        const user = get().user;
-        if (!user) return;
-
-        // Optimistic UI Update
-        set((state) => ({
-          digitalNotes: state.digitalNotes.map((n) =>
-            n.id === id ? { ...n, ...updates } : n,
-          ),
-        }));
-
-        try {
-          const updatedNote = get().digitalNotes.find((n) => n.id === id);
-          if (updatedNote) {
-            const { error } = await supabase
-              .from("digital_notes")
-              .upsert([updatedNote]);
-            if (error) throw error;
-          }
-        } catch (err) {
-          get().notify("Failed to sync canvas update.", "error");
-        }
-      },
-
-      deleteDigitalNote: async (id) => {
-        const user = get().user;
-        if (!user) return;
-
-        set((state) => ({
-          digitalNotes: state.digitalNotes.filter((n) => n.id !== id),
-        }));
-
-        try {
-          const { error } = await supabase
-            .from("digital_notes")
-            .delete()
-            .match({ id, user_id: user.id });
-          if (error) throw error;
-        } catch (err) {
-          get().notify("Failed to delete canvas note from cloud.", "error");
-        }
-      },
-
-      clearDigitalNotes: async () => {
-        const user = get().user;
-        if (!user) return;
-
-        set({ digitalNotes: [] });
-        get().notify("Canvas cleared.", "info");
-
-        try {
-          const { error } = await supabase
-            .from("digital_notes")
-            .delete()
-            .eq("user_id", user.id);
-          if (error) throw error;
-        } catch (err) {
-          get().notify("Failed to clear cloud notes.", "error");
-        }
-      },
-
-      updateHistory: (newHistoryData) => {
-        const date = get().selectedDate;
-        set((state) => ({
-          history: {
-            ...state.history,
-            [date]: { ...state.history[date], ...newHistoryData },
-          },
-        }));
-      },
-
-      setMocks: (mocks) => set({ mocks }),
-      setPremiumData: (fn) =>
-        set((state) => ({ premiumData: fn(state.premiumData) })),
-      setAppData: (fn) => set((state) => fn(state)),
-    }),
-    {
-      name: "ibps_planner_auth_store",
-      partialize: (state) => ({
-        theme: state.theme,
-        history: state.history,
-        mocks: state.mocks,
-        habits: state.habits,
-        baseTimeline: state.baseTimeline,
-        digitalNotes: state.digitalNotes, // Keeps local cache for instant load
-        baseHabits: state.baseHabits,
-        premiumData: state.premiumData,
-      }),
-    },
-  ),
-);
-
-// --- COMPONENTS ---
-
-// Helper Draggable Component
-function DraggableItem({
-  initialX,
-  initialY,
-  children,
-  onDragEnd,
-  dragHandleClass = "drag-handle",
-}) {
-  const [pos, setPos] = useState({ x: initialX, y: initialY });
-  const dragRef = useRef({
-    isDragging: false,
-    startX: 0,
-    startY: 0,
-    initX: 0,
-    initY: 0,
-  });
-
-  const onPointerDown = (e) => {
-    if (dragHandleClass && !e.target.closest(`.${dragHandleClass}`)) return;
-    dragRef.current = {
-      isDragging: true,
-      startX: e.clientX,
-      startY: e.clientY,
-      initX: pos.x,
-      initY: pos.y,
+      } catch (err) {
+        console.error("Authentication or fetch error:", err);
+      } finally {
+        setIsLoadingLogs(false);
+      }
     };
-    e.target.setPointerCapture(e.pointerId);
-    e.stopPropagation();
+
+    initializeAuthAndData();
+
+    // Listen for auth state changes (login, logout)
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+          fetchMockLogs(currentUser.id);
+        } else {
+          setMocks([]);
+        }
+      },
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Fetch only logs belonging to the active user ID
+  const fetchMockLogs = async (userId) => {
+    if (!userId) return;
+    setIsLoadingLogs(true);
+    try {
+      const { data, error } = await supabase
+        .from("mock_logs")
+        .select("*")
+        .eq("user_id", userId)
+        .order("date", { ascending: false });
+
+      if (error) throw error;
+      setMocks(data || []);
+    } catch (err) {
+      console.error("Error fetching user mock logs:", err);
+      setMocks([]);
+    } finally {
+      setIsLoadingLogs(false);
+    }
   };
 
-  const onPointerMove = (e) => {
-    if (!dragRef.current.isDragging) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    setPos({ x: dragRef.current.initX + dx, y: dragRef.current.initY + dy });
-  };
+  // Callback passed to MockTestModule with user_id attached
+  const handleSaveScore = async (result) => {
+    if (!user) {
+      alert("Please sign in to save your test scores.");
+      return;
+    }
 
-  const onPointerUp = (e) => {
-    if (!dragRef.current.isDragging) return;
-    dragRef.current.isDragging = false;
-    e.target.releasePointerCapture(e.pointerId);
-    if (onDragEnd) onDragEnd(pos.x, pos.y);
+    const newMockLog = {
+      user_id: user.id, // Scope log to current user
+      date: new Date().toISOString().split("T")[0],
+      name: result.name,
+      score: result.score,
+      remarks: result.remarks,
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from("mock_logs")
+        .insert([newMockLog])
+        .select();
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setMocks((prev) => [data[0], ...prev]);
+      }
+    } catch (err) {
+      console.error("Error saving score to database:", err);
+      setMocks((prev) => [
+        { ...newMockLog, id: Date.now().toString() },
+        ...prev,
+      ]);
+    }
   };
 
   return (
     <div
       style={{
-        position: "absolute",
-        left: pos.x,
-        top: pos.y,
-        pointerEvents: "auto",
-        zIndex: 100,
+        display: "flex",
+        flexDirection: "column",
+        gap: "40px",
+        paddingBottom: "40px",
       }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
     >
-      {children}
+      {/* EXAM MODULE */}
+      <MockTestModule onSaveScore={handleSaveScore} />
+
+      {/* DIVIDER */}
+      <hr
+        style={{
+          border: "none",
+          borderTop: "1px dashed var(--border)",
+          margin: 0,
+        }}
+      />
+
+      {/* TRACKER MODULE (Scoped to current user) */}
+      <MockTracker
+        user={user}
+        mocks={mocks}
+        setMocks={setMocks}
+        isLoadingLogs={isLoadingLogs}
+      />
     </div>
   );
 }
 
-function AuthModal() {
-  const { loginWithUsername, signUpWithUsername, notify, setActiveView } =
-    useAppStore();
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+// =========================================================================
+// 2. MOCK TEST MODULE
+// =========================================================================
+export function MockTestModule({ onSaveScore }) {
+  const [tests, setTests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (username.trim().length < 3 || password.length < 6) {
-      return notify(
-        "Username (> 3 chars) and Password (> 6 chars) required.",
-        "error",
-      );
-    }
+  const [view, setView] = useState("list");
+  const [activeTest, setActiveTest] = useState(null);
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
+  const [currentQuestionIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const [markedForReview, setMarkedForReview] = useState({});
+  const [sectionTimeLeft, setSectionTimeLeft] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attemptedTests, setAttemptedTests] = useState(new Set());
+
+  useEffect(() => {
+    fetchMockTestsFromBackend();
+  }, []);
+
+  const fetchMockTestsFromBackend = async () => {
     setLoading(true);
     try {
-      if (isSignUp) {
-        await signUpWithUsername(username, password);
-        notify("Account created! Logging in...", "success");
-        await loginWithUsername(username, password);
-        setActiveView("dashboard");
-      } else {
-        await loginWithUsername(username, password);
-        notify(`Welcome back, ${username}!`, "success");
-        setActiveView("dashboard");
-      }
+      const { data, error } = await supabase
+        .from("mock_tests")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setTests(data && data.length > 0 ? data : []);
     } catch (err) {
-      notify(
-        err.message || "Authentication failed. Check credentials.",
-        "error",
-      );
+      console.error("Error fetching mock tests:", err);
+      setTests([]);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div
-      className="modal-overlay"
-      style={{ zIndex: 999, backdropFilter: "blur(8px)" }}
-    >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="modal-card"
-        style={{ maxWidth: "440px", width: "90%", padding: "32px" }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "24px" }}>
-          <div
-            className="icon-wrap"
-            style={{
-              margin: "0 auto 12px auto",
-              width: "48px",
-              height: "48px",
-              background: "rgba(99, 102, 241, 0.1)",
-              color: "var(--accent)",
-            }}
-          >
-            <Lock size={24} />
-          </div>
-          <h2 style={{ fontSize: "22px", margin: "0 0 6px 0" }}>
-            {isSignUp ? "Create Aspirant ID" : "Aspirant Login"}
-          </h2>
-          <p
-            style={{ fontSize: "13px", color: "var(--text-muted)", margin: 0 }}
-          >
-            {isSignUp
-              ? "Set up your credentials to sync your banking prep data."
-              : "Enter your Aspirant ID and Password to access your studyspace."}
-          </p>
-        </div>
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-        >
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "12px",
-                fontWeight: 600,
-                marginBottom: "6px",
-              }}
-            >
-              Aspirant ID / Username
-            </label>
-            <div style={{ position: "relative" }}>
-              <User
-                size={16}
-                style={{
-                  position: "absolute",
-                  left: "12px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-muted)",
-                }}
-              />
-              <input
-                type="text"
-                className="custom-input"
-                style={{ paddingLeft: "36px" }}
-                placeholder="e.g. Aspirant_Name"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "12px",
-                fontWeight: 600,
-                marginBottom: "6px",
-              }}
-            >
-              Password
-            </label>
-            <div style={{ position: "relative" }}>
-              <Key
-                size={16}
-                style={{
-                  position: "absolute",
-                  left: "12px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "var(--text-muted)",
-                }}
-              />
-              <input
-                type="password"
-                className="custom-input"
-                style={{ paddingLeft: "36px" }}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <button
-            type="submit"
-            className="btn"
-            style={{
-              width: "100%",
-              padding: "12px",
-              marginTop: "8px",
-              justifyContent: "center",
-            }}
-            disabled={loading}
-          >
-            {loading ? (
-              <Loader2
-                className="spinner"
-                size={18}
-                style={{ animation: "spin 1s linear infinite" }}
-              />
-            ) : isSignUp ? (
-              "Sign Up"
-            ) : (
-              "Log In"
-            )}
-          </button>
-        </form>
-        <div
-          style={{
-            marginTop: "20px",
-            textAlign: "center",
-            fontSize: "13px",
-            color: "var(--text-muted)",
-          }}
-        >
-          {isSignUp
-            ? "Already have an Aspirant ID?"
-            : "Don't have an Aspirant ID yet?"}{" "}
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--accent)",
-              fontWeight: 600,
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            {isSignUp ? "Log In" : "Create Account"}
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function GlobalSearchModal({ isOpen, onClose }) {
-  const { vocab } = useAppStore();
-  const [searchTerm, setSearchTerm] = useState("");
-  if (!isOpen) return null;
-  const results = [];
-  if (searchTerm.length > 2) {
-    const lower = searchTerm.toLowerCase();
-    vocab?.forEach((v) => {
-      if (
-        v.word.toLowerCase().includes(lower) ||
-        v.meaning.toLowerCase().includes(lower)
-      ) {
-        results.push({
-          type: "Vocab/Dictionary",
-          text: v.word,
-          sub: v.meaning,
-        });
-      }
-    });
-  }
-  return (
-    <div
-      className="modal-overlay"
-      onClick={onClose}
-      style={{ zIndex: 99999, backdropFilter: "blur(4px)" }}
-    >
-      <motion.div
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="modal-card"
-        style={{ maxWidth: 600, width: "90%", marginTop: "10vh", padding: 0 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          style={{
-            padding: "20px",
-            borderBottom: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <Search size={20} color="var(--accent)" />
-          <input
-            autoFocus
-            type="text"
-            placeholder="Search vocabulary, notes, or tasks..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              flex: 1,
-              border: "none",
-              outline: "none",
-              fontSize: "18px",
-              background: "transparent",
-              color: "var(--text-main)",
-            }}
-          />
-          <button className="icon-btn-minimal" onClick={onClose}>
-            <X size={20} />
-          </button>
-        </div>
-        <div style={{ maxHeight: "400px", overflowY: "auto", padding: "12px" }}>
-          {results.length === 0 && searchTerm.length > 2 && (
-            <p
-              style={{
-                textAlign: "center",
-                color: "var(--text-muted)",
-                padding: "20px",
-              }}
-            >
-              No results found.
-            </p>
-          )}
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className="dash-list-item"
-              style={{
-                flexDirection: "column",
-                alignItems: "flex-start",
-                gap: 4,
-                padding: "12px 16px",
-                cursor: "pointer",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "var(--accent)",
-                  fontWeight: 600,
-                }}
-              >
-                {r.type}
-              </div>
-              <div style={{ fontSize: "16px", fontWeight: 500 }}>{r.text}</div>
-              <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                {r.sub}
-              </div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function PomodoroTimer() {
-  const { notify, setPremiumData } = useAppStore();
-  const [isOpen, setIsOpen] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(25 * 60);
-  const [isActive, setIsActive] = useState(false);
-  const [mode, setMode] = useState(25);
-
   useEffect(() => {
-    let interval = null;
-    if (isActive && timeLeft > 0)
-      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    else if (isActive && timeLeft === 0) {
-      setIsActive(false);
-      notify(`Time's up! You completed a ${mode} minute session.`, "success");
-      setPremiumData((prev) => ({
-        ...prev,
-        totalStudyMinutes: prev.totalStudyMinutes + mode,
-      }));
+    let timer = null;
+    if (view === "exam" && sectionTimeLeft > 0) {
+      timer = setInterval(() => {
+        setSectionTimeLeft((prev) => prev - 1);
+      }, 1000);
+    } else if (view === "exam" && sectionTimeLeft === 0) {
+      handleSectionTimeout();
     }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
+    return () => clearInterval(timer);
+  }, [view, sectionTimeLeft]);
 
-  const toggleTimer = () => setIsActive(!isActive);
-  const resetTimer = () => {
-    setIsActive(false);
-    setTimeLeft(mode * 60);
+  const handleSectionTimeout = () => {
+    if (!activeTest) return;
+    if (activeSectionIndex < activeTest.sections.length - 1) {
+      const nextSectionIdx = activeSectionIndex + 1;
+      setActiveSectionIndex(nextSectionIdx);
+      setCurrentIndex(0);
+      setSectionTimeLeft(activeTest.sections[nextSectionIdx].duration * 60);
+    } else {
+      submitExam();
+    }
   };
-  const changeMode = (m) => {
-    setIsActive(false);
-    setMode(m);
-    setTimeLeft(m * 60);
+
+  const startExam = (test) => {
+    setActiveTest(test);
+    setActiveSectionIndex(0);
+    setCurrentIndex(0);
+    setAnswers({});
+    setMarkedForReview({});
+    setSectionTimeLeft(test.sections[0].duration * 60);
+    setView("exam");
   };
+
+  const handleSelectOption = (qId, option) => {
+    setAnswers((prev) => ({ ...prev, [qId]: option }));
+  };
+
+  const clearResponse = (qId) => {
+    setAnswers((prev) => {
+      const updated = { ...prev };
+      delete updated[qId];
+      return updated;
+    });
+  };
+
+  const toggleMarkForReview = (qId) => {
+    setMarkedForReview((prev) => ({ ...prev, [qId]: !prev[qId] }));
+  };
+
+  const handleNextSectionManual = () => {
+    if (activeSectionIndex < activeTest.sections.length - 1) {
+      const nextSectionIdx = activeSectionIndex + 1;
+      setActiveSectionIndex(nextSectionIdx);
+      setCurrentIndex(0);
+      setSectionTimeLeft(activeTest.sections[nextSectionIdx].duration * 60);
+    } else {
+      submitExam();
+    }
+  };
+
+  const submitExam = () => {
+    setIsSubmitting(true);
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setAttemptedTests((prev) => new Set(prev).add(activeTest.id));
+      setView("result");
+    }, 800);
+  };
+
+  const openSolutions = () => {
+    setActiveSectionIndex(0);
+    setCurrentIndex(0);
+    setView("solution");
+  };
+
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  return (
-    <div
-      style={{ position: "fixed", bottom: "30px", right: "30px", zIndex: 9000 }}
-    >
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="card"
-            style={{
-              marginBottom: "16px",
-              width: "300px",
-              padding: "20px",
-              boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
-              backdropFilter: "blur(10px)",
-              background: "var(--bg)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div
+  const filteredTests = tests.filter((t) => {
+    if (categoryFilter !== "ALL" && t.category !== categoryFilter) return false;
+    if (typeFilter !== "ALL" && t.exam_type !== typeFilter) return false;
+    return true;
+  });
+
+  // --- VIEW 1: TEST LIST ---
+  if (view === "list") {
+    return (
+      <div style={{ animation: "fadeIn 0.4s ease" }}>
+        <div className="page-header" style={{ marginBottom: "24px" }}>
+          <div>
+            <h1
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "16px",
-              }}
-            >
-              <h4
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  margin: 0,
-                }}
-              >
-                <Timer size={18} color="var(--accent)" /> Focus Timer
-              </h4>
-              <button
-                className="icon-btn-minimal"
-                onClick={() => setIsOpen(false)}
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginBottom: "20px",
-                justifyContent: "center",
-              }}
-            >
-              {[25, 45, 60].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => changeMode(m)}
-                  className={`btn ${mode === m ? "" : "btn-outline"}`}
-                  style={{
-                    padding: "4px 12px",
-                    fontSize: "12px",
-                    borderRadius: "20px",
-                  }}
-                >
-                  {m}m
-                </button>
-              ))}
-            </div>
-            <div
-              style={{
-                fontSize: "48px",
+                fontSize: "28px",
                 fontWeight: "800",
-                textAlign: "center",
-                fontFamily: "monospace",
                 color: "var(--text-main)",
-                marginBottom: "20px",
-                letterSpacing: "2px",
               }}
             >
-              {formatTime(timeLeft)}
-            </div>
-            <div
-              style={{ display: "flex", gap: "12px", justifyContent: "center" }}
-            >
-              <button
-                onClick={toggleTimer}
-                className="btn"
-                style={{
-                  flex: 1,
-                  padding: "10px",
-                  background: isActive ? "var(--warning)" : "var(--secondary)",
-                  color: "white",
-                }}
-              >
-                {isActive ? <Pause size={18} /> : <Play size={18} />}
-              </button>
-              <button
-                onClick={resetTimer}
-                className="btn btn-outline"
-                style={{ padding: "10px" }}
-              >
-                <RotateCcw size={18} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          width: "60px",
-          height: "60px",
-          borderRadius: "50%",
-          background: "var(--accent)",
-          color: "white",
-          border: "none",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 4px 15px rgba(99, 102, 241, 0.4)",
-          cursor: "pointer",
-          float: "right",
-        }}
-      >
-        <Timer size={24} />
-      </motion.button>
-    </div>
-  );
-}
-
-function ToastContainer() {
-  const { toasts } = useAppStore();
-  return (
-    <div className="toast-container">
-      <AnimatePresence>
-        {toasts.map((t) => (
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 50 }}
-            key={t.id}
-            className={`toast ${t.type}`}
-          >
-            <div className="toast-icon">
-              {t.type === "success" && <CheckCircle2 size={16} />}
-              {t.type === "error" && <AlertCircle size={16} />}
-              {t.type === "info" && <Lightbulb size={16} />}
-            </div>
-            <span className="toast-message">{t.message}</span>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function ConfirmModal() {
-  const { confirmDialog, closeConfirm } = useAppStore();
-  if (!confirmDialog.isOpen) return null;
-  return (
-    <div
-      className="modal-overlay"
-      onClick={closeConfirm}
-      style={{ zIndex: 10000 }}
-    >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="modal-title">Confirmation Required</h3>
-        <p className="modal-message">{confirmDialog.message}</p>
-        <div className="modal-actions">
-          <button className="btn btn-outline" onClick={closeConfirm}>
-            Cancel
-          </button>
-          <button
-            className="btn"
-            onClick={() => {
-              confirmDialog.onConfirm();
-              closeConfirm();
-            }}
-          >
-            Confirm
-          </button>
+              Mock Tests
+            </h1>
+          </div>
         </div>
-      </motion.div>
-    </div>
-  );
-}
 
-function Header({ toggleSidebar, onOpenSearch }) {
-  const { theme, setTheme, selectedDate, setSelectedDate, user, logout } =
-    useAppStore();
-  const [time, setTime] = useState("");
-
-  useEffect(() => {
-    const updateTime = () =>
-      setTime(
-        new Date().toLocaleTimeString("en-IN", {
-          timeZone: "Asia/Kolkata",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-        }),
-      );
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
-  const todayStr = getFormattedDateStr();
-  const displayName = user?.user_metadata?.display_username || "Aspirant";
-
-  return (
-    <header className="header">
-      <div className="header-left">
-        <button className="icon-btn mobile-menu-btn" onClick={toggleSidebar}>
-          <Menu size={18} />
-        </button>
-        <div className="date-picker-wrap">
-          <Calendar size={16} style={{ color: "var(--text-muted)" }} />
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-        </div>
-        {selectedDate !== todayStr && (
-          <button
-            className="btn btn-outline hide-on-mobile"
-            style={{ padding: "8px 12px", fontSize: "13px" }}
-            onClick={() => setSelectedDate(todayStr)}
-          >
-            Today
-          </button>
-        )}
-      </div>
-      <div className="header-right">
         <div
-          className="btn btn-outline hide-on-mobile"
-          style={{
-            padding: "6px 12px",
-            fontSize: "12px",
-            gap: "6px",
-            borderColor: "rgba(99, 102, 241, 0.3)",
-            pointerEvents: "none",
-          }}
-        >
-          <User size={14} color="var(--accent)" />
-          <span>{displayName}</span>
-        </div>
-        <button
-          className="btn btn-outline hide-on-mobile"
           style={{
             display: "flex",
-            gap: "8px",
+            gap: "12px",
+            marginBottom: "32px",
+            flexWrap: "wrap",
             alignItems: "center",
-            padding: "6px 12px",
-            fontSize: "12px",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-          }}
-          onClick={onOpenSearch}
-        >
-          <Search size={14} /> Search (Ctrl+K)
-        </button>
-        <div className="clock hide-on-mobile">{time}</div>
-        <button
-          className="icon-btn"
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-        >
-          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-        </button>
-        <button className="icon-btn" onClick={logout} title="Sign Out">
-          <LogOut size={18} color="var(--danger)" />
-        </button>
-      </div>
-    </header>
-  );
-}
-
-function UpcomingExamsWidget() {
-  const getCategoryColor = (cat) => {
-    switch (cat) {
-      case "IBPS":
-        return { bg: "rgba(236, 72, 153, 0.1)", text: "#ec4899" };
-      case "RRB":
-        return { bg: "rgba(16, 185, 129, 0.1)", text: "#10b981" };
-      case "SBI":
-        return { bg: "rgba(99, 102, 241, 0.1)", text: "var(--accent)" };
-      default:
-        return { bg: "rgba(245, 158, 11, 0.1)", text: "#f59e0b" };
-    }
-  };
-  return (
-    <div
-      className="card"
-      style={{ padding: "0", overflow: "hidden", marginBottom: "32px" }}
-    >
-      <div
-        style={{
-          padding: "20px",
-          background:
-            "linear-gradient(135deg, rgba(99,102,241,0.05), rgba(236,72,153,0.05))",
-          borderBottom: "1px solid var(--border)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h3
-          style={{
-            fontSize: "18px",
-            margin: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
           }}
         >
-          <CalendarDays size={20} color="var(--accent)" /> UPCOMING EXAMS 2026
-        </h3>
-      </div>
-      <div
-        style={{ maxHeight: "360px", overflowY: "auto", padding: "12px 20px" }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: "16px",
-            paddingBottom: "16px",
-          }}
-        >
-          {upcomingExamsList.map((exam, i) => {
-            const colors = getCategoryColor(exam.category);
-            return (
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                key={i}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "16px",
-                  borderRadius: "12px",
-                  border: "1px solid var(--border)",
-                  background: "var(--bg)",
-                }}
-              >
-                <div>
-                  <h4
-                    style={{
-                      margin: "0 0 6px 0",
-                      fontSize: "15px",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {exam.name}
-                  </h4>
-                  <span
-                    style={{
-                      background: colors.bg,
-                      color: colors.text,
-                      padding: "4px 8px",
-                      borderRadius: "6px",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {exam.category}
-                  </span>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      color: "var(--text-main)",
-                    }}
-                  >
-                    {exam.date}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-muted)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Expected
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-        <div
-          style={{
-            borderTop: "1px dashed var(--border)",
-            paddingTop: "20px",
-            marginTop: "8px",
-          }}
-        >
-          <h4
+          <div
             style={{
-              fontSize: "14px",
-              color: "var(--text-muted)",
-              marginBottom: "12px",
               display: "flex",
               alignItems: "center",
               gap: "6px",
+              color: "var(--text-muted)",
+              fontSize: "13px",
+              fontWeight: 700,
             }}
           >
-            <BellRing size={14} /> Expected Notifications (Not Confirmed)
-          </h4>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-            {expectedNotifications.map((notif, i) => (
-              <div
-                key={i}
-                style={{
-                  padding: "8px 12px",
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "20px",
-                  fontSize: "13px",
-                  fontWeight: 500,
-                }}
-              >
-                {notif}
-              </div>
-            ))}
+            <Filter size={16} /> Filters:
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VocabQuiz() {
-  const { vocab, selectedDate, notify, premiumData } = useAppStore();
-  const [quizState, setQuizState] = useState("idle");
-  const [quizMode, setQuizMode] = useState("daily");
-  const [questions, setQuestions] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [scoreThisRound, setScoreThisRound] = useState(0);
-
-  const startQuiz = async (overrideMode) => {
-    const modeToUse =
-      typeof overrideMode === "string" ? overrideMode : quizMode;
-    let pool = [];
-    if (modeToUse === "bookmarks") {
-      pool = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
-      pool = shuffleArray(pool);
-    } else if (modeToUse === "weekly") {
-      const sevenDaysAgo = new Date(selectedDate);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const cutoff = getFormattedDateStr(sevenDaysAgo);
-      pool = vocab.filter(
-        (v) => v.dateAdded >= cutoff && v.dateAdded <= selectedDate,
-      );
-      if (pool.length < 4)
-        pool = vocab.filter((v) => v.dateAdded <= selectedDate);
-      pool = shuffleArray(pool);
-    } else {
-      pool = vocab.filter((v) => v.dateAdded && v.dateAdded <= selectedDate);
-    }
-    const selectedWords = pool.slice(0, modeToUse === "daily" ? 15 : 50);
-    if (selectedWords.length < 4)
-      return notify(`Need at least 4 saved words to generate a quiz!`, "error");
-
-    setQuizState("generating");
-    let generatedQs = [];
-    for (let target of selectedWords) {
-      let correctOption = target.meaning;
-      let distractors = shuffleArray(vocab.filter((v) => v.id !== target.id))
-        .slice(0, 3)
-        .map((v) => v.meaning);
-      generatedQs.push({
-        targetId: target.id,
-        targetWord: target.word,
-        targetMeaning: target.meaning,
-        questionText: `What is the precise meaning of:\n\n"${target.word}"?`,
-        options: shuffleArray([correctOption, ...distractors]),
-        correctOption,
-      });
-    }
-    setQuestions(generatedQs);
-    setCurrentIndex(0);
-    setScoreThisRound(0);
-    setQuizState("playing");
-    setIsAnswered(false);
-    setSelectedOption(null);
-  };
-
-  const handleOptionClick = (option) => {
-    if (isAnswered) return;
-    setSelectedOption(option);
-    setIsAnswered(true);
-    if (option === questions[currentIndex].correctOption)
-      setScoreThisRound((prev) => prev + 1);
-  };
-
-  const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-      setIsAnswered(false);
-      setSelectedOption(null);
-    } else {
-      setQuizState("finished");
-    }
-  };
-
-  if (quizState === "idle") {
-    return (
-      <div
-        className="card"
-        style={{
-          marginBottom: "32px",
-          background: "linear-gradient(135deg, var(--primary), var(--accent))",
-          color: "white",
-          padding: "32px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "20px",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: "300px" }}>
-          <h2
-            style={{
-              fontSize: "22px",
-              marginBottom: "8px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <Zap size={24} color="#facc15" /> Smart Revision Quiz
-          </h2>
-          <p
-            style={{
-              opacity: 0.9,
-              fontSize: "14px",
-              maxWidth: "500px",
-              lineHeight: "1.5",
-            }}
-          >
-            Test your memory based on your cloud-synced dictionary terms.
-          </p>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-            width: "100%",
-            maxWidth: "220px",
-          }}
-        >
-          <select
-            className="custom-input"
-            style={{
-              width: "100%",
-              background: "rgba(255,255,255,0.2)",
-              color: "white",
-              border: "none",
-              fontWeight: 600,
-            }}
-            value={quizMode}
-            onChange={(e) => setQuizMode(e.target.value)}
-          >
-            <option value="daily" style={{ color: "black" }}>
-              Daily SR Quiz (15 Qs)
-            </option>
-            <option value="weekly" style={{ color: "black" }}>
-              Weekly Revision (50 Qs)
-            </option>
-            <option value="bookmarks" style={{ color: "black" }}>
-              Bookmarked Only
-            </option>
-          </select>
-          <button
-            className="btn"
-            style={{
-              background: "white",
-              color: "var(--primary)",
-              fontSize: "15px",
-              padding: "12px 24px",
-              borderRadius: "30px",
-              boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
-              width: "100%",
-            }}
-            onClick={() => startQuiz()}
-          >
-            Start Quiz
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (quizState === "finished") {
-    return (
-      <div
-        className="card"
-        style={{
-          marginBottom: "32px",
-          textAlign: "center",
-          padding: "40px 20px",
-        }}
-      >
-        <Trophy
-          size={48}
-          color="var(--warning)"
-          style={{ margin: "0 auto 16px auto" }}
-        />
-        <h2 style={{ fontSize: "24px", marginBottom: "8px" }}>
-          Quiz Completed!
-        </h2>
-        <p style={{ color: "var(--text-muted)", marginBottom: "24px" }}>
-          You scored {scoreThisRound} out of {questions.length} on your
-          revision.
-        </p>
-        <button className="btn" onClick={() => setQuizState("idle")}>
-          Close Revision
-        </button>
-      </div>
-    );
-  }
-
-  const currentQ = questions[currentIndex];
-  return (
-    <div
-      className="card"
-      style={{
-        marginBottom: "32px",
-        borderTop: "4px solid var(--accent)",
-        animation: "fadeIn 0.3s ease",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: "24px",
-          fontSize: "13px",
-          color: "var(--text-muted)",
-          fontWeight: "600",
-        }}
-      >
-        <span>
-          Question {currentIndex + 1} of {questions.length}
-        </span>
-      </div>
-      <h3
-        style={{
-          fontSize: "17px",
-          lineHeight: "1.7",
-          marginBottom: "24px",
-          whiteSpace: "pre-wrap",
-          color: "var(--text-main)",
-          fontWeight: "500",
-        }}
-      >
-        {currentQ?.questionText}
-      </h3>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px",
-          marginBottom: "24px",
-        }}
-      >
-        {currentQ?.options.map((opt, i) => {
-          let btnStyle = {
-            textAlign: "left",
-            padding: "14px 16px",
-            fontSize: "14px",
-            fontWeight: "500",
-            whiteSpace: "pre-wrap",
-            lineHeight: "1.5",
-          };
-          let btnClass = "btn btn-outline";
-          if (isAnswered) {
-            if (opt === currentQ.correctOption) {
-              btnClass = "btn";
-              btnStyle.background = "var(--secondary)";
-              btnStyle.color = "white";
-            } else if (opt === selectedOption) {
-              btnClass = "btn";
-              btnStyle.background = "var(--danger)";
-              btnStyle.color = "white";
-            }
-          }
-          return (
+          {["ALL", "IBPS", "SBI", "RRB"].map((cat) => (
             <button
-              key={i}
-              className={btnClass}
-              style={btnStyle}
-              onClick={() => handleOptionClick(opt)}
-              disabled={isAnswered}
+              key={cat}
+              className={`btn ${categoryFilter === cat ? "" : "btn-outline"}`}
+              style={{
+                padding: "6px 16px",
+                fontSize: "12px",
+                borderRadius: "20px",
+              }}
+              onClick={() => setCategoryFilter(cat)}
             >
-              {opt}
+              {cat}
             </button>
-          );
-        })}
-      </div>
-      {isAnswered && (
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button className="btn" onClick={handleNext}>
-            {currentIndex < questions.length - 1
-              ? "Next Question"
-              : "Finish Quiz"}{" "}
-            <ArrowRight size={16} />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Dashboard({ history }) {
-  const { user, selectedDate, updateHistory, notify } = useAppStore();
-  const [newMissed, setNewMissed] = useState("");
-
-  const totalTasks = history.timeline?.length || 0;
-  const completedTasks = history.timeline?.filter((t) => t.checked).length || 0;
-  const progress = totalTasks === 0 ? 0 : (completedTasks / totalTasks) * 100;
-  const dailyStudy = calculateStudyMinutes(history.timeline);
-  const dailyCompletedHours = (dailyStudy.completedMins / 60).toFixed(1);
-  const dailyTargetHours = (dailyStudy.targetMins / 60).toFixed(1);
-
-  const addMissed = () => {
-    if (newMissed.trim()) {
-      updateHistory({
-        missedTasks: [
-          ...(history.missedTasks || []),
-          { text: newMissed, checked: false },
-        ],
-      });
-      setNewMissed("");
-      notify("Task added to backlog", "info");
-    }
-  };
-  const toggleMissed = (index) => {
-    const updated = (history.missedTasks || []).map((t, i) =>
-      i === index ? { ...t, checked: !t.checked } : t,
-    );
-    updateHistory({ missedTasks: updated });
-  };
-  const userName = user?.user_metadata?.display_username || "Aspirant";
-
-  return (
-    <div style={{ animation: "fadeIn 0.5s ease" }}>
-      <div className="dashboard-header">
-        <div className="dashboard-greeting">
-          <h1>Welcome back, {userName}.</h1>
-          <p>
-            Here is your overview for{" "}
-            {new Date(selectedDate).toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
-        </div>
-      </div>
-      <VocabQuiz />
-      <div className="grid-3" style={{ marginBottom: "32px" }}>
-        <div className="card stat-card">
-          <div
-            className="icon-wrap"
-            style={{
-              background: "rgba(16, 185, 129, 0.1)",
-              color: "var(--secondary)",
-            }}
-          >
-            <Clock size={24} />
-          </div>
-          <h3>{dailyCompletedHours}h</h3>
-          <p>Daily Study (Target: {dailyTargetHours}h)</p>
-        </div>
-        <div className="card stat-card">
-          <div className="icon-wrap">
-            <CheckSquare size={24} />
-          </div>
-          <h3>
-            {completedTasks}/{totalTasks}
-          </h3>
-          <p>Tasks Completed</p>
-        </div>
-        <div className="card stat-card">
-          <div
-            className="icon-wrap"
-            style={{
-              background: "rgba(245, 158, 11, 0.1)",
-              color: "var(--warning)",
-            }}
-          >
-            <Award size={24} />
-          </div>
-          <h3>{Math.round(progress)}%</h3>
-          <p>Overall Day Progress</p>
-        </div>
-      </div>
-      <UpcomingExamsWidget />
-      <div className="grid-2">
-        <div
-          className="card"
-          style={{ display: "flex", flexDirection: "column" }}
-        >
-          <h3 style={{ marginBottom: "16px", fontSize: "18px" }}>
-            Timeline Status
-          </h3>
+          ))}
           <div
             style={{
-              height: "8px",
-              background: "var(--bg)",
-              borderRadius: "10px",
-              overflow: "hidden",
-              marginBottom: "20px",
+              width: "1px",
+              height: "20px",
+              background: "var(--border)",
+              margin: "0 4px",
             }}
-          >
-            <div
-              style={{
-                width: `${progress}%`,
-                height: "100%",
-                background: "var(--secondary)",
-                transition: "width 0.8s",
-              }}
-            ></div>
-          </div>
-          <div
-            className="scroll-area"
-            style={{ flex: 1, overflowY: "auto", maxHeight: "300px" }}
-          >
-            {history.timeline?.map((t, i) => (
-              <div
-                key={i}
-                className={`dash-list-item ${t.checked ? "checked" : ""}`}
-              >
-                {t.checked ? (
-                  <CheckCircle2 size={16} color="var(--secondary)" />
-                ) : (
-                  <Circle size={16} color="var(--text-muted)" />
-                )}
-                <span>{t.time}</span>{" "}
-                <ArrowRight size={14} color="var(--border)" /> {t.activity}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          <div
-            className="card"
-            style={{ display: "flex", flexDirection: "column", flex: 1 }}
-          >
-            <h3 style={{ marginBottom: "8px", fontSize: "18px" }}>
-              Daily Backlog
-            </h3>
-            <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-              <input
-                type="text"
-                className="custom-input"
-                placeholder="Add a backlog task..."
-                value={newMissed}
-                onChange={(e) => setNewMissed(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addMissed()}
-              />
-              <button className="btn" onClick={addMissed}>
-                Add
-              </button>
-            </div>
-            <div
-              className="scroll-area"
-              style={{ flex: 1, overflowY: "auto", maxHeight: "160px" }}
-            >
-              {history.missedTasks?.map((t, i) => (
-                <div
-                  key={i}
-                  className="missed-task-item"
-                  style={{ opacity: t.checked ? 0.5 : 1 }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      className="custom-checkbox"
-                      checked={t.checked}
-                      onChange={() => toggleMissed(i)}
-                    />
-                    <span
-                      style={{
-                        textDecoration: t.checked ? "line-through" : "none",
-                      }}
-                    >
-                      {t.text}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div
-            className="card"
-            style={{ display: "flex", flexDirection: "column", padding: "0" }}
-          >
-            <div
-              style={{
-                background: "rgba(99, 102, 241, 0.03)",
-                padding: "20px 24px",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "18px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <Edit3 size={18} color="var(--accent)" /> Daily Journal
-              </h3>
-            </div>
-            <textarea
-              style={{
-                width: "100%",
-                border: "none",
-                background: "transparent",
-                resize: "vertical",
-                minHeight: "120px",
-                padding: "24px",
-                outline: "none",
-              }}
-              placeholder="Reflect on your day..."
-              value={history.notes || ""}
-              onChange={(e) => updateHistory({ notes: e.target.value })}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
-  const { selectedDate, notify } = useAppStore();
-  const [word, setWord] = useState("");
-  const [type, setType] = useState("Vocabulary");
-  const [partOfSpeech, setPartOfSpeech] = useState("");
-  const [meaning, setMeaning] = useState("");
-  const [synonyms, setSynonyms] = useState("");
-  const [antonyms, setAntonyms] = useState("");
-  const [notes, setNotes] = useState("");
-
-  useEffect(() => {
-    if (initialData) {
-      setWord(initialData.word);
-      setType(initialData.type || "Vocabulary");
-      setPartOfSpeech(initialData.partOfSpeech || "");
-      setMeaning(initialData.meaning || "");
-      setSynonyms(initialData.synonyms || "");
-      setAntonyms(initialData.antonyms || "");
-      setNotes(initialData.notes || "");
-    } else {
-      setWord("");
-      setType("Vocabulary");
-      setPartOfSpeech("");
-      setMeaning("");
-      setSynonyms("");
-      setAntonyms("");
-      setNotes("");
-    }
-  }, [isOpen, initialData]);
-
-  if (!isOpen) return null;
-
-  const handleSave = () => {
-    if (!word.trim() || !meaning.trim())
-      return notify("Word and Meaning required.", "error");
-    onSave({
-      id: initialData ? initialData.id : Date.now().toString(),
-      word,
-      type,
-      partOfSpeech,
-      meaning,
-      synonyms,
-      antonyms,
-      notes,
-      dateAdded: initialData ? initialData.dateAdded : selectedDate,
-    });
-    onClose();
-  };
-  const labelStyle = {
-    display: "block",
-    fontSize: "13px",
-    fontWeight: "600",
-    marginBottom: "8px",
-    color: "var(--text-main)",
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
-      <div
-        className="modal-card"
-        style={{ maxWidth: "550px", width: "90%", padding: "32px" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3
-          className="modal-title"
-          style={{ marginBottom: "28px", fontSize: "20px" }}
-        >
-          {initialData ? "Edit Study Note" : "Custom Study Note"}
-        </h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Word / Phrase</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={word}
-              onChange={(e) => setWord(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Category</label>
-            <select
-              className="custom-input"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-            >
-              <option value="Vocabulary">Vocabulary</option>
-              <option value="Phrasal Verb">Phrasal Verb</option>
-              <option value="Idiom">Idiom</option>
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Part of Speech</label>
-            <input
-              type="text"
-              className="custom-input"
-              placeholder="noun, verb"
-              value={partOfSpeech}
-              onChange={(e) => setPartOfSpeech(e.target.value)}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "20px" }}>
-          <label style={labelStyle}>Meaning / Definition</label>
-          <textarea
-            className="custom-input"
-            value={meaning}
-            onChange={(e) => setMeaning(e.target.value)}
-            rows="4"
           />
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <div>
-            <label style={labelStyle}>Synonyms (comma separated)</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={synonyms}
-              onChange={(e) => setSynonyms(e.target.value)}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Antonyms (comma separated)</label>
-            <input
-              type="text"
-              className="custom-input"
-              value={antonyms}
-              onChange={(e) => setAntonyms(e.target.value)}
-            />
-          </div>
-        </div>
-        <div style={{ marginBottom: "32px" }}>
-          <label style={labelStyle}>Usage Context / Example Sentence</label>
-          <textarea
-            className="custom-input"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows="3"
-          />
-        </div>
-        <div
-          className="modal-actions"
-          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
-        >
-          <button className="btn btn-outline" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn" onClick={handleSave}>
-            <Save size={16} /> Save Note
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VocabTracker() {
-  const {
-    vocab,
-    selectedDate,
-    requestConfirm,
-    addVocabNote,
-    updateVocabNote,
-    deleteVocabNote,
-    premiumData,
-    setPremiumData,
-  } = useAppStore();
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState(null);
-  const [searchError, setSearchError] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState(null);
-  const [filterType, setFilterType] = useState("All");
-
-  useEffect(() => {
-    if (query.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `https://api.datamuse.com/sug?s=${encodeURIComponent(query)}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data.slice(0, 5));
-        }
-      } catch (e) {}
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  const handleSearch = async (termToSearch) => {
-    const term = termToSearch || query;
-    if (!term.trim()) return;
-    setIsSearching(true);
-    setSearchError("");
-    setSearchResult(null);
-    setShowSuggestions(false);
-    try {
-      const res = await fetch(
-        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term.trim().toLowerCase())}`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const entry = data[0];
-        let meaningsList = [];
-        let synonymsList = [];
-        let antonymsList = [];
-        let examplesList = [];
-        let partsOfSpeechSet = new Set();
-        entry.meanings?.forEach((m) => {
-          const pos = m.partOfSpeech || "";
-          if (pos) partsOfSpeechSet.add(pos);
-          if (m.synonyms) synonymsList.push(...m.synonyms);
-          if (m.antonyms) antonymsList.push(...m.antonyms);
-          const firstDef = m.definitions?.[0]?.definition;
-          if (firstDef)
-            meaningsList.push(`${pos ? `[${pos}] ` : ""}${firstDef}`);
-          m.definitions?.forEach((def) => {
-            if (def.example) examplesList.push(def.example);
-            if (def.synonyms) synonymsList.push(...def.synonyms);
-            if (def.antonyms) antonymsList.push(...def.antonyms);
-          });
-        });
-        let detectedType = "Vocabulary";
-        const wordCount = term.trim().split(" ").length;
-        if (wordCount > 2) detectedType = "Idiom";
-        else if (wordCount === 2) detectedType = "Phrasal Verb";
-        setSearchResult({
-          word: entry.word || term,
-          type: detectedType,
-          partOfSpeech: Array.from(partsOfSpeechSet).join(", ") || "word",
-          meaning: meaningsList.join("\n") || "No definition found.",
-          synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
-          antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
-          notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-          audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
-        });
-      } else
-        setSearchError(
-          `No direct online entry for "${term}". You can add it manually!`,
-        );
-    } catch (err) {
-      setSearchError("Unable to connect to dictionary API.");
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleSaveSearchResult = () => {
-    if (!searchResult) return;
-    addVocabNote({
-      id: Date.now().toString(),
-      ...searchResult,
-      dateAdded: selectedDate,
-    });
-    setSearchResult(null);
-    setQuery("");
-  };
-
-  const toggleBookmark = (id) => {
-    setPremiumData((prev) => {
-      const isBookmarked = prev.bookmarks?.includes(id);
-      return {
-        ...prev,
-        bookmarks: isBookmarked
-          ? prev.bookmarks.filter((bId) => bId !== id)
-          : [...(prev.bookmarks || []), id],
-      };
-    });
-  };
-
-  let filteredVocab = vocab.filter((v) => v.dateAdded === selectedDate);
-  if (filterType === "Bookmarks")
-    filteredVocab = vocab.filter((v) => premiumData?.bookmarks?.includes(v.id));
-  else if (filterType !== "All")
-    filteredVocab = filteredVocab.filter((v) => v.type === filterType);
-  const renderPills = (textStr) => {
-    if (!textStr) return null;
-    return textStr
-      .split(",")
-      .map((w) => w.trim())
-      .filter((w) => w)
-      .map((w, i) => (
-        <span
-          key={i}
-          style={{
-            display: "inline-block",
-            padding: "4px 10px",
-            borderRadius: "8px",
-            fontSize: "12px",
-            fontWeight: 600,
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            color: "var(--text-main)",
-          }}
-        >
-          {w}
-        </span>
-      ));
-  };
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Word Power</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Master vocabulary, idioms, and phrasal verbs with modern cards.
-          </p>
-        </div>
-        <button
-          className="btn"
-          onClick={() => {
-            setEditingNote(null);
-            setIsModalOpen(true);
-          }}
-        >
-          <Plus size={16} /> Custom Entry
-        </button>
-      </div>
-      <div
-        style={{
-          position: "relative",
-          marginBottom: "32px",
-          maxWidth: "700px",
-        }}
-      >
-        <div
-          className="card"
-          style={{
-            padding: "8px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            boxShadow: "var(--shadow-md)",
-          }}
-        >
-          <Search size={20} style={{ color: "var(--accent)" }} />
-          <input
-            type="text"
-            className="custom-input"
-            style={{
-              border: "none",
-              background: "transparent",
-              fontSize: "16px",
-              padding: "8px 0",
-            }}
-            placeholder="Type any word, phrasal verb, or idiom..."
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setShowSuggestions(true);
-            }}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          />
-          {query && (
-            <button
-              className="icon-btn-minimal"
-              onClick={() => {
-                setQuery("");
-                setSearchResult(null);
-                setSearchError("");
-              }}
-            >
-              <X size={18} />
-            </button>
-          )}
-          <button
-            className="btn"
-            onClick={() => handleSearch()}
-            disabled={isSearching}
-          >
-            {isSearching ? <Loader2 size={16} className="spinner" /> : "Search"}
-          </button>
-        </div>
-        <AnimatePresence>
-          {showSuggestions && suggestions.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="card"
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 100,
-                marginTop: "8px",
-                padding: "8px 0",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-              }}
-            >
-              {suggestions.map((s, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    padding: "10px 20px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}
-                  className="dash-list-item"
-                  onClick={() => {
-                    setQuery(s.word);
-                    handleSearch(s.word);
-                  }}
-                >
-                  <Search size={14} color="var(--text-muted)" />
-                  <span style={{ color: "var(--text-main)" }}>{s.word}</span>
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {searchError && (
-        <div
-          className="card"
-          style={{
-            marginBottom: "32px",
-            borderLeft: "4px solid var(--danger)",
-            padding: "20px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span
-            style={{
-              color: "var(--text-main)",
-              fontSize: "14px",
-              fontWeight: 500,
-            }}
-          >
-            {searchError}
-          </span>
-          <button
-            className="btn btn-outline"
-            style={{ padding: "6px 12px", fontSize: "13px" }}
-            onClick={() => {
-              setEditingNote({ word: query, meaning: "", notes: "" });
-              setIsModalOpen(true);
-            }}
-          >
-            <Plus size={14} /> Add Custom Entry
-          </button>
-        </div>
-      )}
-
-      {searchResult && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="card"
-          style={{
-            marginBottom: "32px",
-            borderRadius: "20px",
-            border: "1px solid var(--border)",
-            padding: "28px",
-            background: "var(--bg)",
-            boxShadow: "0 12px 30px rgba(0,0,0,0.06)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "12px",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "30px",
-                margin: 0,
-                fontWeight: 800,
-                color: "var(--text-main)",
-                letterSpacing: "-0.5px",
-              }}
-            >
-              {searchResult.word}
-            </h2>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {searchResult.audio && (
-                <button
-                  className="icon-btn-minimal"
-                  onClick={() => new Audio(searchResult.audio).play()}
-                  title="Listen Pronunciation"
-                  style={{ color: "var(--accent)" }}
-                >
-                  <Volume2 size={18} />
-                </button>
-              )}
-              <button
-                className="btn"
-                style={{
-                  borderRadius: "12px",
-                  padding: "8px 16px",
-                  marginLeft: "12px",
-                }}
-                onClick={handleSaveSearchResult}
-              >
-                <Plus size={16} /> Save to Cloud
-              </button>
-            </div>
-          </div>
-          <div style={{ marginBottom: "24px" }}>
-            <span
-              style={{
-                background: "rgba(99, 102, 241, 0.1)",
-                color: "var(--accent)",
-                fontSize: "11px",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                padding: "4px 12px",
-                borderRadius: "16px",
-                letterSpacing: "0.5px",
-              }}
-            >
-              {searchResult.type}
-              {searchResult.partOfSpeech
-                ? ` • ${searchResult.partOfSpeech}`
-                : ""}
-            </span>
-          </div>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "20px" }}
-          >
-            <div>
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "var(--text-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.8px",
-                  display: "block",
-                  marginBottom: "8px",
-                }}
-              >
-                Meaning
-              </span>
-              <p
-                style={{
-                  fontFamily: "serif",
-                  fontSize: "17px",
-                  lineHeight: "1.6",
-                  color: "var(--text-main)",
-                  margin: 0,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {searchResult.meaning}
-              </p>
-            </div>
-            {(searchResult.synonyms || searchResult.antonyms) && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "24px",
-                  marginTop: "12px",
-                  paddingTop: "20px",
-                  borderTop: "1px dashed var(--border)",
-                }}
-              >
-                {searchResult.synonyms && (
-                  <div style={{ flex: 1, minWidth: "150px" }}>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        color: "var(--text-muted)",
-                        textTransform: "uppercase",
-                        display: "block",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Synonyms
-                    </span>
-                    <div
-                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
-                    >
-                      {renderPills(searchResult.synonyms)}
-                    </div>
-                  </div>
-                )}
-                {searchResult.antonyms && (
-                  <div style={{ flex: 1, minWidth: "150px" }}>
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        color: "var(--text-muted)",
-                        textTransform: "uppercase",
-                        display: "block",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Antonyms
-                    </span>
-                    <div
-                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
-                    >
-                      {renderPills(searchResult.antonyms)}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            {searchResult.notes && (
-              <div
-                style={{
-                  background: "rgba(99, 102, 241, 0.04)",
-                  padding: "16px",
-                  borderRadius: "12px",
-                  borderLeft: "4px solid var(--accent)",
-                  marginTop: "8px",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "11px",
-                    color: "var(--accent)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.8px",
-                    fontWeight: 700,
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Usage Context
-                </span>
-                <span
-                  style={{
-                    fontStyle: "italic",
-                    fontSize: "15px",
-                    color: "var(--text-main)",
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {searchResult.notes}
-                </span>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      )}
-
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          marginBottom: "24px",
-          flexWrap: "wrap",
-        }}
-      >
-        {["All", "Vocabulary", "Phrasal Verb", "Idiom", "Bookmarks"].map(
-          (type) => (
+          {["ALL", "PO", "Clerk"].map((type) => (
             <button
               key={type}
-              className={`btn ${filterType === type ? "" : "btn-outline"}`}
+              className={`btn ${typeFilter === type ? "" : "btn-outline"}`}
               style={{
-                padding: "8px 18px",
-                fontSize: "13px",
+                padding: "6px 16px",
+                fontSize: "12px",
                 borderRadius: "20px",
-                fontWeight: filterType === type ? 700 : 500,
               }}
-              onClick={() => setFilterType(type)}
+              onClick={() => setTypeFilter(type)}
             >
-              {type === "Bookmarks" && (
-                <Bookmark size={14} style={{ marginRight: 6 }} />
-              )}{" "}
               {type}
             </button>
-          ),
-        )}
-      </div>
-
-      {filteredVocab.length === 0 ? (
-        <div
-          className="card"
-          style={{
-            textAlign: "center",
-            padding: "60px 20px",
-            color: "var(--text-muted)",
-          }}
-        >
-          <BookMarked
-            size={48}
-            style={{
-              opacity: 0.2,
-              margin: "0 auto 16px auto",
-              display: "block",
-            }}
-          />
-          <p style={{ fontSize: "15px" }}>
-            No saved study notes found in this category.
-          </p>
+          ))}
         </div>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-            gap: "24px",
-          }}
-        >
-          {filteredVocab.map((item) => {
-            const isBookmarked = premiumData?.bookmarks?.includes(item.id);
-            return (
-              <motion.div
-                whileHover={{ y: -4 }}
-                transition={{ duration: 0.2 }}
-                key={item.id}
-                className="card"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  padding: "28px",
-                  borderRadius: "20px",
-                  border: "1px solid var(--border)",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.04)",
-                  background: "var(--bg)",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                {isBookmarked && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: "4px",
-                      background: "var(--warning)",
-                    }}
-                  ></div>
-                )}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: "12px",
+
+        {loading ? (
+          <div
+            style={{
+              padding: "60px",
+              textAlign: "center",
+              color: "var(--text-muted)",
+            }}
+          >
+            <Loader2
+              size={36}
+              className="spinner"
+              style={{
+                margin: "0 auto 12px auto",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+            <p>Loading backend test modules...</p>
+          </div>
+        ) : filteredTests.length === 0 ? (
+          <div
+            className="card"
+            style={{
+              padding: "40px",
+              textAlign: "center",
+              color: "var(--text-muted)",
+              background: "var(--bg)",
+              border: "1px dashed var(--border)",
+              borderRadius: "16px",
+            }}
+          >
+            <AlertCircle
+              size={36}
+              style={{
+                opacity: 0.5,
+                margin: "0 auto 12px auto",
+                display: "block",
+              }}
+            />
+            <p style={{ fontWeight: 600, fontSize: "16px" }}>
+              No tests available right now.
+            </p>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+              gap: "24px",
+            }}
+          >
+            {filteredTests.map((test) => {
+              const totalMins = test.sections.reduce(
+                (acc, s) => acc + (s.duration || 0),
+                0,
+              );
+              const totalQuestions = test.sections.reduce(
+                (acc, s) => acc + (s.questions?.length || 0),
+                0,
+              );
+              const hasAttempted = attemptedTests.has(test.id);
+
+              return (
+                <motion.div
+                  whileHover={{
+                    y: -4,
+                    boxShadow: "0 12px 32px rgba(0,0,0,0.08)",
                   }}
-                >
-                  <h3
-                    style={{
-                      fontSize: "28px",
-                      margin: 0,
-                      fontWeight: 800,
-                      color: "var(--text-main)",
-                      letterSpacing: "-0.5px",
-                    }}
-                  >
-                    {item.word}
-                  </h3>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => toggleBookmark(item.id)}
-                      title="Bookmark"
-                      style={{
-                        color: isBookmarked
-                          ? "var(--warning)"
-                          : "var(--text-muted)",
-                      }}
-                    >
-                      <Bookmark
-                        size={18}
-                        fill={isBookmarked ? "var(--warning)" : "none"}
-                      />
-                    </button>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => {
-                        setEditingNote(item);
-                        setIsModalOpen(true);
-                      }}
-                    >
-                      <Edit3 size={18} />
-                    </button>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() =>
-                        requestConfirm("Delete this cloud entry?", () =>
-                          deleteVocabNote(item.id),
-                        )
-                      }
-                      style={{ color: "var(--danger)" }}
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-                <div style={{ marginBottom: "24px" }}>
-                  <span
-                    style={{
-                      background: "rgba(99, 102, 241, 0.1)",
-                      color: "var(--accent)",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      padding: "4px 12px",
-                      borderRadius: "16px",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    {item.type}
-                    {item.partOfSpeech ? ` • ${item.partOfSpeech}` : ""}
-                  </span>
-                </div>
-                <div
+                  key={test.id}
+                  className="card"
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: "20px",
-                    flex: 1,
+                    padding: "24px",
+                    borderRadius: "16px",
+                    border: "1px solid var(--border)",
+                    background: "var(--bg)",
+                    transition: "all 0.2s ease",
                   }}
                 >
-                  <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <h3
+                      style={{
+                        fontSize: "18px",
+                        margin: 0,
+                        fontWeight: 800,
+                        color: "var(--text-main)",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {test.name}
+                    </h3>
                     <span
                       style={{
-                        fontWeight: 700,
-                        color: "var(--text-muted)",
-                        fontSize: "11px",
-                        display: "block",
-                        marginBottom: "8px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.8px",
-                      }}
-                    >
-                      Meaning
-                    </span>
-                    <p
-                      style={{
-                        color: "var(--text-main)",
-                        fontFamily: "serif",
-                        fontSize: "16px",
-                        lineHeight: "1.6",
-                        margin: 0,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {item.meaning}
-                    </p>
-                  </div>
-                  {(item.synonyms || item.antonyms) && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "24px",
-                        marginTop: "auto",
-                        paddingTop: "20px",
-                        borderTop: "1px dashed var(--border)",
-                      }}
-                    >
-                      {item.synonyms && (
-                        <div style={{ flex: 1, minWidth: "120px" }}>
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              color: "var(--text-muted)",
-                              textTransform: "uppercase",
-                              display: "block",
-                              marginBottom: "8px",
-                            }}
-                          >
-                            Synonyms
-                          </span>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "6px",
-                            }}
-                          >
-                            {renderPills(item.synonyms)}
-                          </div>
-                        </div>
-                      )}
-                      {item.antonyms && (
-                        <div style={{ flex: 1, minWidth: "120px" }}>
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              color: "var(--text-muted)",
-                              textTransform: "uppercase",
-                              display: "block",
-                              marginBottom: "8px",
-                            }}
-                          >
-                            Antonyms
-                          </span>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "6px",
-                            }}
-                          >
-                            {renderPills(item.antonyms)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {item.notes && (
-                    <div
-                      style={{
-                        marginTop: "8px",
-                        background: "rgba(99, 102, 241, 0.04)",
-                        padding: "12px 16px",
-                        borderRadius: "10px",
-                        borderLeft: "3px solid var(--accent)",
-                        fontSize: "14px",
-                        lineHeight: "1.5",
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: "var(--text-main)",
-                          fontStyle: "italic",
-                        }}
-                      >
-                        "{item.notes}"
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-      <VocabModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={(note) =>
-          editingNote ? updateVocabNote(note) : addVocabNote(note)
-        }
-        initialData={editingNote}
-      />
-    </div>
-  );
-}
-
-function DailyPlan({ timeline }) {
-  const { updateHistory, notify } = useAppStore();
-  const handleChange = (index, field, value) => {
-    const updated = timeline.map((item, i) =>
-      i === index ? { ...item, [field]: value } : item,
-    );
-    updateHistory({ timeline: updated });
-  };
-  const deleteTask = (index) => {
-    updateHistory({ timeline: timeline.filter((_, i) => i !== index) });
-    notify("Task removed", "info");
-  };
-  const addTask = () => {
-    updateHistory({
-      timeline: [
-        ...timeline,
-        {
-          time: "12:00",
-          activity: "New Custom Task",
-          checked: false,
-          notes: "",
-          isStudy: true,
-        },
-      ],
-    });
-  };
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Daily Timeline</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Structure and execute your study routine block by block.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "12px" }}>
-          <button className="btn" onClick={addTask}>
-            <Plus size={16} /> Add Task
-          </button>
-        </div>
-      </div>
-      <div
-        style={{
-          position: "relative",
-          paddingLeft: "16px",
-          marginTop: "24px",
-          maxWidth: "800px",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            left: "28px",
-            top: "10px",
-            bottom: "10px",
-            width: "3px",
-            background: "var(--border)",
-            borderRadius: "3px",
-          }}
-        ></div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          {timeline?.map((item, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                gap: "20px",
-                alignItems: "flex-start",
-                opacity: item.checked ? 0.6 : 1,
-              }}
-            >
-              <div
-                onClick={() => handleChange(i, "checked", !item.checked)}
-                style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "50%",
-                  background: item.checked ? "var(--secondary)" : "var(--bg)",
-                  border: `2px solid ${item.checked ? "var(--secondary)" : "var(--border)"}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  zIndex: 2,
-                  transition: "all 0.2s ease",
-                }}
-              >
-                {item.checked && <CheckCircle2 size={16} color="white" />}
-              </div>
-              <div
-                className="card"
-                style={{
-                  flex: 1,
-                  padding: "16px 20px",
-                  borderLeft: `4px solid ${item.isStudy ? "var(--accent)" : "var(--warning)"}`,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: "10px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      flex: 1,
-                    }}
-                  >
-                    <input
-                      type="time"
-                      value={item.time}
-                      onChange={(e) => handleChange(i, "time", e.target.value)}
-                      style={{
-                        background: "rgba(99, 102, 241, 0.08)",
-                        border: "none",
-                        color: "var(--text-main)",
-                        fontWeight: 600,
-                        padding: "6px 10px",
-                        borderRadius: "8px",
-                        outline: "none",
-                        cursor: "pointer",
-                      }}
-                    />
-                    <input
-                      type="text"
-                      value={item.activity}
-                      onChange={(e) =>
-                        handleChange(i, "activity", e.target.value)
-                      }
-                      style={{
-                        border: "none",
-                        fontWeight: 600,
-                        flex: 1,
-                        marginLeft: "12px",
-                        background: "transparent",
-                        color: item.checked
-                          ? "var(--text-muted)"
-                          : "var(--text-main)",
-                        textDecoration: item.checked ? "line-through" : "none",
-                        outline: "none",
-                      }}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                    }}
-                  >
-                    <button
-                      onClick={() => handleChange(i, "isStudy", !item.isStudy)}
-                      style={{
-                        background: item.isStudy
-                          ? "rgba(99, 102, 241, 0.1)"
-                          : "rgba(245, 158, 11, 0.1)",
-                        color: item.isStudy
-                          ? "var(--accent)"
-                          : "var(--warning)",
-                        border: "none",
+                        background: "rgba(99, 102, 241, 0.1)",
+                        color: "var(--accent)",
                         padding: "4px 10px",
-                        borderRadius: "20px",
+                        borderRadius: "12px",
                         fontSize: "11px",
-                        fontWeight: 700,
-                        cursor: "pointer",
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {test.category} {test.exam_type}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      marginBottom: "20px",
+                      display: "flex",
+                      gap: "16px",
+                      fontSize: "13px",
+                      color: "var(--text-muted)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span
+                      style={{
                         display: "flex",
                         alignItems: "center",
                         gap: "4px",
                       }}
                     >
-                      {item.isStudy ? (
-                        <BookOpen size={12} />
-                      ) : (
-                        <Coffee size={12} />
-                      )}{" "}
-                      {item.isStudy ? "Study Session" : "Break"}
-                    </button>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => deleteTask(i)}
+                      <Clock size={14} color="var(--accent)" /> {totalMins} Mins
+                      (Sectional)
+                    </span>
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
                     >
-                      <Trash2 size={16} />
-                    </button>
+                      <FileText size={14} color="var(--secondary)" />{" "}
+                      {totalQuestions} Qs
+                    </span>
                   </div>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    background: "var(--bg)",
-                    borderRadius: "8px",
-                    padding: "0 12px",
-                    marginTop: "12px",
-                  }}
-                >
-                  <FileText size={14} color="var(--text-muted)" />
-                  <input
-                    type="text"
-                    placeholder="Add specific notes, targets, or links for this block..."
-                    value={item.notes}
-                    onChange={(e) => handleChange(i, "notes", e.target.value)}
+
+                  <div
+                    style={{
+                      background: "rgba(0,0,0,0.02)",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      marginBottom: "24px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        display: "block",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      Section Timings
+                    </span>
+                    <div
+                      style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
+                    >
+                      {test.sections.map((sec, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            fontSize: "11px",
+                            padding: "2px 8px",
+                            background: "var(--bg)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "4px",
+                            color: "var(--text-main)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {sec.name}: {sec.duration}m
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    className={`btn ${hasAttempted ? "btn-outline" : ""}`}
                     style={{
                       width: "100%",
-                      border: "none",
-                      background: "transparent",
-                      padding: "10px",
-                      fontSize: "13px",
-                      color: "var(--text-main)",
-                      outline: "none",
+                      justifyContent: "center",
+                      marginTop: "auto",
+                      padding: "12px",
+                      fontWeight: 700,
+                      borderRadius: "10px",
                     }}
-                  />
-                </div>
+                    onClick={() => startExam(test)}
+                  >
+                    {hasAttempted ? (
+                      <>
+                        <RotateCcw size={16} /> Reattempt Test
+                      </>
+                    ) : (
+                      <>
+                        <Play size={16} /> Start Test
+                      </>
+                    )}
+                  </button>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // --- VIEW 2: LIVE EXAM ---
+  if (view === "exam" && activeTest) {
+    const activeSection = activeTest.sections[activeSectionIndex];
+    const currentQuestion = activeSection.questions[currentQuestionIndex];
+    const isAnswered = !!answers[currentQuestion.id];
+    const isMarked = !!markedForReview[currentQuestion.id];
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "calc(100vh - 40px)",
+          minHeight: "600px",
+          background: "var(--bg)",
+          borderRadius: "16px",
+          border: "1px solid var(--border)",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.05)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px 28px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#ffffff",
+            gap: "16px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                fontSize: "18px",
+                fontWeight: 800,
+                margin: 0,
+                color: "var(--text-main)",
+              }}
+            >
+              {activeTest.name}
+            </h2>
+            <span
+              style={{
+                fontSize: "13px",
+                color: "var(--accent)",
+                fontWeight: 700,
+              }}
+            >
+              Section {activeSectionIndex + 1} of {activeTest.sections.length}:{" "}
+              {activeSection.name}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                background: "rgba(239, 68, 68, 0.08)",
+                color: "var(--danger)",
+                padding: "8px 16px",
+                borderRadius: "10px",
+                fontWeight: 800,
+                fontFamily: "monospace",
+                fontSize: "18px",
+                border: "1px solid rgba(239, 68, 68, 0.2)",
+              }}
+            >
+              <Clock size={18} /> {formatTime(sectionTimeLeft)}
+            </div>
+            <button
+              className="btn btn-outline"
+              style={{
+                borderColor: "var(--danger)",
+                color: "var(--danger)",
+                fontSize: "13px",
+                padding: "8px 16px",
+                borderRadius: "10px",
+              }}
+              onClick={submitExam}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Submitting..." : "Submit Test"}
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid var(--border)",
+            background: "rgba(0,0,0,0.02)",
+            overflowX: "auto",
+          }}
+        >
+          {activeTest.sections.map((sec, idx) => {
+            const isActive = idx === activeSectionIndex;
+            const isCompleted = idx < activeSectionIndex;
+            return (
+              <div
+                key={idx}
+                style={{
+                  padding: "14px 24px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  borderBottom: isActive
+                    ? "3px solid var(--accent)"
+                    : "3px solid transparent",
+                  color: isActive
+                    ? "var(--accent)"
+                    : isCompleted
+                      ? "var(--secondary)"
+                      : "var(--text-muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  background: isActive ? "#ffffff" : "transparent",
+                  cursor: "default",
+                  whiteSpace: "nowrap",
+                  transition: "all 0.2s",
+                }}
+              >
+                {isCompleted ? (
+                  <Check size={14} />
+                ) : idx > activeSectionIndex ? (
+                  <Lock size={12} />
+                ) : null}
+                {sec.name} ({sec.duration}m)
+              </div>
+            );
+          })}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            overflow: "hidden",
+            background: "#ffffff",
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              padding: "32px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                marginBottom: "24px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 800,
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Question {currentQuestionIndex + 1}{" "}
+                <span style={{ opacity: 0.5 }}>
+                  / {activeSection.questions.length}
+                </span>
+              </span>
+              <span
+                style={{
+                  fontSize: "12px",
+                  background: "rgba(99, 102, 241, 0.08)",
+                  color: "var(--accent)",
+                  padding: "4px 10px",
+                  borderRadius: "6px",
+                  fontWeight: 700,
+                }}
+              >
+                +1.00 | -0.25 Marks
+              </span>
+            </div>
+
+            <h3
+              style={{
+                fontSize: "18px",
+                lineHeight: 1.7,
+                fontWeight: 600,
+                color: "var(--text-main)",
+                marginBottom: "32px",
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {currentQuestion.text}
+            </h3>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "14px",
+                marginBottom: "32px",
+              }}
+            >
+              {currentQuestion.options.map((opt, i) => {
+                const isSelected = answers[currentQuestion.id] === opt;
+                return (
+                  <label
+                    key={i}
+                    onClick={() => handleSelectOption(currentQuestion.id, opt)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                      padding: "16px 20px",
+                      border: isSelected
+                        ? "2px solid var(--accent)"
+                        : "1px solid var(--border)",
+                      background: isSelected
+                        ? "rgba(99,102,241,0.04)"
+                        : "#ffffff",
+                      borderRadius: "12px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      boxShadow: isSelected
+                        ? "0 4px 12px rgba(99,102,241,0.1)"
+                        : "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        borderRadius: "50%",
+                        border: isSelected
+                          ? "6px solid var(--accent)"
+                          : "2px solid var(--border)",
+                        background: "#fff",
+                        transition: "all 0.2s ease",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: 500,
+                        color: "var(--text-main)",
+                      }}
+                    >
+                      {opt}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                marginTop: "auto",
+                paddingTop: "24px",
+                borderTop: "1px dashed var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "12px",
+              }}
+            >
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  className="btn btn-outline"
+                  style={{
+                    fontSize: "13px",
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                  }}
+                  onClick={() => toggleMarkForReview(currentQuestion.id)}
+                >
+                  <Bookmark
+                    size={16}
+                    fill={isMarked ? "currentColor" : "none"}
+                  />{" "}
+                  {isMarked ? "Unmark Review" : "Mark for Review"}
+                </button>
+                <button
+                  className="btn btn-outline"
+                  style={{
+                    fontSize: "13px",
+                    padding: "10px 16px",
+                    borderRadius: "8px",
+                    opacity: isAnswered ? 1 : 0.5,
+                  }}
+                  onClick={() => clearResponse(currentQuestion.id)}
+                  disabled={!isAnswered}
+                >
+                  Clear Response
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  className="btn btn-outline"
+                  onClick={() =>
+                    setCurrentIndex((prev) => Math.max(0, prev - 1))
+                  }
+                  disabled={currentQuestionIndex === 0}
+                  style={{
+                    padding: "10px 16px",
+                    fontSize: "14px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <ChevronLeft size={18} /> Prev
+                </button>
+                {currentQuestionIndex < activeSection.questions.length - 1 ? (
+                  <button
+                    className="btn"
+                    onClick={() => setCurrentIndex((prev) => prev + 1)}
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    Save & Next <ChevronRight size={18} />
+                  </button>
+                ) : (
+                  <button
+                    className="btn"
+                    onClick={handleNextSectionManual}
+                    style={{
+                      background: "var(--secondary)",
+                      color: "white",
+                      padding: "10px 20px",
+                      fontSize: "14px",
+                      border: "none",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    {activeSectionIndex < activeTest.sections.length - 1
+                      ? "Submit Section & Proceed"
+                      : "Final Submit Test"}
+                  </button>
+                )}
               </div>
             </div>
+          </div>
+
+          <div
+            style={{
+              width: "280px",
+              borderLeft: "1px solid var(--border)",
+              background: "rgba(0,0,0,0.015)",
+              display: "flex",
+              flexDirection: "column",
+              flexShrink: 0,
+            }}
+          >
+            <div
+              style={{
+                padding: "18px 20px",
+                borderBottom: "1px solid var(--border)",
+                fontWeight: 800,
+                fontSize: "14px",
+                color: "var(--text-main)",
+              }}
+            >
+              {activeSection.name} Palette
+            </div>
+            <div
+              style={{
+                padding: "20px",
+                flex: 1,
+                overflowY: "auto",
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: "10px",
+                alignContent: "start",
+              }}
+            >
+              {activeSection.questions.map((q, idx) => {
+                const isCurrent = idx === currentQuestionIndex;
+                const isAns = !!answers[q.id];
+                const isMrk = !!markedForReview[q.id];
+
+                let bg = "#ffffff",
+                  color = "var(--text-main)",
+                  border = "1px solid var(--border)";
+                if (isAns && isMrk) {
+                  bg = "#8b5cf6";
+                  color = "white";
+                  border = "1px solid #8b5cf6";
+                } else if (isAns) {
+                  bg = "#10b981";
+                  color = "white";
+                  border = "1px solid #10b981";
+                } else if (isMrk) {
+                  bg = "#f59e0b";
+                  color = "white";
+                  border = "1px solid #f59e0b";
+                }
+
+                if (isCurrent) {
+                  border = "2px solid var(--accent)";
+                  if (!isAns && !isMrk) {
+                    bg = "rgba(99,102,241,0.1)";
+                    color = "var(--accent)";
+                  }
+                }
+
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => setCurrentIndex(idx)}
+                    style={{
+                      aspectRatio: "1/1",
+                      borderRadius: "8px",
+                      background: bg,
+                      color: color,
+                      border: border,
+                      fontWeight: 700,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.15s ease",
+                      boxShadow: isCurrent
+                        ? "0 4px 8px rgba(0,0,0,0.1)"
+                        : "none",
+                    }}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderTop: "1px solid var(--border)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                fontSize: "12px",
+                fontWeight: 600,
+                background: "#ffffff",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
+                <div
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    background: "#10b981",
+                    borderRadius: "4px",
+                  }}
+                />{" "}
+                Answered
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
+                <div
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    background: "#f59e0b",
+                    borderRadius: "4px",
+                  }}
+                />{" "}
+                Marked for Review
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
+                <div
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    background: "#ffffff",
+                    border: "1px solid var(--border)",
+                    borderRadius: "4px",
+                  }}
+                />{" "}
+                Unattempted
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // --- VIEW 3: RESULT ---
+  if (view === "result" && activeTest) {
+    let totalScore = 0,
+      totalCorrect = 0,
+      totalIncorrect = 0,
+      totalUnattempted = 0;
+
+    const sectionStats = activeTest.sections.map((sec) => {
+      let secCorrect = 0,
+        secIncorrect = 0,
+        secUnattempted = 0;
+      sec.questions.forEach((q) => {
+        const uAns = answers[q.id];
+        if (!uAns) secUnattempted++;
+        else if (uAns === q.correctAnswer) secCorrect++;
+        else secIncorrect++;
+      });
+      const secScore = secCorrect * 1 - secIncorrect * 0.25;
+      totalCorrect += secCorrect;
+      totalIncorrect += secIncorrect;
+      totalUnattempted += secUnattempted;
+      totalScore += secScore;
+      return {
+        name: sec.name,
+        totalQ: sec.questions.length,
+        correct: secCorrect,
+        incorrect: secIncorrect,
+        unattempted: secUnattempted,
+        score: secScore,
+      };
+    });
+
+    return (
+      <div style={{ animation: "fadeIn 0.4s ease" }}>
+        <div className="page-header" style={{ marginBottom: "32px" }}>
+          <div>
+            <h1 style={{ fontSize: "28px", fontWeight: "800" }}>
+              Performance Report
+            </h1>
+            <p style={{ color: "var(--text-muted)", marginTop: "4px" }}>
+              Detailed scorecard for {activeTest.name}
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <button className="btn btn-outline" onClick={() => setView("list")}>
+              <ArrowLeft size={16} /> Back to Tests
+            </button>
+            <button
+              className="btn"
+              style={{ background: "var(--accent)" }}
+              onClick={openSolutions}
+            >
+              <Eye size={16} /> View Solutions
+            </button>
+
+            {onSaveScore && (
+              <button
+                className="btn"
+                style={{ background: "var(--secondary)" }}
+                onClick={() => {
+                  onSaveScore({
+                    name: activeTest.name,
+                    score: totalScore.toFixed(2),
+                    remarks: `Score: ${totalScore.toFixed(2)} (${totalCorrect}C / ${totalIncorrect}W)`,
+                  });
+                  setView("list");
+                }}
+              >
+                <Save size={16} /> Save to Tracker
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "20px",
+            marginBottom: "32px",
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              textAlign: "center",
+              padding: "32px",
+              borderRadius: "16px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                textTransform: "uppercase",
+              }}
+            >
+              Total Score
+            </span>
+            <h2
+              style={{
+                fontSize: "48px",
+                fontWeight: 800,
+                color: "var(--accent)",
+                margin: "12px 0 0 0",
+              }}
+            >
+              {totalScore.toFixed(2)}
+            </h2>
+          </div>
+          <div
+            className="card"
+            style={{
+              textAlign: "center",
+              padding: "32px",
+              borderRadius: "16px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                textTransform: "uppercase",
+              }}
+            >
+              Accuracy
+            </span>
+            <h2
+              style={{
+                fontSize: "48px",
+                fontWeight: 800,
+                color: "var(--secondary)",
+                margin: "12px 0 0 0",
+              }}
+            >
+              {(
+                (totalCorrect / (totalCorrect + totalIncorrect || 1)) *
+                100
+              ).toFixed(0)}
+              %
+            </h2>
+          </div>
+          <div
+            className="card"
+            style={{
+              textAlign: "center",
+              padding: "32px",
+              borderRadius: "16px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "13px",
+                fontWeight: 700,
+                color: "var(--text-muted)",
+                textTransform: "uppercase",
+              }}
+            >
+              Attempted
+            </span>
+            <h2
+              style={{
+                fontSize: "48px",
+                fontWeight: 800,
+                color: "var(--text-main)",
+                margin: "12px 0 0 0",
+              }}
+            >
+              {totalCorrect + totalIncorrect}{" "}
+              <span
+                style={{
+                  fontSize: "20px",
+                  color: "var(--text-muted)",
+                  fontWeight: 600,
+                }}
+              >
+                / {totalCorrect + totalIncorrect + totalUnattempted}
+              </span>
+            </h2>
+          </div>
+        </div>
+
+        <h3 style={{ fontSize: "18px", fontWeight: 800, marginBottom: "16px" }}>
+          Section-Wise Breakdown
+        </h3>
+        <div
+          className="card"
+          style={{
+            padding: 0,
+            overflow: "hidden",
+            marginBottom: "32px",
+            borderRadius: "16px",
+          }}
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "14px",
+                textAlign: "left",
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    background: "rgba(0,0,0,0.03)",
+                    borderBottom: "1px solid var(--border)",
+                    color: "var(--text-muted)",
+                    fontSize: "12px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  <th style={{ padding: "16px 24px" }}>Section Name</th>
+                  <th style={{ padding: "16px 24px" }}>Questions</th>
+                  <th style={{ padding: "16px 24px" }}>Correct</th>
+                  <th style={{ padding: "16px 24px" }}>Incorrect</th>
+                  <th style={{ padding: "16px 24px" }}>Unattempted</th>
+                  <th style={{ padding: "16px 24px" }}>Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sectionStats.map((sec, i) => (
+                  <tr
+                    key={i}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <td
+                      style={{
+                        padding: "16px 24px",
+                        fontWeight: 700,
+                        color: "var(--text-main)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {sec.name}
+                    </td>
+                    <td style={{ padding: "16px 24px" }}>{sec.totalQ}</td>
+                    <td
+                      style={{
+                        padding: "16px 24px",
+                        color: "var(--secondary)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {sec.correct}
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px 24px",
+                        color: "var(--danger)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {sec.incorrect}
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px 24px",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {sec.unattempted}
+                    </td>
+                    <td
+                      style={{
+                        padding: "16px 24px",
+                        fontWeight: 800,
+                        color: "var(--accent)",
+                        fontSize: "16px",
+                      }}
+                    >
+                      {sec.score.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- VIEW 4: SOLUTIONS ---
+  if (view === "solution" && activeTest) {
+    const activeSection = activeTest.sections[activeSectionIndex];
+    const currentQuestion = activeSection.questions[currentQuestionIndex];
+    const userAnswer = answers[currentQuestion.id];
+    const isCorrect = userAnswer === currentQuestion.correctAnswer;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "calc(100vh - 40px)",
+          minHeight: "600px",
+          background: "var(--bg)",
+          borderRadius: "16px",
+          border: "1px solid var(--border)",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.05)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px 28px",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#ffffff",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "18px",
+              fontWeight: 800,
+              margin: 0,
+              color: "var(--text-main)",
+            }}
+          >
+            Review Solutions: {activeTest.name}
+          </h2>
+          <button
+            className="btn btn-outline"
+            onClick={() => setView("result")}
+            style={{
+              fontSize: "13px",
+              padding: "8px 16px",
+              borderRadius: "10px",
+            }}
+          >
+            <ArrowLeft size={16} /> Back to Results
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid var(--border)",
+            background: "rgba(0,0,0,0.02)",
+            padding: "0 20px",
+            overflowX: "auto",
+          }}
+        >
+          {activeTest.sections.map((sec, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                setActiveSectionIndex(idx);
+                setCurrentIndex(0);
+              }}
+              style={{
+                padding: "14px 24px",
+                fontSize: "13px",
+                fontWeight: 700,
+                borderBottom:
+                  idx === activeSectionIndex
+                    ? "3px solid var(--accent)"
+                    : "3px solid transparent",
+                color:
+                  idx === activeSectionIndex
+                    ? "var(--accent)"
+                    : "var(--text-muted)",
+                background:
+                  idx === activeSectionIndex ? "#ffffff" : "transparent",
+                borderTop: "none",
+                borderLeft: "none",
+                borderRight: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "all 0.2s",
+              }}
+            >
+              {sec.name}
+            </button>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
 
-function QuantRotation({ quant = [] }) {
-  const { updateHistory } = useAppStore();
-  const handleChange = (index, field, value) => {
-    updateHistory({
-      quant: quant.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item,
-      ),
-    });
-  };
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Quant Rotation</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Track quantitative aptitude proficiency and formula revisions.
-          </p>
-        </div>
-      </div>
-      <div className="grid-4">
-        {quant.map((item, i) => (
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            overflow: "hidden",
+            background: "#ffffff",
+          }}
+        >
           <div
-            key={i}
-            className={`topic-card ${item.checked ? "checked" : ""}`}
+            style={{
+              flex: 1,
+              padding: "32px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+            }}
           >
-            <div className="topic-card-header">
-              <h4>{item.topic}</h4>
-              <input
-                type="checkbox"
-                className="custom-checkbox"
-                checked={item.checked}
-                onChange={(e) => handleChange(i, "checked", e.target.checked)}
-              />
+            <div
+              style={{
+                marginBottom: "20px",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 800,
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Question {currentQuestionIndex + 1}
+              </span>
+              <span
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  padding: "6px 12px",
+                  borderRadius: "8px",
+                  background: !userAnswer
+                    ? "rgba(0,0,0,0.05)"
+                    : isCorrect
+                      ? "rgba(16, 185, 129, 0.1)"
+                      : "rgba(239, 68, 68, 0.1)",
+                  color: !userAnswer
+                    ? "var(--text-muted)"
+                    : isCorrect
+                      ? "#10b981"
+                      : "#ef4444",
+                }}
+              >
+                {!userAnswer
+                  ? "Unattempted"
+                  : isCorrect
+                    ? "Correct (+1.00)"
+                    : "Incorrect (-0.25)"}
+              </span>
             </div>
-            <input
-              type="text"
-              className="custom-input"
-              placeholder="Formula / Errors..."
-              value={item.notes}
-              onChange={(e) => handleChange(i, "notes", e.target.value)}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
-function ReasoningRotation({ reasoning = [] }) {
-  const { updateHistory } = useAppStore();
-  const handleChange = (index, field, value) => {
-    updateHistory({
-      reasoning: reasoning.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item,
-      ),
-    });
-  };
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Reasoning Rotation</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Master high-priority reasoning concepts daily.
-          </p>
-        </div>
-      </div>
-      <div className="grid-4">
-        {reasoning.map((item, i) => (
+            <h3
+              style={{
+                fontSize: "18px",
+                lineHeight: 1.7,
+                fontWeight: 600,
+                color: "var(--text-main)",
+                marginBottom: "24px",
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {currentQuestion.text}
+            </h3>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "14px",
+                marginBottom: "32px",
+              }}
+            >
+              {currentQuestion.options.map((opt, i) => {
+                const isUsersChoice = userAnswer === opt;
+                const isActualCorrect = currentQuestion.correctAnswer === opt;
+                let borderColor = "var(--border)",
+                  bgColor = "#ffffff",
+                  icon = null;
+
+                if (isActualCorrect) {
+                  borderColor = "#10b981";
+                  bgColor = "rgba(16, 185, 129, 0.05)";
+                  icon = <CheckCircle2 size={20} color="#10b981" />;
+                } else if (isUsersChoice && !isActualCorrect) {
+                  borderColor = "#ef4444";
+                  bgColor = "rgba(239, 68, 68, 0.05)";
+                  icon = <XCircle size={20} color="#ef4444" />;
+                }
+
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "16px",
+                      padding: "16px 20px",
+                      border: `2px solid ${borderColor}`,
+                      background: bgColor,
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "15px",
+                        fontWeight: isActualCorrect ? 600 : 500,
+                        color: isActualCorrect ? "#10b981" : "var(--text-main)",
+                      }}
+                    >
+                      {opt}
+                    </span>
+                    {icon}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* MODERN EXPLANATION BLOCK */}
+            <div
+              style={{
+                padding: "24px",
+                background: "#F8F9FE",
+                borderLeft: "6px solid #6366f1",
+                borderRadius: "8px",
+                marginTop: "32px",
+                boxShadow: "0 2px 8px rgba(99, 102, 241, 0.04)",
+              }}
+            >
+              <h4
+                style={{
+                  margin: "0 0 16px 0",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  color: "#6366f1",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  letterSpacing: "0.3px",
+                }}
+              >
+                <Info size={20} strokeWidth={2.5} /> Explanation
+              </h4>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "15px",
+                  lineHeight: 1.8,
+                  color: "#374151",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {currentQuestion.explanation ||
+                  `The correct answer is "${currentQuestion.correctAnswer}". No detailed explanation provided for this question.`}
+              </p>
+            </div>
+
+            <div
+              style={{
+                paddingTop: "24px",
+                marginTop: "24px",
+                borderTop: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <button
+                className="btn btn-outline"
+                onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+                disabled={currentQuestionIndex === 0}
+                style={{ padding: "10px 16px", borderRadius: "8px" }}
+              >
+                <ChevronLeft size={16} /> Previous
+              </button>
+              <button
+                className="btn btn-outline"
+                onClick={() =>
+                  setCurrentIndex((prev) =>
+                    Math.min(activeSection.questions.length - 1, prev + 1),
+                  )
+                }
+                disabled={
+                  currentQuestionIndex === activeSection.questions.length - 1
+                }
+                style={{ padding: "10px 16px", borderRadius: "8px" }}
+              >
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+
           <div
-            key={i}
-            className={`topic-card ${item.checked ? "checked" : ""}`}
+            style={{
+              width: "280px",
+              borderLeft: "1px solid var(--border)",
+              background: "rgba(0,0,0,0.015)",
+              display: "flex",
+              flexDirection: "column",
+            }}
           >
-            <div className="topic-card-header">
-              <div>
-                <span className={`tier-badge tier-${item.tier?.slice(-1)}`}>
-                  {item.tier}
-                </span>
-                <h4>{item.topic}</h4>
-              </div>
-              <input
-                type="checkbox"
-                className="custom-checkbox"
-                checked={item.checked}
-                onChange={(e) => handleChange(i, "checked", e.target.checked)}
-              />
+            <div
+              style={{
+                padding: "18px 20px",
+                borderBottom: "1px solid var(--border)",
+                fontWeight: 800,
+                fontSize: "14px",
+              }}
+            >
+              Question Map
             </div>
-            <input
-              type="text"
-              className="custom-input"
-              placeholder="Tricks / Notes..."
-              value={item.notes}
-              onChange={(e) => handleChange(i, "notes", e.target.value)}
-            />
+            <div
+              style={{
+                padding: "20px",
+                flex: 1,
+                overflowY: "auto",
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: "10px",
+                alignContent: "start",
+              }}
+            >
+              {activeSection.questions.map((q, idx) => {
+                const uAns = answers[q.id];
+                const isCurr = idx === currentQuestionIndex;
+                let bg = "#ffffff",
+                  color = "var(--text-main)",
+                  border = "1px solid var(--border)";
+
+                if (!uAns) {
+                  bg = "#f3f4f6";
+                  border = "1px solid var(--border)";
+                } else if (uAns === q.correctAnswer) {
+                  bg = "#10b981";
+                  color = "white";
+                  border = "1px solid #10b981";
+                } else {
+                  bg = "#ef4444";
+                  color = "white";
+                  border = "1px solid #ef4444";
+                }
+                if (isCurr) border = "2px solid #000";
+
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => setCurrentIndex(idx)}
+                    style={{
+                      aspectRatio: "1/1",
+                      borderRadius: "8px",
+                      background: bg,
+                      color: color,
+                      border: border,
+                      fontWeight: 700,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
+        </div>
+      </motion.div>
+    );
+  }
+
+  return null;
 }
 
-function MockTracker() {
-  const { mocks, setMocks, selectedDate, notify } = useAppStore();
-  const addMock = () => {
-    setMocks([
-      {
-        id: Date.now().toString(),
-        date: selectedDate,
-        name: "",
-        score: "",
-        remarks: "",
-      },
-      ...mocks,
-    ]);
-    notify("New Mock Test card added.", "info");
+// =========================================================================
+// 3. MOCK TRACKER COMPONENT (Scoped to `user`)
+// =========================================================================
+export function MockTracker({ user, mocks, setMocks, isLoadingLogs }) {
+  // Create a record scoped to the logged-in user
+  const addMock = async () => {
+    if (!user) {
+      alert("Please sign in to add custom mock records.");
+      return;
+    }
+
+    const newMock = {
+      user_id: user.id, // Associate record with user
+      date: new Date().toISOString().split("T")[0],
+      name: "",
+      score: "",
+      remarks: "",
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from("mock_logs")
+        .insert([newMock])
+        .select();
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setMocks((prev) => [data[0], ...prev]);
+      }
+    } catch (err) {
+      console.error("Error creating new manual log:", err);
+    }
   };
-  const updateMock = (id, field, value) => {
-    setMocks(mocks.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
+
+  // Update local state instantly for smooth typing
+  const handleLocalUpdate = (id, field, value) => {
+    setMocks((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)),
+    );
   };
-  const deleteMock = (id) => {
-    setMocks(mocks.filter((m) => m.id !== id));
-    notify("Mock Test deleted.", "info");
+
+  // Push update to DB only for user's record
+  const handleDatabaseUpdate = async (id, field, value) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from("mock_logs")
+        .update({ [field]: value })
+        .eq("id", id)
+        .eq("user_id", user.id); // Guard query by user_id
+
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error updating database:", err);
+    }
+  };
+
+  // Delete record from DB
+  const deleteMock = async (id) => {
+    if (!user) return;
+    setMocks((prev) => prev.filter((m) => m.id !== id));
+
+    try {
+      const { error } = await supabase
+        .from("mock_logs")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id); // Guard query by user_id
+
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error deleting log:", err);
+    }
   };
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: "24px" }}>
         <div>
-          <h1 style={{ fontSize: "28px" }}>Mock Test Analytics</h1>
+          <h2 style={{ fontSize: "24px", fontWeight: 800 }}>
+            Mock Test Analytics
+          </h2>
           <p style={{ color: "var(--text-muted)" }}>
             Log mock tests to analyze your performance growth.
           </p>
         </div>
-        <button className="btn" onClick={addMock}>
-          <Plus size={16} /> Log New Test
+        <button className="btn" onClick={addMock} disabled={!user}>
+          <Plus size={16} /> Log Manual Test
         </button>
       </div>
-      {mocks.length === 0 ? (
+
+      {!user ? (
+        <div
+          className="card"
+          style={{
+            textAlign: "center",
+            padding: "40px 20px",
+            color: "var(--text-muted)",
+            borderRadius: "16px",
+          }}
+        >
+          <AlertCircle
+            size={36}
+            style={{ margin: "0 auto 12px auto", opacity: 0.5 }}
+          />
+          Please log in to view and manage your mock test analytics.
+        </div>
+      ) : isLoadingLogs ? (
+        <div
+          style={{
+            padding: "40px",
+            textAlign: "center",
+            color: "var(--text-muted)",
+          }}
+        >
+          <Loader2
+            size={36}
+            className="spinner"
+            style={{
+              margin: "0 auto 12px auto",
+              animation: "spin 1s linear infinite",
+            }}
+          />
+          <p>Loading your logs...</p>
+        </div>
+      ) : mocks.length === 0 ? (
         <div
           className="card"
           style={{
             textAlign: "center",
             padding: "60px 20px",
             color: "var(--text-muted)",
+            borderRadius: "16px",
           }}
         >
           <LineChart
@@ -3406,7 +1908,8 @@ function MockTracker() {
               display: "block",
             }}
           />
-          No mock tests logged yet. Click "Log New Test" to begin tracking.
+          No mock tests logged yet. Take a test above or click "Log Manual
+          Test".
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -3419,8 +1922,10 @@ function MockTracker() {
                 overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
+                borderRadius: "16px",
               }}
             >
+              {/* TOP HEADER ROW */}
               <div
                 style={{
                   padding: "16px 24px",
@@ -3442,6 +1947,7 @@ function MockTracker() {
                     minWidth: "300px",
                   }}
                 >
+                  {/* DATE */}
                   <div
                     style={{
                       display: "flex",
@@ -3463,11 +1969,23 @@ function MockTracker() {
                     <input
                       type="date"
                       className="custom-input"
-                      value={m.date}
-                      onChange={(e) => updateMock(m.id, "date", e.target.value)}
-                      style={{ padding: "8px", fontSize: "13px" }}
+                      value={m.date || ""}
+                      onChange={(e) =>
+                        handleLocalUpdate(m.id, "date", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleDatabaseUpdate(m.id, "date", e.target.value)
+                      }
+                      style={{
+                        padding: "8px",
+                        fontSize: "13px",
+                        borderRadius: "6px",
+                        border: "1px solid var(--border)",
+                      }}
                     />
                   </div>
+
+                  {/* NAME */}
                   <div
                     style={{
                       display: "flex",
@@ -3490,32 +2008,46 @@ function MockTracker() {
                       type="text"
                       className="custom-input"
                       placeholder="e.g. IBPS PO Prelims Mock 1"
-                      value={m.name}
-                      onChange={(e) => updateMock(m.id, "name", e.target.value)}
+                      value={m.name || ""}
+                      onChange={(e) =>
+                        handleLocalUpdate(m.id, "name", e.target.value)
+                      }
+                      onBlur={(e) =>
+                        handleDatabaseUpdate(m.id, "name", e.target.value)
+                      }
                       style={{
                         padding: "8px",
                         fontSize: "15px",
                         fontWeight: 600,
                         border: "none",
                         background: "transparent",
+                        outline: "none",
                       }}
                     />
                   </div>
                 </div>
+
+                {/* DELETE BUTTON */}
                 <button
-                  className="icon-btn-minimal"
                   onClick={() => deleteMock(m.id)}
                   style={{
                     color: "var(--danger)",
                     background: "rgba(239,68,68,0.1)",
+                    border: "none",
                     borderRadius: "8px",
                     width: "36px",
                     height: "36px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
                   }}
                 >
                   <Trash2 size={16} />
                 </button>
               </div>
+
+              {/* BOTTOM CONTENT ROW */}
               <div
                 style={{
                   display: "flex",
@@ -3525,6 +2057,7 @@ function MockTracker() {
                   flexWrap: "wrap",
                 }}
               >
+                {/* SCORE */}
                 <div
                   style={{
                     display: "flex",
@@ -3546,16 +2079,25 @@ function MockTracker() {
                     type="number"
                     className="custom-input"
                     placeholder="00.00"
-                    value={m.score}
-                    onChange={(e) => updateMock(m.id, "score", e.target.value)}
+                    value={m.score || ""}
+                    onChange={(e) =>
+                      handleLocalUpdate(m.id, "score", e.target.value)
+                    }
+                    onBlur={(e) =>
+                      handleDatabaseUpdate(m.id, "score", e.target.value)
+                    }
                     style={{
                       fontSize: "24px",
                       fontWeight: 800,
                       padding: "12px",
                       color: "var(--text-main)",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
                     }}
                   />
                 </div>
+
+                {/* REMARKS */}
                 <div
                   style={{
                     display: "flex",
@@ -3580,1983 +2122,28 @@ function MockTracker() {
                   <textarea
                     className="custom-input"
                     placeholder="What went wrong? e.g. Silly mistake in Syllogism..."
-                    value={m.remarks}
+                    value={m.remarks || ""}
                     onChange={(e) =>
-                      updateMock(m.id, "remarks", e.target.value)
+                      handleLocalUpdate(m.id, "remarks", e.target.value)
+                    }
+                    onBlur={(e) =>
+                      handleDatabaseUpdate(m.id, "remarks", e.target.value)
                     }
                     rows="2"
                     style={{
                       background: "rgba(99, 102, 241, 0.03)",
                       border: "1px dashed var(--border)",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HabitTracker() {
-  const {
-    selectedDate,
-    habits,
-    baseHabits,
-    setAppData,
-    notify,
-    requestConfirm,
-  } = useAppStore();
-  const scrollRef = useRef(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const dateParts = (selectedDate || getFormattedDateStr()).split("-");
-  const year = parseInt(dateParts[0], 10),
-    month = parseInt(dateParts[1], 10) - 1;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthName = new Date(year, month, 1).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
-
-  const currentHabits =
-    habits[monthKey] ||
-    (baseHabits || []).map((h) => ({
-      name: h,
-      days: Array(daysInMonth).fill(""),
-    }));
-  const updateHabits = (newHabits) =>
-    setAppData((state) => ({
-      ...state,
-      baseHabits: newHabits.map((h) => h.name),
-      habits: { ...state.habits, [monthKey]: newHabits },
-    }));
-
-  const toggleHabit = (hIndex, dIndex) => {
-    const newHabits = [...currentHabits];
-    const existingDays = newHabits[hIndex].days
-      ? [...newHabits[hIndex].days]
-      : Array(daysInMonth).fill("");
-    while (existingDays.length < daysInMonth) existingDays.push("");
-    const currentState = existingDays[dIndex];
-    let nextState = "";
-    if (currentState === "done" || currentState === true) nextState = "partial";
-    else if (currentState === "partial") nextState = "missed";
-    else if (currentState === "missed") nextState = "";
-    else nextState = "done";
-    existingDays[dIndex] = nextState;
-    newHabits[hIndex] = { ...newHabits[hIndex], days: existingDays };
-    updateHabits(newHabits);
-  };
-  const handleNameChange = (hIndex, val) => {
-    const newHabits = [...currentHabits];
-    newHabits[hIndex].name = val;
-    updateHabits(newHabits);
-  };
-  const deleteHabit = (hIndex) => {
-    requestConfirm("Remove this habit?", () => {
-      updateHabits(currentHabits.filter((_, i) => i !== hIndex));
-      notify("Habit deleted", "info");
-    });
-  };
-  const addHabit = () => {
-    updateHabits([
-      ...currentHabits,
-      { name: "New Habit", days: Array(daysInMonth).fill("") },
-    ]);
-    setIsEditing(true);
-    notify("New habit added", "success");
-  };
-  const handleScroll = (amount) => {
-    if (scrollRef.current)
-      scrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
-  };
-  const leftColWidth = 200;
-  const cellSize = 34;
-  const cellGap = 8;
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: "28px" }}>Habits Heatmap</h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            Consistency calendar for <strong>{monthName}</strong> ({daysInMonth}{" "}
-            Days)
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button
-            className={`btn ${isEditing ? "" : "btn-outline"}`}
-            onClick={() => setIsEditing(!isEditing)}
-          >
-            {isEditing ? <CheckSquare size={16} /> : <Edit3 size={16} />}
-            <span>{isEditing ? "Done Editing" : "Edit Habits"}</span>
-          </button>
-          <button className="btn" onClick={addHabit}>
-            <Plus size={16} /> Add Habit
-          </button>
-        </div>
-      </div>
-      <div
-        className="card"
-        style={{ padding: "24px", overflow: "hidden", position: "relative" }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: "8px",
-            marginBottom: "16px",
-          }}
-        >
-          <button
-            className="icon-btn-minimal"
-            onClick={() => handleScroll(-300)}
-            style={{ border: "1px solid var(--border)" }}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            className="icon-btn-minimal"
-            onClick={() => handleScroll(300)}
-            style={{ border: "1px solid var(--border)" }}
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-        <div style={{ display: "flex", width: "100%" }}>
-          <div
-            style={{
-              flex: `0 0 ${leftColWidth}px`,
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-              borderRight: "1px solid var(--border)",
-              paddingRight: "16px",
-              zIndex: 2,
-            }}
-          >
-            <div style={{ height: "24px", marginBottom: "16px" }}></div>
-            {currentHabits.map((h, hIndex) => (
-              <div
-                key={hIndex}
-                style={{
-                  height: `${cellSize}px`,
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                {isEditing ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      width: "100%",
-                    }}
-                  >
-                    <input
-                      type="text"
-                      className="custom-input"
-                      style={{
-                        padding: "4px 8px",
-                        fontSize: "13px",
-                        width: "100%",
-                      }}
-                      value={h.name}
-                      onChange={(e) => handleNameChange(hIndex, e.target.value)}
-                    />
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => deleteHabit(hIndex)}
-                    >
-                      <Trash2 size={14} color="var(--danger)" />
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                    title={h.name}
-                  >
-                    {h.name}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <div
-            ref={scrollRef}
-            style={{
-              flex: 1,
-              overflowX: "auto",
-              paddingLeft: "16px",
-              scrollBehavior: "smooth",
-            }}
-          >
-            <div style={{ minWidth: "max-content", paddingRight: "16px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  gap: `${cellGap}px`,
-                  marginBottom: "16px",
-                }}
-              >
-                {Array.from({ length: daysInMonth }, (_, i) => {
-                  const isToday =
-                    i + 1 === new Date().getDate() &&
-                    month === new Date().getMonth();
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        width: `${cellSize}px`,
-                        textAlign: "center",
-                        fontSize: "12px",
-                        fontWeight: isToday ? 800 : 600,
-                        color: isToday ? "var(--accent)" : "var(--text-muted)",
-                        background: isToday
-                          ? "rgba(99, 102, 241, 0.1)"
-                          : "transparent",
-                        borderRadius: "6px",
-                        height: "24px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {i + 1}
-                    </div>
-                  );
-                })}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                {currentHabits.map((h, hIndex) => (
-                  <div
-                    key={hIndex}
-                    style={{ display: "flex", gap: `${cellGap}px` }}
-                  >
-                    {Array.from({ length: daysInMonth }, (_, dIndex) => {
-                      const state = h.days && h.days[dIndex];
-                      let cellBg = "var(--bg)";
-                      let cellBorder = "1px solid var(--border)";
-                      let content = null;
-                      if (state === "done" || state === true) {
-                        cellBg = "#10b981";
-                        cellBorder = "1px solid #10b981";
-                        content = <CheckCircle2 size={16} color="#fff" />;
-                      } else if (state === "partial") {
-                        cellBg = "#f59e0b";
-                        cellBorder = "1px solid #f59e0b";
-                        content = (
-                          <Minus size={16} color="#fff" strokeWidth={3} />
-                        );
-                      } else if (state === "missed") {
-                        cellBg = "#ef4444";
-                        cellBorder = "1px solid #ef4444";
-                        content = <X size={16} color="#fff" strokeWidth={3} />;
-                      }
-                      return (
-                        <motion.div
-                          whileHover={{ scale: 1.15 }}
-                          whileTap={{ scale: 0.9 }}
-                          key={dIndex}
-                          onClick={() => toggleHabit(hIndex, dIndex)}
-                          style={{
-                            width: `${cellSize}px`,
-                            height: `${cellSize}px`,
-                            borderRadius: "8px",
-                            background: cellBg,
-                            border: cellBorder,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease",
-                          }}
-                        >
-                          {content}
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SettingsView() {
-  const {
-    user,
-    logout,
-    premiumData,
-    setPremiumData,
-    requestConfirm,
-    deleteAccount,
-  } = useAppStore();
-  const displayName = user?.user_metadata?.display_username || "Aspirant";
-
-  return (
-    <div className="card" style={{ maxWidth: 600 }}>
-      <h1 style={{ fontSize: "24px", marginBottom: "8px" }}>
-        Account & Application Settings
-      </h1>
-      <p style={{ color: "var(--text-muted)", marginBottom: 32 }}>
-        Manage your profile credentials and local data preference.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <div
-          style={{ borderBottom: "1px solid var(--border)", paddingBottom: 24 }}
-        >
-          <label
-            style={{
-              fontWeight: 700,
-              display: "block",
-              marginBottom: 12,
-              fontSize: "15px",
-              color: "var(--text-main)",
-            }}
-          >
-            Active Aspirant Account
-          </label>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div
-              style={{
-                width: "56px",
-                height: "56px",
-                background: "rgba(99, 102, 241, 0.1)",
-                borderRadius: "8px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--accent)",
-              }}
-            >
-              <ShieldCheck size={28} />
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                gap: "6px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "22px",
-                  color: "var(--text-main)",
-                  fontWeight: 800,
-                  lineHeight: 1,
-                }}
-              >
-                {displayName}
-              </div>
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#10b981",
-                  fontWeight: 700,
-                  lineHeight: 1,
-                }}
-              >
-                Cloud Real-Time Sync Active
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          style={{ borderBottom: "1px solid var(--border)", paddingBottom: 24 }}
-        >
-          <label style={{ fontWeight: 600, display: "block", marginBottom: 8 }}>
-            Target Exam Date
-          </label>
-          <input
-            type="date"
-            className="custom-input"
-            value={premiumData?.examDate || ""}
-            onChange={(e) =>
-              setPremiumData((p) => ({ ...p, examDate: e.target.value }))
-            }
-            style={{ maxWidth: "300px" }}
-          />
-        </div>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <button className="btn btn-outline" onClick={logout}>
-            <LogOut size={16} /> Sign Out Account
-          </button>
-        </div>
-        <div
-          style={{
-            marginTop: "24px",
-            paddingTop: "24px",
-            borderTop: "1px solid var(--border)",
-          }}
-        >
-          <h3
-            style={{
-              color: "var(--danger)",
-              fontSize: "16px",
-              marginBottom: "8px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <ShieldAlert size={18} /> Danger Zone
-          </h3>
-          <p
-            style={{
-              fontSize: "13px",
-              color: "var(--text-muted)",
-              marginBottom: "16px",
-              lineHeight: "1.6",
-            }}
-          >
-            This will immediately and permanently delete your account, wipe all
-            your cloud dictionary entries, and clear your local storage.
-          </p>
-          <button
-            className="btn btn-danger"
-            style={{
-              background: "var(--danger)",
-              color: "white",
-              border: "none",
-            }}
-            onClick={() =>
-              requestConfirm(
-                "Delete your account and wipe ALL cloud data permanently? This CANNOT be undone.",
-                deleteAccount,
-              )
-            }
-          >
-            <Trash2 size={16} /> Delete Account & Data
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- STANDARD PDF VIEWER ---
-function StudyMaterialsModule() {
-  const { user, notify } = useAppStore();
-  const [documents, setDocuments] = useState([]);
-  const [selectedDoc, setSelectedDoc] = useState(null);
-  const [notes, setNotes] = useState([]);
-  const [uploading, setUploading] = useState(false);
-  const [newNote, setNewNote] = useState("");
-  const [pageNumber, setPageNumber] = useState(1);
-  const [showLibrary, setShowLibrary] = useState(true);
-  const [showNotes, setShowNotes] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  const isAdmin =
-    user?.user_metadata?.display_username ===
-    import.meta.env.VITE_ADMIN_USERNAME;
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
-  useEffect(() => {
-    if (selectedDoc) {
-      fetchNotes(selectedDoc.id);
-    }
-  }, [selectedDoc]);
-
-  const fetchDocuments = async () => {
-    const { data, error } = await supabase
-      .from("documents")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      notify("Failed to load PDFs.", "error");
-    } else {
-      setDocuments(data || []);
-      if (data && data.length > 0 && !selectedDoc) {
-        setSelectedDoc(data[0]);
-      }
-    }
-  };
-
-  const fetchNotes = async (docId) => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from("document_notes")
-      .select("*")
-      .eq("document_id", docId)
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-    if (!error) setNotes(data || []);
-  };
-
-  const handleFileUpload = async (event) => {
-    if (!isAdmin) return notify("Only the admin can upload PDFs.", "error");
-    try {
-      setUploading(true);
-      const file = event.target.files[0];
-      if (!file || file.type !== "application/pdf")
-        return notify("Please select a valid PDF file.", "error");
-      const filePath = `${Date.now()}.${file.name.split(".").pop()}`;
-      const { error: uploadError } = await supabase.storage
-        .from("pdf-files")
-        .upload(filePath, file);
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage
-        .from("pdf-files")
-        .getPublicUrl(filePath);
-      const { error: dbError } = await supabase.from("documents").insert([
-        {
-          title: file.name.replace(".pdf", ""),
-          file_path: filePath,
-          file_url: urlData.publicUrl,
-        },
-      ]);
-      if (dbError) throw dbError;
-      notify("PDF uploaded successfully!", "success");
-      fetchDocuments();
-    } catch (error) {
-      notify("Upload failed: " + error.message, "error");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleDeleteDoc = async (id, filePath) => {
-    if (!isAdmin) return;
-    try {
-      await supabase.storage.from("pdf-files").remove([filePath]);
-      await supabase.from("documents").delete().eq("id", id);
-      notify("Document removed.", "info");
-      if (selectedDoc?.id === id) setSelectedDoc(null);
-      fetchDocuments();
-    } catch (err) {
-      notify("Failed to delete document.", "error");
-    }
-  };
-
-  const handleAddNote = async (e) => {
-    e.preventDefault();
-    if (!newNote.trim() || !selectedDoc || !user) return;
-    const { error } = await supabase.from("document_notes").insert([
-      {
-        document_id: selectedDoc.id,
-        user_id: user.id,
-        content: newNote,
-        page_number: parseInt(pageNumber) || 1,
-      },
-    ]);
-    if (error) {
-      notify("Failed to save note.", "error");
-    } else {
-      setNewNote("");
-      fetchNotes(selectedDoc.id);
-      notify("Note saved!", "success");
-    }
-  };
-
-  const handleDeleteNote = async (id) => {
-    await supabase.from("document_notes").delete().eq("id", id);
-    fetchNotes(selectedDoc.id);
-  };
-
-  return (
-    <div
-      style={
-        isFullscreen
-          ? {
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 99999,
-              display: "flex",
-              background: "var(--bg)",
-              animation: "fadeIn 0.2s",
-            }
-          : {
-              display: "flex",
-              height: "calc(100vh - 80px)",
-              background: "var(--bg)",
-              borderRadius: "16px",
-              overflow: "hidden",
-              border: "1px solid var(--border)",
-              animation: "fadeIn 0.5s ease",
-            }
-      }
-    >
-      {showLibrary && (
-        <div
-          style={{
-            width: "280px",
-            borderRight: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            background: "rgba(0,0,0,0.02)",
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              padding: "20px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "16px",
-                fontWeight: 700,
-                margin: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <BookOpen size={18} color="var(--accent)" /> Library
-            </h2>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {isAdmin && (
-                <label
-                  className="btn"
-                  style={{
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    height: "30px",
-                    margin: 0,
-                  }}
-                >
-                  <UploadCloud size={14} />
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={handleFileUpload}
-                    style={{ display: "none" }}
-                    disabled={uploading}
-                  />
-                </label>
-              )}
-              <button
-                className="icon-btn-minimal"
-                onClick={() => setShowLibrary(false)}
-                title="Close Library"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-          <div
-            className="scroll-area"
-            style={{
-              flex: 1,
-              padding: "12px",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-          >
-            {uploading && (
-              <div
-                style={{
-                  padding: "12px",
-                  textAlign: "center",
-                  fontSize: "12px",
-                  color: "var(--accent)",
-                  background: "rgba(99,102,241,0.1)",
-                  borderRadius: "8px",
-                }}
-              >
-                Uploading PDF...
-              </div>
-            )}
-            {documents.length === 0 && !uploading && (
-              <p
-                style={{
-                  textAlign: "center",
-                  fontSize: "13px",
-                  color: "var(--text-muted)",
-                  marginTop: "20px",
-                }}
-              >
-                No documents available.
-              </p>
-            )}
-            {documents.map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => setSelectedDoc(doc)}
-                className="dash-list-item"
-                style={{
-                  cursor: "pointer",
-                  background:
-                    selectedDoc?.id === doc.id
-                      ? "rgba(99,102,241,0.1)"
-                      : "transparent",
-                  border:
-                    selectedDoc?.id === doc.id
-                      ? "1px solid rgba(99,102,241,0.3)"
-                      : "1px solid transparent",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    overflow: "hidden",
-                  }}
-                >
-                  <FileText
-                    size={16}
-                    color={
-                      selectedDoc?.id === doc.id
-                        ? "var(--accent)"
-                        : "var(--text-muted)"
-                    }
-                  />
-                  <span
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {doc.title}
-                  </span>
-                </div>
-                {isAdmin && (
-                  <button
-                    className="icon-btn-minimal"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteDoc(doc.id, doc.file_path);
-                    }}
-                    style={{ color: "var(--danger)", padding: "4px" }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-          position: "relative",
-        }}
-      >
-        {selectedDoc ? (
-          <>
-            <div
-              style={{
-                padding: "12px 24px",
-                borderBottom: "1px solid var(--border)",
-                background: "var(--bg)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
-              >
-                {!showLibrary && (
-                  <button
-                    className="icon-btn-minimal"
-                    onClick={() => setShowLibrary(true)}
-                    title="Show Library"
-                    style={{ border: "1px solid var(--border)" }}
-                  >
-                    <BookOpen size={16} />
-                  </button>
-                )}
-                <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: "14px",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {selectedDoc.title}
-                </span>
-              </div>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "12px" }}
-              >
-                <span
-                  style={{
-                    fontSize: "11px",
-                    padding: "4px 10px",
-                    background: "rgba(245,158,11,0.1)",
-                    color: "var(--warning)",
-                    borderRadius: "12px",
-                    fontWeight: 700,
-                  }}
-                >
-                  READ ONLY
-                </span>
-                <button
-                  className="icon-btn-minimal"
-                  onClick={() => setIsFullscreen(!isFullscreen)}
-                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Viewer"}
-                  style={{ border: "1px solid var(--border)" }}
-                >
-                  {isFullscreen ? (
-                    <Minimize size={16} />
-                  ) : (
-                    <Maximize size={16} />
-                  )}
-                </button>
-                {!showNotes && (
-                  <button
-                    className="icon-btn-minimal"
-                    onClick={() => setShowNotes(true)}
-                    title="Show Notes"
-                    style={{ border: "1px solid var(--border)" }}
-                  >
-                    <Edit3 size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                padding: isFullscreen ? "0" : "16px",
-                background: "rgba(0,0,0,0.05)",
-              }}
-            >
-              <object
-                data={`${selectedDoc.file_url}#toolbar=0&navpanes=0`}
-                type="application/pdf"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  borderRadius: isFullscreen ? "0" : "12px",
-                  border: isFullscreen ? "none" : "1px solid var(--border)",
-                  boxShadow: isFullscreen
-                    ? "none"
-                    : "0 10px 30px rgba(0,0,0,0.1)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  <p>Unable to render PDF preview directly.</p>
-                  <a
-                    href={selectedDoc.file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      color: "var(--accent)",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    Open PDF in new tab
-                  </a>
-                </div>
-              </object>
-            </div>
-          </>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "var(--text-muted)",
-            }}
-          >
-            <FileText
-              size={48}
-              style={{ opacity: 0.2, marginBottom: "16px" }}
-            />
-            <p>Select a document from the library to start reading.</p>
-            {!showLibrary && (
-              <button
-                className="btn btn-outline"
-                style={{ marginTop: "16px" }}
-                onClick={() => setShowLibrary(true)}
-              >
-                <BookOpen size={16} /> Open Library
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-      {showNotes && (
-        <div
-          style={{
-            width: "320px",
-            borderLeft: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--bg)",
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              padding: "20px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Edit3 size={18} color="var(--accent)" />
-              <h3 style={{ fontSize: "16px", fontWeight: 700, margin: 0 }}>
-                My Notes
-              </h3>
-            </div>
-            <button
-              className="icon-btn-minimal"
-              onClick={() => setShowNotes(false)}
-              title="Close Notes"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <form
-            onSubmit={handleAddNote}
-            style={{
-              padding: "16px",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-            }}
-          >
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <span
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  color: "var(--text-muted)",
-                }}
-              >
-                Page
-              </span>
-              <input
-                type="number"
-                min="1"
-                value={pageNumber}
-                onChange={(e) => setPageNumber(e.target.value)}
-                className="custom-input"
-                style={{ width: "60px", padding: "6px", textAlign: "center" }}
-              />
-            </div>
-            <textarea
-              rows="3"
-              placeholder="Write personal takeaways here..."
-              className="custom-input"
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              style={{ resize: "none" }}
-            />
-            <button
-              type="submit"
-              className="btn"
-              disabled={!selectedDoc || !newNote.trim()}
-              style={{ width: "100%", justifyContent: "center" }}
-            >
-              <Plus size={16} /> Save Note
-            </button>
-          </form>
-          <div
-            className="scroll-area"
-            style={{
-              flex: 1,
-              padding: "16px",
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-            }}
-          >
-            {notes.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  color: "var(--text-muted)",
-                  marginTop: "20px",
-                  padding: "20px",
-                }}
-              >
-                <MessageSquare
-                  size={32}
-                  style={{ opacity: 0.2, margin: "0 auto 12px auto" }}
-                />
-                <p style={{ fontSize: "13px" }}>
-                  No notes saved for this document.
-                </p>
-              </div>
-            ) : (
-              notes.map((note) => (
-                <div
-                  key={note.id}
-                  className="card"
-                  style={{
-                    padding: "16px",
-                    background: "rgba(0,0,0,0.02)",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        color: "var(--accent)",
-                        background: "rgba(99,102,241,0.1)",
-                        padding: "4px 8px",
-                        borderRadius: "8px",
-                      }}
-                    >
-                      PAGE {note.page_number}
-                    </span>
-                    <button
-                      className="icon-btn-minimal"
-                      onClick={() => handleDeleteNote(note.id)}
-                      style={{ color: "var(--text-muted)", padding: 0 }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      margin: 0,
-                      lineHeight: 1.5,
-                      color: "var(--text-main)",
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {note.content}
-                  </p>
-                  <span
-                    style={{
-                      fontSize: "10px",
-                      color: "var(--text-muted)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    {new Date(note.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- REDESIGNED: SMART DIGITAL NOTES BOARD MODULE ---
-function DigitalNotesBoard() {
-  const {
-    digitalNotes,
-    addDigitalNote,
-    updateDigitalNote,
-    deleteDigitalNote,
-    clearDigitalNotes,
-    notify,
-    requestConfirm,
-  } = useAppStore();
-
-  // Dual-Layer Filtering
-  const [topicFilter, setTopicFilter] = useState("All");
-  const [subtopicFilter, setSubtopicFilter] = useState("All");
-
-  const [draftNote, setDraftNote] = useState(null);
-  const boardRef = useRef(null);
-  const datalistId = "subtopics-datalist";
-
-  // When Topic changes, always reset Sub-topic to "All"
-  useEffect(() => {
-    setSubtopicFilter("All");
-  }, [topicFilter]);
-
-  // Extract unique subtopics based on currently selected topic
-  const currentSubtopics = [
-    "All",
-    ...new Set(
-      digitalNotes
-        .filter((n) => topicFilter === "All" || n.topic === topicFilter)
-        .map((n) => n.subtopic)
-        .filter((st) => st && st.trim() !== ""),
-    ),
-  ];
-
-  // The actual notes to display
-  const filteredNotes = digitalNotes.filter((n) => {
-    if (topicFilter !== "All" && n.topic !== topicFilter) return false;
-    if (subtopicFilter !== "All" && n.subtopic !== subtopicFilter) return false;
-    return true;
-  });
-
-  // Global Paste Interceptor
-  useEffect(() => {
-    const handlePaste = (e) => {
-      // Don't intercept if user is typing in an input inside a draft
-      if (
-        document.activeElement.tagName === "INPUT" ||
-        document.activeElement.tagName === "TEXTAREA"
-      ) {
-        const hasImage = Array.from(e.clipboardData?.items || []).some(
-          (item) => item.type.indexOf("image") !== -1,
-        );
-        if (!hasImage) return; // Let text paste naturally
-      }
-
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1) {
-          e.preventDefault();
-          const blob = items[i].getAsFile();
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const scrollContainer = boardRef.current;
-            const x = scrollContainer ? scrollContainer.scrollLeft + 150 : 150;
-            const y = scrollContainer ? scrollContainer.scrollTop + 150 : 150;
-
-            // Auto-inherit active filters for smooth workflow
-            const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
-            const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
-
-            setDraftNote({
-              id: Date.now().toString(),
-              x,
-              y,
-              imageBase64: event.target.result,
-              text: "",
-              topic: defaultTopic,
-              subtopic: defaultSub,
-              type: "image",
-              width: 320,
-              height: "auto",
-            });
-            notify("Image pasted! Fill in tags and save.", "success");
-          };
-          reader.readAsDataURL(blob);
-          break;
-        }
-      }
-    };
-    window.addEventListener("paste", handlePaste);
-    return () => window.removeEventListener("paste", handlePaste);
-  }, [topicFilter, subtopicFilter, notify]);
-
-  const handleBoardClick = (e) => {
-    if (draftNote) return;
-    if (
-      e.target.closest(".saved-note-card") ||
-      e.target.closest(".board-toolbar")
-    )
-      return;
-
-    const rect = boardRef.current.getBoundingClientRect();
-    const scrollLeft = boardRef.current.scrollLeft;
-    const scrollTop = boardRef.current.scrollTop;
-
-    // Auto-inherit
-    const defaultTopic = topicFilter !== "All" ? topicFilter : "Quants";
-    const defaultSub = subtopicFilter !== "All" ? subtopicFilter : "";
-
-    setDraftNote({
-      id: Date.now().toString(),
-      x: e.clientX - rect.left + scrollLeft,
-      y: e.clientY - rect.top + scrollTop,
-      imageBase64: null,
-      text: "",
-      topic: defaultTopic,
-      subtopic: defaultSub,
-      type: "text",
-      width: 280,
-      height: "auto",
-    });
-  };
-
-  const handleSaveDraft = () => {
-    if (!draftNote.text.trim() && draftNote.type !== "image") {
-      return notify("Enter some text or paste an image.", "error");
-    }
-    addDigitalNote({ ...draftNote, date: new Date().toISOString() });
-    setDraftNote(null);
-    notify("Note saved to cloud!", "success");
-  };
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "calc(100vh - 80px)",
-        background: "var(--bg)",
-        borderRadius: "16px",
-        border: "1px solid var(--border)",
-        overflow: "hidden",
-        boxShadow: "0 10px 40px rgba(0,0,0,0.03)",
-      }}
-    >
-      {/* Hidden Datalist for Subtopic Autocomplete */}
-      <datalist id={datalistId}>
-        {currentSubtopics
-          .filter((s) => s !== "All")
-          .map((s) => (
-            <option key={s} value={s} />
-          ))}
-      </datalist>
-
-      {/* Upper Toolbar: Topics */}
-      <div
-        className="board-toolbar"
-        style={{
-          padding: "16px 24px",
-          borderBottom: "1px solid var(--border)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "var(--bg)",
-          zIndex: 10,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div
-            style={{
-              padding: "10px",
-              background: "rgba(99, 102, 241, 0.1)",
-              borderRadius: "12px",
-              color: "var(--accent)",
-            }}
-          >
-            <LayoutGrid size={22} />
-          </div>
-          <div>
-            <h2
-              style={{
-                fontSize: "18px",
-                margin: "0 0 4px 0",
-                fontWeight: 800,
-                color: "var(--text-main)",
-              }}
-            >
-              Smart Notes Canvas
-            </h2>
-            <span
-              style={{
-                fontSize: "12px",
-                color: "var(--text-muted)",
-                fontWeight: 500,
-              }}
-            >
-              Click to type • <strong>Ctrl+V</strong> to paste images
-            </span>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          {/* Primary Topic Filter */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "rgba(0,0,0,0.03)",
-              padding: "6px 16px",
-              borderRadius: "24px",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <Filter size={14} color="var(--text-muted)" />
-            <select
-              className="custom-input"
-              style={{
-                border: "none",
-                background: "transparent",
-                padding: "0",
-                fontSize: "13px",
-                outline: "none",
-                fontWeight: 600,
-                color: "var(--text-main)",
-                cursor: "pointer",
-              }}
-              value={topicFilter}
-              onChange={(e) => setTopicFilter(e.target.value)}
-            >
-              <option value="All">All Main Topics</option>
-              {NOTE_TOPICS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          {digitalNotes.length > 0 && (
-            <button
-              className="icon-btn-minimal"
-              title="Clear Entire Canvas"
-              style={{
-                color: "var(--danger)",
-                background: "rgba(239, 68, 68, 0.1)",
-                padding: "8px",
-                borderRadius: "8px",
-              }}
-              onClick={() =>
-                requestConfirm(
-                  "Clear the entire canvas from cloud? This deletes all notes.",
-                  clearDigitalNotes,
-                )
-              }
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Sub-Toolbar: Sub-Topic Boards */}
-      {currentSubtopics.length > 1 && (
-        <div
-          className="board-toolbar scroll-area"
-          style={{
-            padding: "12px 24px",
-            borderBottom: "1px solid var(--border)",
-            background: "rgba(0,0,0,0.015)",
-            display: "flex",
-            gap: "10px",
-            overflowX: "auto",
-            zIndex: 9,
-          }}
-        >
-          {currentSubtopics.map((sub) => (
-            <button
-              key={sub}
-              onClick={() => setSubtopicFilter(sub)}
-              style={{
-                padding: "6px 16px",
-                borderRadius: "20px",
-                fontSize: "12px",
-                fontWeight: subtopicFilter === sub ? 700 : 500,
-                border:
-                  subtopicFilter === sub
-                    ? "1px solid var(--accent)"
-                    : "1px solid var(--border)",
-                background:
-                  subtopicFilter === sub ? "var(--accent)" : "var(--bg)",
-                color: subtopicFilter === sub ? "#fff" : "var(--text-main)",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {sub === "All" ? "All Sub-boards" : sub}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Infinite Canvas Area */}
-      <div
-        ref={boardRef}
-        onClick={handleBoardClick}
-        style={{
-          flex: 1,
-          overflow: "auto",
-          position: "relative",
-          cursor: draftNote ? "default" : "crosshair",
-          // Modern Dot Matrix Background
-          backgroundImage:
-            "radial-gradient(rgba(99, 102, 241, 0.15) 1.5px, transparent 1.5px)",
-          backgroundSize: "24px 24px",
-          backgroundColor: "var(--bg)",
-        }}
-      >
-        <div
-          style={{
-            width: "3000px",
-            height: "3000px",
-            position: "absolute",
-            top: 0,
-            left: 0,
-            pointerEvents: "none",
-          }}
-        ></div>
-
-        {/* Render Filtered Saved Notes */}
-        {filteredNotes.map((note) => (
-          <DraggableItem
-            key={note.id}
-            initialX={note.x}
-            initialY={note.y}
-            dragHandleClass="drag-handle"
-            onDragEnd={(x, y) => updateDigitalNote(note.id, { x, y })}
-          >
-            <div
-              className="saved-note-card"
-              style={{
-                background: "rgba(255, 255, 255, 0.85)",
-                backdropFilter: "blur(16px)",
-                WebkitBackdropFilter: "blur(16px)",
-                border: "1px solid rgba(0,0,0,0.08)",
-                borderRadius: "16px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.06)",
-                display: "flex",
-                flexDirection: "column",
-                width: note.width || 320,
-                minWidth: "180px",
-                height: note.height || "auto",
-                minHeight: "100px",
-                resize: "both",
-                overflow: "hidden",
-              }}
-            >
-              {/* Grip Header */}
-              <div
-                className="drag-handle"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 14px",
-                  background: "rgba(99, 102, 241, 0.04)",
-                  borderBottom: "1px solid rgba(0,0,0,0.05)",
-                  cursor: "grab",
-                }}
-              >
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                >
-                  <GripHorizontal
-                    size={14}
-                    color="var(--text-muted)"
-                    style={{ opacity: 0.7 }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 800,
-                      color: "var(--accent)",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {note.topic}
-                  </span>
-                </div>
-                <button
-                  className="icon-btn-minimal"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteDigitalNote(note.id);
-                  }}
-                  style={{
-                    padding: "4px",
-                    color: "var(--danger)",
-                    opacity: 0.6,
-                  }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div
-                style={{
-                  padding: "14px",
-                  flex: 1,
-                  overflowY: "auto",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                {note.type === "image" && note.imageBase64 && (
-                  <img
-                    src={note.imageBase64}
-                    alt="Pasted"
-                    style={{
-                      width: "100%",
-                      height: "auto",
                       borderRadius: "8px",
-                      border: "1px solid rgba(0,0,0,0.05)",
-                      objectFit: "contain",
+                      padding: "12px",
+                      resize: "vertical",
                     }}
-                    draggable="false"
                   />
-                )}
-                {note.text && (
-                  <p
-                    style={{
-                      fontSize: "15px",
-                      margin: 0,
-                      color: "#1f2937",
-                      whiteSpace: "pre-wrap",
-                      lineHeight: 1.6,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {note.text}
-                  </p>
-                )}
-
-                {/* EXPLICIT SUB-TOPIC BADGE AT THE BOTTOM */}
-                {note.subtopic && (
-                  <div
-                    style={{
-                      marginTop: "auto",
-                      paddingTop: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        background: "rgba(99, 102, 241, 0.1)",
-                        color: "var(--accent)",
-                        padding: "4px 10px",
-                        borderRadius: "12px",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                      }}
-                    >
-                      <Tag size={12} /> {note.subtopic}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </DraggableItem>
-        ))}
-
-        {/* Draft Note Window */}
-        {draftNote && (
-          <DraggableItem
-            initialX={draftNote.x}
-            initialY={draftNote.y}
-            dragHandleClass="drag-handle"
-            onDragEnd={(x, y) => setDraftNote({ ...draftNote, x, y })}
-          >
-            <div
-              className="saved-note-card"
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: "320px",
-                padding: "0",
-                borderRadius: "16px",
-                background: "var(--bg)",
-                border: "2px solid var(--accent)",
-                boxShadow: "0 24px 48px rgba(99, 102, 241, 0.2)",
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                className="drag-handle"
-                style={{
-                  background: "var(--accent)",
-                  padding: "10px 14px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  cursor: "grab",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "#fff",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                  }}
-                >
-                  <Edit3 size={14} />{" "}
-                  {draftNote.type === "image"
-                    ? "Save Image Board"
-                    : "Save Text Board"}
-                </span>
-                <button
-                  className="icon-btn-minimal"
-                  style={{ color: "#fff" }}
-                  onClick={() => setDraftNote(null)}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div
-                style={{
-                  padding: "16px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <select
-                    className="custom-input"
-                    style={{
-                      flex: 1,
-                      padding: "8px 12px",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      background: "rgba(0,0,0,0.02)",
-                    }}
-                    value={draftNote.topic}
-                    onChange={(e) =>
-                      setDraftNote({ ...draftNote, topic: e.target.value })
-                    }
-                  >
-                    {NOTE_TOPICS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
                 </div>
-                <input
-                  list={datalistId}
-                  type="text"
-                  className="custom-input"
-                  placeholder="Sub-topic (e.g. Syllogism Rule 2)..."
-                  style={{
-                    padding: "10px 12px",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    background: "rgba(0,0,0,0.02)",
-                  }}
-                  value={draftNote.subtopic}
-                  onChange={(e) =>
-                    setDraftNote({ ...draftNote, subtopic: e.target.value })
-                  }
-                />
-
-                {draftNote.type === "image" && draftNote.imageBase64 && (
-                  <div
-                    style={{
-                      border: "1px dashed var(--border)",
-                      padding: "4px",
-                      borderRadius: "8px",
-                      background: "rgba(0,0,0,0.02)",
-                    }}
-                  >
-                    <img
-                      src={draftNote.imageBase64}
-                      alt="Draft Preview"
-                      style={{ width: "100%", borderRadius: "4px" }}
-                    />
-                  </div>
-                )}
-
-                <textarea
-                  className="custom-input"
-                  placeholder={
-                    draftNote.type === "image"
-                      ? "Optional description or formula..."
-                      : "Start typing your notes here..."
-                  }
-                  rows="3"
-                  style={{
-                    padding: "12px",
-                    fontSize: "14px",
-                    resize: "none",
-                    lineHeight: 1.5,
-                    background: "rgba(0,0,0,0.02)",
-                  }}
-                  value={draftNote.text}
-                  autoFocus={draftNote.type === "text"}
-                  onChange={(e) =>
-                    setDraftNote({ ...draftNote, text: e.target.value })
-                  }
-                />
-                <button
-                  className="btn"
-                  onClick={handleSaveDraft}
-                  style={{
-                    width: "100%",
-                    justifyContent: "center",
-                    padding: "12px",
-                    fontSize: "14px",
-                    marginTop: "4px",
-                  }}
-                >
-                  <Save size={16} /> Pin to Board
-                </button>
               </div>
             </div>
-          </DraggableItem>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// --- MAIN EXPORTED APP COMPONENT ---
-export default function App() {
-  const {
-    user,
-    authLoading,
-    initAuth,
-    theme,
-    activeView,
-    setActiveView,
-    selectedDate,
-    setAppData,
-    history,
-  } = useAppStore();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const isAdmin =
-    user?.user_metadata?.display_username ===
-    import.meta.env.VITE_ADMIN_USERNAME;
-
-  useEffect(() => {
-    initAuth();
-  }, []);
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    const contentArea = document.querySelector(".content-area");
-    if (contentArea) contentArea.scrollTo({ top: 0, behavior: "smooth" });
-  }, [activeView]);
-
-  useEffect(() => {
-    document.body.setAttribute("data-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    setAppData((state) => {
-      const existing = state.history[selectedDate] || {};
-      if (
-        existing.quant &&
-        existing.reasoning &&
-        existing.timeline &&
-        existing.missedTasks &&
-        existing.imageNotes &&
-        existing.vocabStats
-      )
-        return state;
-      return {
-        ...state,
-        history: {
-          ...state.history,
-          [selectedDate]: {
-            timeline: (
-              existing.timeline ||
-              state.baseTimeline ||
-              defaultTimeline
-            ).map((t) => ({ ...t })),
-            notes: existing.notes || "",
-            quant: (
-              existing.quant ||
-              quantTopics.map((t) => ({ topic: t, checked: false, notes: "" }))
-            ).map((q) => ({ ...q })),
-            reasoning: (
-              existing.reasoning ||
-              reasoningTopics.map((t) => ({ ...t, checked: false, notes: "" }))
-            ).map((r) => ({ ...r })),
-            missedTasks: (existing.missedTasks || []).map((m) => ({ ...m })),
-            imageNotes: (existing.imageNotes || []).map((n) => ({ ...n })),
-            vocabStats: existing.vocabStats || {
-              score: 0,
-              correct: 0,
-              wrong: 0,
-              quizzesCompleted: 0,
-            },
-          },
-        },
-      };
-    });
-  }, [selectedDate, setAppData]);
-
-  if (authLoading) {
-    return (
-      <div
-        style={{
-          height: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "var(--bg)",
-        }}
-      >
-        <Loader2
-          className="spinner"
-          size={40}
-          color="var(--accent)"
-          style={{ animation: "spin 1s linear infinite" }}
-        />
-      </div>
-    );
-  }
-
-  if (!user)
-    return (
-      <div className="app-container">
-        <AuthModal />
-        <ToastContainer />
-      </div>
-    );
-
-  const currentHistory = history[selectedDate] || {
-    timeline: defaultTimeline.map((t) => ({ ...t })),
-    notes: "",
-    quant: quantTopics.map((t) => ({ topic: t, checked: false, notes: "" })),
-    reasoning: reasoningTopics.map((t) => ({
-      ...t,
-      checked: false,
-      notes: "",
-    })),
-    missedTasks: [],
-    imageNotes: [],
-    vocabStats: { score: 0, correct: 0, wrong: 0, quizzesCompleted: 0 },
-  };
-
-  return (
-    <div className="app-container">
-      {isSidebarOpen && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
-      <PomodoroTimer />
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
-
-      <aside className={`sidebar ${isSidebarOpen ? "open" : ""}`}>
-        <div className="logo">
-          <div className="icon-wrap">
-            <Target size={20} />
-          </div>{" "}
-          IBPS Planner{" "}
-          <span style={{ fontWeight: 400, color: "var(--accent)" }}>PRO</span>
-        </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-          {[
-            {
-              id: "dashboard",
-              icon: LayoutDashboard,
-              label: "Dashboard & Quiz",
-            },
-            { id: "today", icon: CalendarCheck, label: "Daily Plan" },
-            { id: "digital_notes", icon: PenTool, label: "Smart Notes Canvas" },
-            {
-              id: "materials",
-              icon: UploadCloud,
-              label: isAdmin ? "Admin: PDFs" : "Study Materials",
-            },
-            { id: "vocab", icon: BookText, label: "Dictionary & Vocab" },
-            { id: "quant", icon: Calculator, label: "Quant Rotation" },
-            { id: "reasoning", icon: Brain, label: "Reasoning Rotation" },
-            { id: "mocks", icon: LineChart, label: "Mock Tracker" },
-            { id: "habits", icon: CheckCircle, label: "Habit Tracker" },
-            { id: "settings", icon: Settings, label: "Settings" },
-          ].map((item) => (
-            <button
-              key={item.id}
-              className={`nav-item ${activeView === item.id ? "active" : ""}`}
-              onClick={() => {
-                setActiveView(item.id);
-                setIsSidebarOpen(false);
-              }}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </button>
           ))}
-        </nav>
-      </aside>
-
-      <main className="main-content">
-        <Header
-          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-          onOpenSearch={() => setIsSearchOpen(true)}
-        />
-        <div className="content-area">
-          {activeView === "dashboard" && <Dashboard history={currentHistory} />}
-          {activeView === "today" && (
-            <DailyPlan timeline={currentHistory.timeline} />
-          )}
-          {activeView === "digital_notes" && <DigitalNotesBoard />}
-          {activeView === "materials" && <StudyMaterialsModule />}
-          {activeView === "vocab" && <VocabTracker />}
-          {activeView === "quant" && (
-            <QuantRotation quant={currentHistory.quant} />
-          )}
-          {activeView === "reasoning" && (
-            <ReasoningRotation reasoning={currentHistory.reasoning} />
-          )}
-          {activeView === "mocks" && <MockTracker />}
-          {activeView === "habits" && <HabitTracker />}
-          {activeView === "settings" && <SettingsView />}
         </div>
-      </main>
-
-      <ToastContainer />
-      <ConfirmModal />
+      )}
     </div>
   );
 }
