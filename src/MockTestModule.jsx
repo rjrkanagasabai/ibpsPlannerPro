@@ -36,6 +36,9 @@ export default function MockTestDashboard() {
   const [mocks, setMocks] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
 
+  // State to handle viewing solutions from the tracker
+  const [pastSolutionView, setPastSolutionView] = useState(null);
+
   // Initialize authenticated user and load their logs
   useEffect(() => {
     const initializeAuthAndData = async () => {
@@ -109,12 +112,27 @@ export default function MockTestDashboard() {
       return;
     }
 
+    // If a previous attempt exists for this specific test, delete it to maintain only the latest
+    if (result.test_id) {
+      try {
+        await supabase
+          .from("mock_logs")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("test_id", result.test_id);
+      } catch (err) {
+        console.error("Error deleting old log:", err);
+      }
+    }
+
     const newMockLog = {
       user_id: user.id, // Scope log to current user
       date: new Date().toISOString().split("T")[0],
       name: result.name,
       score: result.score,
       remarks: result.remarks,
+      test_id: result.test_id || null, // Storing Test ID
+      answers: result.answers || null, // Storing User Answers
     };
 
     try {
@@ -126,13 +144,17 @@ export default function MockTestDashboard() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        setMocks((prev) => [data[0], ...prev]);
+        // Remove the old attempt from local state if it exists, then add the new one
+        setMocks((prev) => [
+          data[0],
+          ...prev.filter((m) => m.test_id !== result.test_id),
+        ]);
       }
     } catch (err) {
       console.error("Error saving score to database:", err);
       setMocks((prev) => [
         { ...newMockLog, id: Date.now().toString() },
-        ...prev,
+        ...prev.filter((m) => m.test_id !== result.test_id),
       ]);
     }
   };
@@ -147,7 +169,12 @@ export default function MockTestDashboard() {
       }}
     >
       {/* EXAM MODULE */}
-      <MockTestModule onSaveScore={handleSaveScore} />
+      <MockTestModule
+        mocks={mocks}
+        onSaveScore={handleSaveScore}
+        pastSolutionView={pastSolutionView}
+        clearPastSolutionView={() => setPastSolutionView(null)}
+      />
 
       {/* DIVIDER */}
       <hr
@@ -164,6 +191,9 @@ export default function MockTestDashboard() {
         mocks={mocks}
         setMocks={setMocks}
         isLoadingLogs={isLoadingLogs}
+        onViewSolutions={(test_id, answers) =>
+          setPastSolutionView({ test_id, answers })
+        }
       />
     </div>
   );
@@ -172,11 +202,15 @@ export default function MockTestDashboard() {
 // =========================================================================
 // 2. MOCK TEST MODULE
 // =========================================================================
-export function MockTestModule({ onSaveScore }) {
+export function MockTestModule({
+  mocks,
+  onSaveScore,
+  pastSolutionView,
+  clearPastSolutionView,
+}) {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Update state names for clarity
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
 
@@ -188,11 +222,32 @@ export function MockTestModule({ onSaveScore }) {
   const [markedForReview, setMarkedForReview] = useState({});
   const [sectionTimeLeft, setSectionTimeLeft] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [attemptedTests, setAttemptedTests] = useState(new Set());
+
+  // Compute attempted tests directly from the global tracker logs so it persists across refreshes
+  const attemptedTestIds = new Set(
+    mocks.filter((m) => m.test_id).map((m) => m.test_id),
+  );
 
   useEffect(() => {
     fetchMockTestsFromBackend();
   }, []);
+
+  // Trigger loading a past solution when commanded by the parent Dashboard
+  useEffect(() => {
+    if (pastSolutionView && pastSolutionView.test_id && tests.length > 0) {
+      const targetTest = tests.find((t) => t.id === pastSolutionView.test_id);
+      if (targetTest) {
+        setActiveTest(targetTest);
+        setAnswers(pastSolutionView.answers || {});
+        setActiveSectionIndex(0);
+        setCurrentIndex(0);
+        setView("solution");
+
+        // Scroll smoothly to top when viewing solutions from tracker
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [pastSolutionView, tests]);
 
   const fetchMockTestsFromBackend = async () => {
     setLoading(true);
@@ -277,7 +332,6 @@ export function MockTestModule({ onSaveScore }) {
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
-      setAttemptedTests((prev) => new Set(prev).add(activeTest.id));
       setView("result");
     }, 800);
   };
@@ -464,7 +518,7 @@ export function MockTestModule({ onSaveScore }) {
                 (acc, s) => acc + (s.questions?.length || 0),
                 0,
               );
-              const hasAttempted = attemptedTests.has(test.id);
+              const hasAttempted = attemptedTestIds.has(test.id);
 
               return (
                 <motion.div
@@ -503,21 +557,6 @@ export function MockTestModule({ onSaveScore }) {
                     >
                       {test.name}
                     </h3>
-                    {/* <span
-                      style={{
-                        background: "rgba(99, 102, 241, 0.1)",
-                        color: "var(--accent)",
-                        padding: "4px 10px",
-                        borderRadius: "12px",
-                        fontSize: "11px",
-                        fontWeight: 800,
-                        textTransform: "uppercase",
-                        whiteSpace: "nowrap",
-                        marginLeft: "12px",
-                      }}
-                    >
-                      {test.category} - {test.exam_type}
-                    </span> */}
                   </div>
 
                   <div
@@ -1191,6 +1230,8 @@ export function MockTestModule({ onSaveScore }) {
                     name: activeTest.name,
                     score: totalScore.toFixed(2),
                     remarks: `Score: ${totalScore.toFixed(2)} (${totalCorrect}C / ${totalIncorrect}W)`,
+                    test_id: activeTest.id,
+                    answers: answers, // Pass answers mapping up so tracker can recall it later
                   });
                   setView("list");
                 }}
@@ -1458,14 +1499,22 @@ export function MockTestModule({ onSaveScore }) {
           </h2>
           <button
             className="btn btn-outline"
-            onClick={() => setView("result")}
+            onClick={() => {
+              if (pastSolutionView) {
+                clearPastSolutionView();
+                setView("list");
+              } else {
+                setView("result");
+              }
+            }}
             style={{
               fontSize: "13px",
               padding: "8px 16px",
               borderRadius: "10px",
             }}
           >
-            <ArrowLeft size={16} /> Back to Results
+            <ArrowLeft size={16} />{" "}
+            {pastSolutionView ? "Back to Tracker" : "Back to Results"}
           </button>
         </div>
 
@@ -1799,7 +1848,13 @@ export function MockTestModule({ onSaveScore }) {
 // =========================================================================
 // 3. MOCK TRACKER COMPONENT (Scoped to `user`)
 // =========================================================================
-export function MockTracker({ user, mocks, setMocks, isLoadingLogs }) {
+export function MockTracker({
+  user,
+  mocks,
+  setMocks,
+  isLoadingLogs,
+  onViewSolutions,
+}) {
   // Create a record scoped to the logged-in user
   const addMock = async () => {
     if (!user) {
@@ -1813,6 +1868,8 @@ export function MockTracker({ user, mocks, setMocks, isLoadingLogs }) {
       name: "",
       score: "",
       remarks: "",
+      test_id: null, // manual log has no online test linkage
+      answers: null,
     };
 
     try {
@@ -2059,24 +2116,48 @@ export function MockTracker({ user, mocks, setMocks, isLoadingLogs }) {
                   </div>
                 </div>
 
-                {/* DELETE BUTTON */}
-                <button
-                  onClick={() => deleteMock(m.id)}
-                  style={{
-                    color: "var(--danger)",
-                    background: "rgba(239,68,68,0.1)",
-                    border: "none",
-                    borderRadius: "8px",
-                    width: "36px",
-                    height: "36px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {/* VIEW SOLUTIONS BUTTON (Only displays if it is a platform test with answers saved) */}
+                  {m.test_id && m.answers && (
+                    <button
+                      onClick={() => onViewSolutions(m.test_id, m.answers)}
+                      title="View Past Solutions"
+                      style={{
+                        color: "var(--accent)",
+                        background: "rgba(99, 102, 241, 0.1)",
+                        border: "none",
+                        borderRadius: "8px",
+                        width: "36px",
+                        height: "36px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Eye size={16} />
+                    </button>
+                  )}
+
+                  {/* DELETE BUTTON */}
+                  <button
+                    onClick={() => deleteMock(m.id)}
+                    style={{
+                      color: "var(--danger)",
+                      background: "rgba(239,68,68,0.1)",
+                      border: "none",
+                      borderRadius: "8px",
+                      width: "36px",
+                      height: "36px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* BOTTOM CONTENT ROW */}
