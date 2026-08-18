@@ -449,7 +449,7 @@ export const useAppStore = create((set, get) => ({
         .from("user_data")
         .select("app_state")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (data && data.app_state) {
         const cloudState = data.app_state;
@@ -469,7 +469,7 @@ export const useAppStore = create((set, get) => ({
         document.body.setAttribute("data-theme", cloudState.theme || "light");
       }
     } catch (err) {
-      console.error("Failed to load user state from cloud:", err);
+      // console.error("Failed to load user state from cloud:", err);
     }
   },
 
