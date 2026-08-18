@@ -1442,6 +1442,8 @@ function DigitalNotesBoard() {
 
 function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
   const { selectedDate, notify } = useAppStore();
+
+  // Using your exact existing individual state variables
   const [word, setWord] = useState("");
   const [type, setType] = useState("Vocabulary");
   const [partOfSpeech, setPartOfSpeech] = useState("");
@@ -1470,6 +1472,51 @@ function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
     }
   }, [isOpen, initialData]);
 
+  // --- SMART PASTE ENGINE (Adapted for individual state variables) ---
+  const handleSmartPaste = (e) => {
+    const pastedText = e.clipboardData.getData("text");
+
+    // Hijack paste only if it looks like the editorial format
+    if (!pastedText.includes("Meaning:") && !pastedText.includes("POS:")) {
+      return;
+    }
+
+    e.preventDefault();
+
+    // Use Regex with the 's' (dotall) flag to capture multiline text
+    const wordMatch = pastedText.match(/^(.*?)(?=\s*POS:)/is);
+    const posMatch = pastedText.match(/POS:\s*(.*?)(?=\s*Meaning:)/is);
+    const meaningMatch = pastedText.match(/Meaning:\s*(.*?)(?=\s*Syn\/Ant:)/is);
+    const synAntMatch = pastedText.match(/Syn\/Ant:\s*(.*?)(?=\s*Exam Ex:)/is);
+    const examExMatch = pastedText.match(/Exam Ex:\s*([\s\S]*)/is);
+
+    if (wordMatch) {
+      setWord(
+        wordMatch[1]
+          .replace(/\r?\n/g, " ")
+          .replace(/^\d+\.\s*/, "")
+          .trim(),
+      );
+    }
+    if (posMatch) {
+      setPartOfSpeech(posMatch[1].replace(/\r?\n/g, " ").trim());
+    }
+    if (meaningMatch) {
+      setMeaning(meaningMatch[1].replace(/\r?\n/g, " ").trim());
+    }
+    if (synAntMatch) {
+      const rawSynAnt = synAntMatch[1].replace(/\r?\n/g, " ").trim();
+      const [syns, ants] = rawSynAnt.split("/");
+      if (syns) setSynonyms(syns.trim());
+      if (ants) setAntonyms(ants.trim());
+    }
+    if (examExMatch) {
+      setNotes(examExMatch[1].replace(/\r?\n/g, " ").trim());
+    }
+
+    notify("Editorial details auto-filled successfully!", "success");
+  };
+
   if (!isOpen) return null;
 
   const handleSave = () => {
@@ -1488,6 +1535,7 @@ function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
     });
     onClose();
   };
+
   const labelStyle = {
     display: "block",
     fontSize: "13px",
@@ -1505,10 +1553,20 @@ function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
       >
         <h3
           className="modal-title"
-          style={{ marginBottom: "28px", fontSize: "20px" }}
+          style={{ marginBottom: "6px", fontSize: "20px" }}
         >
           {initialData ? "Edit Study Note" : "Custom Study Note"}
         </h3>
+        <p
+          style={{
+            margin: "0 0 24px 0",
+            fontSize: "12px",
+            color: "var(--text-muted)",
+          }}
+        >
+          *Tip: Paste full editorial notes into the Word field to auto-fill.
+        </p>
+
         <div
           style={{
             display: "grid",
@@ -1523,7 +1581,9 @@ function VocabModal({ isOpen, onClose, onSave, initialData = null }) {
               type="text"
               className="custom-input"
               value={word}
+              onPaste={handleSmartPaste}
               onChange={(e) => setWord(e.target.value)}
+              placeholder="Paste here..."
             />
           </div>
           <div>
@@ -1640,6 +1700,7 @@ function VocabTracker() {
       try {
         const res = await fetch(
           `https://api.datamuse.com/sug?s=${encodeURIComponent(query)}`,
+          { headers: { Accept: "application/json" } }, // Added fix for 406 Error
         );
         if (res.ok) {
           const data = await res.json();
@@ -1660,6 +1721,7 @@ function VocabTracker() {
     try {
       const res = await fetch(
         `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term.trim().toLowerCase())}`,
+        { headers: { Accept: "application/json" } }, // Added fix for 406 Error
       );
       if (res.ok) {
         const data = await res.json();
@@ -1695,7 +1757,6 @@ function VocabTracker() {
           synonyms: Array.from(new Set(synonymsList)).slice(0, 5).join(", "),
           antonyms: Array.from(new Set(antonymsList)).slice(0, 5).join(", "),
           notes: examplesList[0] ? `"${examplesList[0]}"` : "",
-          // audio: entry.phonetics?.find((p) => p.audio)?.audio || "",
         });
       } else
         setSearchError(
@@ -1948,16 +2009,6 @@ function VocabTracker() {
               {searchResult.word}
             </h2>
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              {/* {searchResult.audio && (
-                <button
-                  className="icon-btn-minimal"
-                  onClick={() => new Audio(searchResult.audio).play()}
-                  title="Listen Pronunciation"
-                  style={{ color: "var(--accent)" }}
-                >
-                  <Volume2 size={18} />
-                </button>
-              )} */}
               <button
                 className="btn"
                 style={{
